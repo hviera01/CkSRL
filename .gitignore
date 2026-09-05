@@ -57,3 +57,7 @@ app.*.map.json
 
 # Configuración local de Claude Code (permisos propios de esta máquina).
 .claude/
+
+# Secretos de Supabase (token de acceso, password de DB, claves) — nunca al repo.
+.env
+.secrets/
