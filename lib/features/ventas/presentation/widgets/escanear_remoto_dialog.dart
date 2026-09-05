@@ -7,7 +7,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 /// apuntar ahí (la página que sabe leer el parámetro `?escanear=` y mostrar
 /// el escáner sin pedir inicio de sesión), sin importar si quien abre este
 /// diálogo está usando la versión web o el .exe de escritorio.
-const _urlSitioWeb = 'https://hviera01.github.io/SistemaVentas/';
+const _urlSitioWeb = 'https://hviera01.github.io/CkSRL/';
 
 /// Muestra el QR para emparejar el celular. La sesión y la escucha de
 /// códigos escaneados viven en la pantalla de venta (no acá): este diálogo

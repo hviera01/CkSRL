@@ -33,7 +33,7 @@ migrate_working_dir/
 /build/
 /coverage/
 
-# Instalador de Windows compilado (ver windows/installer/sistema_ventas.iss
+# Instalador de Windows compilado (ver windows/installer/CkSRL.iss
 # para el script fuente, eso sí se versiona)
 /windows/installer/Output/
 
@@ -47,6 +47,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Cache del compilador de Kotlin (generado al compilar, no se versiona).
+/android/.kotlin/
 
 # Archivos de ejemplo/reales subidos para probar el importador — nunca deben
 # subirse al repo (datos reales del negocio: inventario, precios, clientes).

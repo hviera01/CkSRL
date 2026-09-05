@@ -47,7 +47,7 @@ bool get _esWebMovil =>
 bool get _puedeEnviarReporteWhatsapp => !kIsWeb && Platform.isWindows;
 
 const _rutaReporteWhatsapp =
-    r'C:\Proyectos\sistema_ventas\tool\reporte_whatsapp';
+    r'C:\Proyectos\ck_srl\tool\reporte_whatsapp';
 
 class NegocioScreen extends ConsumerWidget {
   const NegocioScreen({super.key});

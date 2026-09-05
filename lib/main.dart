@@ -39,11 +39,11 @@ Future<void> main() async {
   // el usuario abra no tenga que pagar el costo de la primera conexión
   // (la más lenta: resolver el dominio + saludo de seguridad).
   ImagenProductoNetwork.precalentar();
-  runApp(const ProviderScope(child: SistemaVentasApp()));
+  runApp(const ProviderScope(child: CkSrlApp()));
 }
 
-class SistemaVentasApp extends StatelessWidget {
-  const SistemaVentasApp({super.key});
+class CkSrlApp extends StatelessWidget {
+  const CkSrlApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +55,7 @@ class SistemaVentasApp extends StatelessWidget {
     final codigoEscaneo = Uri.base.queryParameters['escanear'];
 
     return MaterialApp(
-      title: 'Sistema Ventas',
+      title: 'Ck S de R.L. de C.V.',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF0F1B3D),

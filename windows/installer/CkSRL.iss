@@ -1,23 +1,24 @@
-; Instalador de Windows para Super Color, generado con Inno Setup 6.
+; Instalador de Windows para Ck S de R.L. de C.V., generado con Inno Setup 6.
 ;
-; El .iss original con el que se generaron los instaladores hasta la v28 no
-; estaba versionado y se perdió (ver historial del chat). Este es un
-; reemplazo reconstruido a mano, pero con el mismo AppId, nombre y carpeta
-; de instalación que la instalación real (sacados del registro de Windows,
+; El .iss original con el que se generaron los instaladores hasta la v28 (de
+; cuando este mismo proyecto todavía se llamaba Super Color) no estaba
+; versionado y se perdió (ver historial del chat). Este es un reemplazo
+; reconstruido a mano, pero con el mismo AppId y carpeta de instalación que
+; la instalación real (sacados del registro de Windows,
 ; HKLM\...\Uninstall\{885ED3C7-640C-4A18-ABC1-52482C28F573}_is1, en una PC
-; que ya tenía Super Color instalado) para que las actualizaciones sigan
+; que ya tenía instalado el nombre viejo) para que las actualizaciones sigan
 ; reemplazando en el mismo lugar en vez de crear una instalación duplicada.
 ;
 ; Uso: compilar con
 ;   flutter build windows --release
-;   iscc windows\installer\sistema_ventas.iss
-; El .exe resultante queda en windows\installer\Output\SuperColor<version>.exe
+;   iscc windows\installer\CkSRL.iss
+; El .exe resultante queda en windows\installer\Output\CkSRL<version>.exe
 ; -subirlo a mano al release de GitHub junto con el .apk, ver
 ; ActualizacionService y version_app.dart-.
 
-#define MyAppName "Super Color Nuevo"
+#define MyAppName "Ck S de R.L. de C.V."
 #define MyAppVersion "151"
-#define MyAppExeName "sistema_ventas.exe"
+#define MyAppExeName "ck_srl.exe"
 #define MyReleaseDir "..\..\build\windows\x64\runner\Release"
 
 [Setup]
@@ -34,7 +35,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 OutputDir=Output
-OutputBaseFilename=SuperColor{#MyAppVersion}
+OutputBaseFilename=CkSRL{#MyAppVersion}
 SetupIconFile=..\runner\resources\app_icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
@@ -85,8 +86,8 @@ end;
 // puesta -bug real reportado por el dueño: instalaba/reinstalaba y la app
 // seguía reportando una versión vieja en el módulo de Dispositivos, muy
 // probablemente porque el archivo que corría no era el último (Descargas
-// se llena de instaladores con nombres casi iguales, SuperColor140.exe,
-// SuperColor141.exe, etc. y antes no había forma de diferenciarlos ni de
+// se llena de instaladores con nombres casi iguales, CkSRL140.exe,
+// CkSRL141.exe, etc. y antes no había forma de diferenciarlos ni de
 // que el instalador se quejara). Antes esto se instalaba en silencio
 // "hacia atrás" sin ningún aviso.
 function InitializeSetup(): Boolean;

@@ -1,4 +1,4 @@
-package com.supercolor.sistema_ventas
+package com.ck.srl
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -89,12 +89,12 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.supercolor" "\0"
+            VALUE "CompanyName", "com.ck.srl" "\0"
             VALUE "FileDescription", "Ck S de R.L. de C.V." "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "sistema_ventas" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.supercolor. All rights reserved." "\0"
-            VALUE "OriginalFilename", "sistema_ventas.exe" "\0"
+            VALUE "InternalName", "ck_srl" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.ck.srl. All rights reserved." "\0"
+            VALUE "OriginalFilename", "ck_srl.exe" "\0"
             VALUE "ProductName", "Ck S de R.L. de C.V." "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
