@@ -258,18 +258,13 @@ class ReporteFinancieroRepository {
           fecha: ventasValidas[i].fechaRegistro,
           cliente: ventasValidas[i].nombreCliente.isEmpty ? 'CONSUMIDOR FINAL' : ventasValidas[i].nombreCliente,
           ventas: ventasValidas[i].totalAPagar,
-          // El costo de tinte real (ver ItemVentaModel.costoTinteTotal) se
-          // suma SEPARADO de precioCompraUsado -pedido explícito del dueño:
-          // "quiero ver el costo de tinte separado, no mezclado"- pero acá
-          // sí entra en el total de costo/ganancia de la venta, igual que
-          // cualquier otro costo real.
-          costo: detalleVentasPorVenta[i].fold<double>(0, (s, item) => s + item.precioCompraUsado * item.cantidad + item.costoTinteTotal),
+          costo: detalleVentasPorVenta[i].fold<double>(0, (s, item) => s + item.precioCompraUsado * item.cantidad),
         ),
     ]..sort((a, b) => (b.fecha ?? DateTime(2000)).compareTo(a.fecha ?? DateTime(2000)));
 
     final ventasPeriodo = ventasValidas.fold<double>(0, (s, v) => s + v.totalAPagar);
     final comprasPeriodo = comprasValidas.fold<double>(0, (s, c) => s + c.montoTotal);
-    final costoVentas = itemsVenta.fold<double>(0, (s, i) => s + i.precioCompraUsado * i.cantidad + i.costoTinteTotal);
+    final costoVentas = itemsVenta.fold<double>(0, (s, i) => s + i.precioCompraUsado * i.cantidad);
     final utilidadBruta = ventasPeriodo - costoVentas;
 
     final gastosPeriodo = egresosPeriodo.fold<double>(0, (s, e) => s + e.monto);
@@ -580,7 +575,7 @@ class ReporteFinancieroRepository {
     final nombrePorProducto = <String, String>{};
     for (final item in items) {
       ingresoPorProducto[item.idProducto] = (ingresoPorProducto[item.idProducto] ?? 0) + item.subtotal;
-      costoPorProducto[item.idProducto] = (costoPorProducto[item.idProducto] ?? 0) + item.precioCompraUsado * item.cantidad + item.costoTinteTotal;
+      costoPorProducto[item.idProducto] = (costoPorProducto[item.idProducto] ?? 0) + item.precioCompraUsado * item.cantidad;
       cantidadPorProducto[item.idProducto] = (cantidadPorProducto[item.idProducto] ?? 0) + item.cantidad;
       nombrePorProducto[item.idProducto] = item.nombreProducto;
     }

@@ -92,8 +92,8 @@ class _HistorialStockDialogState extends ConsumerState<HistorialStockDialog> {
     final tamano = MediaQuery.of(context).size;
     final esMovil = tamano.width < 640;
     // 1040 en vez de 720 -pedido explícito del dueño: la columna MOTIVO se
-    // desbordaba con los movimientos de tintes, cuyo motivo suele ser más
-    // largo (describe la fórmula/colorante, no solo "venta"/"compra").
+    // desbordaba con movimientos cuyo motivo es más largo que un simple
+    // "venta"/"compra".
     final anchoDialog = esMovil ? tamano.width - 24 : (tamano.width - 64 < 1040 ? tamano.width - 64 : 1040.0);
     final altoDialog = tamano.height < 640 ? tamano.height - 40 : 580.0;
 

@@ -7,7 +7,6 @@ import '../../features/productos/presentation/screens/auditoria_inventario_scree
 import '../../features/productos/presentation/screens/pendientes_reposicion_screen.dart';
 import '../../features/usuarios/presentation/screens/usuarios_screen.dart';
 import '../../features/negocio/presentation/screens/negocio_screen.dart';
-import '../../features/colores/presentation/screens/colores_screen.dart';
 import '../../features/clientes/presentation/screens/clientes_screen.dart';
 import '../../features/proveedores/presentation/screens/proveedores_screen.dart';
 import '../../features/ventas_credito/presentation/screens/ventas_credito_screen.dart';
@@ -29,7 +28,6 @@ import '../../features/dispositivos/presentation/screens/dispositivos_screen.dar
 import '../../features/promociones/presentation/screens/promociones_screen.dart';
 import '../../features/productos/providers/productos_provider.dart';
 import '../../features/categorias/providers/categorias_provider.dart';
-import '../../features/colores/providers/colores_provider.dart';
 import '../../features/clientes/providers/clientes_provider.dart';
 import '../../features/proveedores/providers/proveedores_provider.dart';
 import '../../features/ventas_credito/providers/ventas_credito_provider.dart';
@@ -158,11 +156,6 @@ Widget _construirContenidoPantalla(
       );
     case 'negocio':
       return const NegocioScreen();
-    case 'colores':
-      return ProviderScope(
-        overrides: [coloresBusquedaProvider, coloresVistaProvider],
-        child: const ColoresScreen(),
-      );
     case 'clientes':
       return ProviderScope(
         overrides: [clientesBusquedaProvider, clientesVistaProvider],

@@ -48,7 +48,6 @@ List<ModuloMenu> obtenerModulos() {
         SubModulo(titulo: 'Auditoría de Inventario', icono: Icons.fact_check_outlined, moduleKey: 'auditoria_inventario', soloAdmin: true),
         SubModulo(titulo: 'Pendientes de Reposición', icono: Icons.hourglass_bottom, moduleKey: 'pendientes_reposicion'),
         SubModulo(titulo: 'Negocio', icono: Icons.store_outlined, moduleKey: 'negocio', soloAdmin: true),
-        SubModulo(titulo: 'Registro de Colores', icono: Icons.palette_outlined, moduleKey: 'colores'),
         SubModulo(titulo: 'Dispositivos', icono: Icons.devices_outlined, moduleKey: 'dispositivos', soloAdmin: true),
         SubModulo(titulo: 'Descuentos y Promociones', icono: Icons.local_offer_outlined, moduleKey: 'promociones', soloAdmin: true),
       ],

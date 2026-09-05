@@ -253,15 +253,7 @@ class CarritoVentaNotifier extends Notifier<CarritoVentaState> {
   /// fusionó, o la recién creada si no), para que quien llama (por ejemplo,
   /// para aplicar una promoción) sepa sobre cuál línea actuar-.
   ///
-  /// Quién decide [fusionarSiYaExiste] es RegistrarVentaScreen: al escanear
-  /// un código de barras SIEMPRE se fusiona (sin importar la categoría del
-  /// producto) -pedido explícito del dueño-; al agregar a mano desde el
-  /// buscador (BuscarProductoDialog) se fusiona solo si la categoría NO es
-  /// de pintura -ver _esCategoriaPintura-, porque una línea de pintura puede
-  /// llevar su propio código/tinte de color (ver CodigosColorDialog) y el
-  /// dueño quiere poder vender, por ejemplo, "2 galones de la misma pintura
-  /// base" como dos líneas separadas, cada una teñida a un color distinto,
-  /// en vez de una sola línea de cantidad 2 que solo podría llevar un color.
+  /// Quién decide [fusionarSiYaExiste] es RegistrarVentaScreen.
   int agregarOFusionarProductoDirecto(
     ProductoModel producto, {
     double? precioSeleccionado,
@@ -373,12 +365,6 @@ class CarritoVentaNotifier extends Notifier<CarritoVentaState> {
       componentes: actual.componentes,
       pendienteCompra: actual.pendienteCompra,
       codigosColor: actual.codigosColor,
-      // OJO: si la línea ya tenía tinte cargado (ver CodigosColorDialog) y
-      // acá se le cambia la cantidad, el tinte NO se re-escala solo -sigue
-      // siendo la cantidad de tinte que se calculó para la cantidad vieja-.
-      // Reabrir "Código Color" y volver a cargar el tinte es lo que
-      // recalcula para la cantidad nueva.
-      tintesConsumidos: actual.tintesConsumidos,
     );
     state = state.copyWith(items: nuevos);
   }
@@ -407,25 +393,11 @@ class CarritoVentaNotifier extends Notifier<CarritoVentaState> {
   }
 
   /// Reemplaza la lista completa de códigos de color de una línea del
-  /// carrito (viene de CodigosColorDialog, que maneja su propia lista local
-  /// y entrega el resultado final al cerrar). Sí se puede dejar vacía
-  /// -quitar todos los códigos ya cargados es una edición válida-.
+  /// carrito. Sí se puede dejar vacía -quitar todos los códigos ya cargados
+  /// es una edición válida-.
   void actualizarCodigosColor(int index, List<String> nuevosCodigos) {
     final nuevos = [...state.items];
     nuevos[index] = nuevos[index].copyWith(codigosColor: nuevosCodigos);
-    state = state.copyWith(items: nuevos);
-  }
-
-  /// Igual que actualizarCodigosColor pero para el tinte real consumido en
-  /// la línea (ver TinteConsumidoSnapshot, CodigosColorDialog) -costo
-  /// estimado en este punto, VentaRepository.registrarVenta lo recalcula
-  /// con el costo FIFO real al confirmar la venta.
-  void actualizarTintesConsumidos(
-    int index,
-    List<TinteConsumidoSnapshot> nuevosTintes,
-  ) {
-    final nuevos = [...state.items];
-    nuevos[index] = nuevos[index].copyWith(tintesConsumidos: nuevosTintes);
     state = state.copyWith(items: nuevos);
   }
 
@@ -555,7 +527,6 @@ class CarritoVentaNotifier extends Notifier<CarritoVentaState> {
               descuentoPorcentaje: item.descuentoPorcentaje,
               componentes: item.componentes,
               codigosColor: item.codigosColor,
-              tintesConsumidos: item.tintesConsumidos,
             ),
           )
           .toList(),
