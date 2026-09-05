@@ -1,11 +1,11 @@
 {
-    "name": "SUPERCOLOR - Sistema de Ventas",
-    "short_name": "SUPERCOLOR",
+    "name": "Ck S de R.L. de C.V. - Sistema de Ventas",
+    "short_name": "Ck",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#C62828",
-    "theme_color": "#C62828",
-    "description": "Sistema de ventas, compras e inventario de SUPERCOLOR.",
+    "background_color": "#0F1B3D",
+    "theme_color": "#0F1B3D",
+    "description": "Sistema de ventas, compras e inventario de Ck S de R.L. de C.V.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

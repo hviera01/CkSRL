@@ -295,8 +295,8 @@ class _BuscarProductoCompraDialogState
                       style: GoogleFonts.poppins(fontSize: 13),
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFC62828),
-                      side: const BorderSide(color: Color(0xFFC62828)),
+                      foregroundColor: const Color(0xFF0F1B3D),
+                      side: const BorderSide(color: Color(0xFF0F1B3D)),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 14,
@@ -386,7 +386,7 @@ class _BuscarProductoCompraDialogState
                       },
                       loading: () => const Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFFC62828),
+                          color: Color(0xFF0F1B3D),
                         ),
                       ),
                       error: (e, st) => Center(
@@ -453,7 +453,7 @@ class _BuscarProductoCompraDialogState
             color: seleccionada ? const Color(0xFFFBEAEA) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             border: seleccionada
-                ? Border.all(color: const Color(0xFFC62828), width: 1.4)
+                ? Border.all(color: const Color(0xFF0F1B3D), width: 1.4)
                 : Border.all(color: Colors.transparent, width: 1.4),
           ),
           child: Row(
@@ -543,7 +543,7 @@ class _BuscarProductoCompraDialogState
                         icon: const Icon(
                           Icons.photo_outlined,
                           size: 18,
-                          color: Color(0xFFC62828),
+                          color: Color(0xFF0F1B3D),
                         ),
                         onPressed: () => _verFoto(p),
                       ),
@@ -578,7 +578,7 @@ class _BuscarProductoCompraDialogState
             color: seleccionada ? const Color(0xFFFBEAEA) : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
             border: seleccionada
-                ? Border.all(color: const Color(0xFFC62828), width: 1.4)
+                ? Border.all(color: const Color(0xFF0F1B3D), width: 1.4)
                 : Border.all(color: Colors.transparent, width: 1.4),
           ),
           child: Column(
@@ -649,7 +649,7 @@ class _BuscarProductoCompraDialogState
                       icon: const Icon(
                         Icons.photo_outlined,
                         size: 18,
-                        color: Color(0xFFC62828),
+                        color: Color(0xFF0F1B3D),
                       ),
                       onPressed: () => _verFoto(p),
                     ),

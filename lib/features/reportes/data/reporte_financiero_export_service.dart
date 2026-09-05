@@ -5,7 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'reporte_financiero_model.dart';
 import '../../../core/utils/formato_moneda.dart';
 
-const _colorPrimario = PdfColor.fromInt(0xFFC62828);
+const _colorPrimario = PdfColor.fromInt(0xFF0F1B3D);
 
 class ReporteFinancieroExportService {
   Future<Uint8List> generarPdf(ReporteFinancieroData data) async {

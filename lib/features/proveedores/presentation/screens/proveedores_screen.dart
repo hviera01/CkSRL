@@ -65,7 +65,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Eliminar', style: GoogleFonts.poppins()),
@@ -193,7 +193,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
                           ),
                         ),
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFC62828),
+                          backgroundColor: const Color(0xFF0F1B3D),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 20,
                             vertical: 14,
@@ -265,7 +265,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
                     return esMovil ? _tarjetas(lista) : _tabla(lista);
                   },
                   loading: () => const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFC62828)),
+                    child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
                   ),
                   error: (e, st) => Center(
                     child: Text(
@@ -563,7 +563,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: seleccionado
-                    ? const Color(0xFFC62828)
+                    ? const Color(0xFF0F1B3D)
                     : const Color(0xFFC7CBD3),
               ),
             ),

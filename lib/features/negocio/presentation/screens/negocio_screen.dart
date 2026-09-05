@@ -60,7 +60,7 @@ class NegocioScreen extends ConsumerWidget {
       child: negocioAsync.when(
         data: (modelo) => _NegocioForm(modelo: modelo),
         loading: () => const Center(
-          child: CircularProgressIndicator(color: Color(0xFFC62828)),
+          child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
         ),
         error: (e, st) => Center(
           child: Text(
@@ -700,7 +700,7 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
   Widget _tituloSeccion(String texto, IconData icono) {
     return Row(
       children: [
-        Icon(icono, size: 19, color: const Color(0xFFC62828)),
+        Icon(icono, size: 19, color: const Color(0xFF0F1B3D)),
         const SizedBox(width: 8),
         Text(
           texto,
@@ -798,7 +798,7 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
               _error!,
               style: GoogleFonts.poppins(
                 fontSize: 12.5,
-                color: const Color(0xFFC62828),
+                color: const Color(0xFF0F1B3D),
               ),
             ),
             const SizedBox(height: 12),
@@ -825,7 +825,7 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
                 ),
               ),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFC62828),
+                backgroundColor: const Color(0xFF0F1B3D),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1028,7 +1028,7 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
                   child: OutlinedButton(
                     onPressed: _guardandoClave ? null : _quitarClave,
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFC62828),
+                      foregroundColor: const Color(0xFF0F1B3D),
                       side: const BorderSide(color: Color(0xFFF3B9B9)),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 18,
@@ -1562,7 +1562,7 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
         children: [
           Row(
             children: [
-              const FaceIdIcon(size: 19, color: Color(0xFFC62828)),
+              const FaceIdIcon(size: 19, color: Color(0xFF0F1B3D)),
               const SizedBox(width: 8),
               Text(
                 'Face ID en este celular',
@@ -1611,7 +1611,7 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
                 OutlinedButton(
                   onPressed: _olvidarFaceId,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFC62828),
+                    foregroundColor: const Color(0xFF0F1B3D),
                     side: const BorderSide(color: Color(0xFFF3B9B9)),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -1732,7 +1732,7 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
           Switch(
             value: activo,
             onChanged: !tieneClave ? null : (v) => _alternarPermiso(key, v),
-            activeThumbColor: const Color(0xFFC62828),
+            activeThumbColor: const Color(0xFF0F1B3D),
           ),
         ],
       ),

@@ -107,7 +107,7 @@ class _ProveedorFormDialogState extends ConsumerState<ProveedorFormDialog> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Eliminar', style: GoogleFonts.poppins()),
@@ -170,12 +170,12 @@ class _ProveedorFormDialogState extends ConsumerState<ProveedorFormDialog> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFC62828).withOpacity(0.1),
+                      color: const Color(0xFF0F1B3D).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: const Icon(
                       Icons.local_shipping_outlined,
-                      color: Color(0xFFC62828),
+                      color: Color(0xFF0F1B3D),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -330,11 +330,11 @@ class _ProveedorFormDialogState extends ConsumerState<ProveedorFormDialog> {
                       onPressed: _guardando ? null : _eliminar,
                       icon: const Icon(
                         Icons.delete_outline,
-                        color: Color(0xFFC62828),
+                        color: Color(0xFF0F1B3D),
                       ),
                       style: IconButton.styleFrom(
                         backgroundColor: const Color(
-                          0xFFC62828,
+                          0xFF0F1B3D,
                         ).withOpacity(0.08),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -353,7 +353,7 @@ class _ProveedorFormDialogState extends ConsumerState<ProveedorFormDialog> {
                   FilledButton(
                     onPressed: _guardando ? null : _guardar,
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFC62828),
+                      backgroundColor: const Color(0xFF0F1B3D),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24,
                         vertical: 14,

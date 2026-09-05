@@ -192,8 +192,8 @@ class _BuscarClienteDialogState extends ConsumerState<BuscarClienteDialog> {
                   style: GoogleFonts.poppins(fontSize: 13),
                 ),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFC62828),
-                  side: const BorderSide(color: Color(0xFFC62828)),
+                  foregroundColor: const Color(0xFF0F1B3D),
+                  side: const BorderSide(color: Color(0xFF0F1B3D)),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 10,
@@ -286,7 +286,7 @@ class _BuscarClienteDialogState extends ConsumerState<BuscarClienteDialog> {
                   );
                 },
                 loading: () => const Center(
-                  child: CircularProgressIndicator(color: Color(0xFFC62828)),
+                  child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
                 ),
                 error: (e, st) => Center(
                   child: Text(

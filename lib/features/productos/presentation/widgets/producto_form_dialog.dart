@@ -194,7 +194,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, 'png'),
             child: Text(
@@ -429,7 +429,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Eliminar', style: GoogleFonts.poppins()),
@@ -534,12 +534,12 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFC62828).withOpacity(0.1),
+                      color: const Color(0xFF0F1B3D).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: const Icon(
                       Icons.inventory_2_outlined,
-                      color: Color(0xFFC62828),
+                      color: Color(0xFF0F1B3D),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -613,11 +613,11 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
                       onPressed: _guardando ? null : _eliminar,
                       icon: const Icon(
                         Icons.delete_outline,
-                        color: Color(0xFFC62828),
+                        color: Color(0xFF0F1B3D),
                       ),
                       style: IconButton.styleFrom(
                         backgroundColor: const Color(
-                          0xFFC62828,
+                          0xFF0F1B3D,
                         ).withOpacity(0.08),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -636,7 +636,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
                   FilledButton(
                     onPressed: _guardando ? null : _guardar,
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFC62828),
+                      backgroundColor: const Color(0xFF0F1B3D),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24,
                         vertical: 14,
@@ -905,14 +905,14 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
                   ? Icons.remove_circle_outline
                   : Icons.add_circle_outline,
               size: 18,
-              color: const Color(0xFFC62828),
+              color: const Color(0xFF0F1B3D),
             ),
             const SizedBox(width: 8),
             Text(
               'Niveles de precio adicionales',
               style: GoogleFonts.poppins(
                 fontSize: 12.5,
-                color: const Color(0xFFC62828),
+                color: const Color(0xFF0F1B3D),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1082,7 +1082,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
                   ),
                   trailing: const Icon(
                     Icons.add_circle_outline,
-                    color: Color(0xFFC62828),
+                    color: Color(0xFF0F1B3D),
                   ),
                   onTap: () {
                     setState(() {
@@ -1132,7 +1132,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
                     icon: const Icon(
                       Icons.delete_outline,
                       size: 20,
-                      color: Color(0xFFC62828),
+                      color: Color(0xFF0F1B3D),
                     ),
                     onPressed: () =>
                         setState(() => _componentesCombo.remove(c)),
@@ -1205,7 +1205,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(
-                        color: Color(0xFFC62828),
+                        color: Color(0xFF0F1B3D),
                         strokeWidth: 2.2,
                       ),
                     )
@@ -1225,7 +1225,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: const BoxDecoration(
-                  color: Color(0xFFC62828),
+                  color: Color(0xFF0F1B3D),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.close, size: 14, color: Colors.white),

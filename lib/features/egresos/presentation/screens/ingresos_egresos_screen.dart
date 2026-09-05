@@ -271,7 +271,7 @@ class _IngresosEgresosScreenState extends ConsumerState<IngresosEgresosScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensaje),
-        backgroundColor: esError ? const Color(0xFFC62828) : null,
+        backgroundColor: esError ? const Color(0xFF0F1B3D) : null,
       ),
     );
   }
@@ -468,7 +468,7 @@ class _IngresosEgresosScreenState extends ConsumerState<IngresosEgresosScreen> {
                     style: GoogleFonts.poppins(fontSize: 12.5),
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFC62828),
+                    foregroundColor: const Color(0xFF0F1B3D),
                     side: const BorderSide(color: Color(0xFFB6BCC7)),
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(
@@ -493,7 +493,7 @@ class _IngresosEgresosScreenState extends ConsumerState<IngresosEgresosScreen> {
                     ),
                   ),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFC62828),
+                    backgroundColor: const Color(0xFF0F1B3D),
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -576,7 +576,7 @@ class _IngresosEgresosScreenState extends ConsumerState<IngresosEgresosScreen> {
         _statChip(
           'Gastos negocio',
           totales.gastosNegocio,
-          const Color(0xFFC62828),
+          const Color(0xFF0F1B3D),
         ),
         _statChip('Gastos casa', totales.gastosCasa, const Color(0xFF8B5CF6)),
         _statChip('Utilidad', totales.utilidad, const Color(0xFF1A1A1A)),
@@ -621,7 +621,7 @@ class _IngresosEgresosScreenState extends ConsumerState<IngresosEgresosScreen> {
   Widget _lista(List<MovimientoFinanciero> lista) {
     if (_cargando)
       return const Center(
-        child: CircularProgressIndicator(color: Color(0xFFC62828)),
+        child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
       );
     if (lista.isEmpty) {
       return Center(
@@ -709,7 +709,7 @@ class _IngresosEgresosScreenState extends ConsumerState<IngresosEgresosScreen> {
                       m.egreso == 0 ? '' : formatearMoneda(m.egreso),
                       style: GoogleFonts.poppins(
                         fontSize: 12,
-                        color: const Color(0xFFC62828),
+                        color: const Color(0xFF0F1B3D),
                         fontWeight: FontWeight.w600,
                       ),
                     ),

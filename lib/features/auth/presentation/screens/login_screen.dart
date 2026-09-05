@@ -173,7 +173,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             height: 108,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.white,
+                              color: const Color(0xFF0F1B3D),
                               border: Border.all(color: const Color(0xFF0F1B3D), width: 3),
                               boxShadow: [
                                 BoxShadow(
@@ -183,14 +183,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                               ],
                             ),
-                            child: ClipOval(
-                              child: Padding(
-                                padding: const EdgeInsets.all(6),
-                                child: Image.asset(
-                                  'assets/images/logo.jpg',
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
+                            child: const Icon(
+                              Icons.storefront_rounded,
+                              color: Colors.white,
+                              size: 48,
                             ),
                           ),
                           const SizedBox(height: 26),
@@ -341,7 +337,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ],
                           const SizedBox(height: 20),
                           Text(
-                            'SUPERCOLOR · La decisión correcta',
+                            'CK S DE R.L. DE C.V.',
                             style: GoogleFonts.poppins(
                               fontSize: 11,
                               color: Colors.grey.shade500,

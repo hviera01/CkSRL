@@ -181,7 +181,7 @@ class DetalleProductoDialog extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFFC62828),
+                    color: const Color(0xFF0F1B3D),
                   ),
                 ),
                 if (stockComponente != null) ...[

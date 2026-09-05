@@ -51,7 +51,7 @@ class HistorialAbonosCompraDialog extends ConsumerWidget {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Eliminar', style: GoogleFonts.poppins()),
@@ -113,7 +113,7 @@ class HistorialAbonosCompraDialog extends ConsumerWidget {
               const Icon(
                 Icons.delete_outline,
                 size: 18,
-                color: Color(0xFFC62828),
+                color: Color(0xFF0F1B3D),
               ),
               const SizedBox(width: 10),
               Text('Eliminar', style: GoogleFonts.poppins(fontSize: 12.5)),
@@ -178,7 +178,7 @@ class HistorialAbonosCompraDialog extends ConsumerWidget {
             Expanded(
               child: abonosAsync.when(
                 loading: () => const Center(
-                  child: CircularProgressIndicator(color: Color(0xFFC62828)),
+                  child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
                 ),
                 error: (e, st) => Center(
                   child: Text(

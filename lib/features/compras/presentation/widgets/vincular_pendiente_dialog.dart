@@ -121,7 +121,7 @@ class _VincularPendienteDialogState extends State<VincularPendienteDialog> {
                     onPressed: () => Navigator.pop(context, quitarVinculoPendiente),
                     icon: const Icon(Icons.link_off, size: 16),
                     label: Text('Quitar vínculo actual', style: GoogleFonts.poppins(fontSize: 13)),
-                    style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFC62828), side: const BorderSide(color: Color(0xFFF3B9B9)), padding: const EdgeInsets.symmetric(vertical: 12)),
+                    style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF0F1B3D), side: const BorderSide(color: Color(0xFFF3B9B9)), padding: const EdgeInsets.symmetric(vertical: 12)),
                   ),
                 ),
               ),

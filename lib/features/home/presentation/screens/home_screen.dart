@@ -62,7 +62,7 @@ class HomeScreen extends ConsumerWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFFC62828),
+                    color: const Color(0xFF0F1B3D),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -113,7 +113,7 @@ class HomeScreen extends ConsumerWidget {
                     style: GoogleFonts.poppins(
                       fontSize: esMovil ? 20 : 24,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFFC62828),
+                      color: const Color(0xFF0F1B3D),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -287,7 +287,7 @@ class HomeScreen extends ConsumerWidget {
           _tarjetaResumenVenta(
             titulo: 'Venta de hoy',
             icono: Icons.today_rounded,
-            colores: const [Color(0xFFC62828), Color(0xFFE53935)],
+            colores: const [Color(0xFF0F1B3D), Color(0xFFE53935)],
             monto: resumen.whenOrNull(data: (r) => r.totalDia),
             subtitulo: resumen.whenOrNull(
               data: (r) =>

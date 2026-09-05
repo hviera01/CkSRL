@@ -361,7 +361,7 @@ class _HacerPedidoScreenState extends ConsumerState<HacerPedidoScreen> {
                   ),
                 ),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFC62828),
+                  backgroundColor: const Color(0xFF0F1B3D),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 18,
                     vertical: 13,
@@ -524,7 +524,7 @@ class _HacerPedidoScreenState extends ConsumerState<HacerPedidoScreen> {
               icon: const Icon(
                 Icons.delete_outline,
                 size: 18,
-                color: Color(0xFFC62828),
+                color: Color(0xFF0F1B3D),
               ),
               onPressed: () => _quitarItem(index),
             ),
@@ -573,7 +573,7 @@ class _HacerPedidoScreenState extends ConsumerState<HacerPedidoScreen> {
                 icon: const Icon(
                   Icons.delete_outline,
                   size: 18,
-                  color: Color(0xFFC62828),
+                  color: Color(0xFF0F1B3D),
                 ),
                 onPressed: () => _quitarItem(index),
               ),

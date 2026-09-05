@@ -164,7 +164,7 @@ class _ComprasCreditoScreenState extends ConsumerState<ComprasCreditoScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Eliminar', style: GoogleFonts.poppins()),
@@ -460,7 +460,7 @@ class _ComprasCreditoScreenState extends ConsumerState<ComprasCreditoScreen> {
                           ),
                         ),
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFC62828),
+                          backgroundColor: const Color(0xFF0F1B3D),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 20,
                             vertical: 14,
@@ -519,7 +519,7 @@ class _ComprasCreditoScreenState extends ConsumerState<ComprasCreditoScreen> {
                     return esMovil ? _tarjetas(lista) : _tabla(lista);
                   },
                   loading: () => const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFC62828)),
+                    child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
                   ),
                   error: (e, st) => Center(
                     child: Text(
@@ -541,11 +541,11 @@ class _ComprasCreditoScreenState extends ConsumerState<ComprasCreditoScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFC62828),
+        color: const Color(0xFF0F1B3D),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFC62828).withOpacity(0.35),
+            color: const Color(0xFF0F1B3D).withOpacity(0.35),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -722,7 +722,7 @@ class _ComprasCreditoScreenState extends ConsumerState<ComprasCreditoScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFFC62828),
+                color: const Color(0xFF0F1B3D),
               ),
             ),
           ),
@@ -927,7 +927,7 @@ class _ComprasCreditoScreenState extends ConsumerState<ComprasCreditoScreen> {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: seleccionada
-                    ? const Color(0xFFC62828)
+                    ? const Color(0xFF0F1B3D)
                     : const Color(0xFFC7CBD3),
               ),
             ),

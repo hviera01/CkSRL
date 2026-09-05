@@ -175,7 +175,7 @@ class _PanelBuscadorGridState extends ConsumerState<PanelBuscadorGrid> {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: seleccionada
-                ? const Color(0xFFC62828)
+                ? const Color(0xFF0F1B3D)
                 : const Color(0xFFE0E2E8),
             width: seleccionada ? 1.6 : 1,
           ),
@@ -222,7 +222,7 @@ class _PanelBuscadorGridState extends ConsumerState<PanelBuscadorGrid> {
                     style: GoogleFonts.poppins(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFFC62828),
+                      color: const Color(0xFF0F1B3D),
                     ),
                   ),
                   if (!p.esCombo) ...[
@@ -234,7 +234,7 @@ class _PanelBuscadorGridState extends ConsumerState<PanelBuscadorGrid> {
                           const Icon(
                             Icons.error_outline,
                             size: 12,
-                            color: Color(0xFFC62828),
+                            color: Color(0xFF0F1B3D),
                           ),
                         if (bajoStock) const SizedBox(width: 3),
                         Flexible(
@@ -244,7 +244,7 @@ class _PanelBuscadorGridState extends ConsumerState<PanelBuscadorGrid> {
                             style: GoogleFonts.poppins(
                               fontSize: 10,
                               color: bajoStock
-                                  ? const Color(0xFFC62828)
+                                  ? const Color(0xFF0F1B3D)
                                   : Colors.grey.shade500,
                             ),
                           ),

@@ -253,7 +253,7 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Copia', style: GoogleFonts.poppins()),
@@ -775,7 +775,7 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Anular', style: GoogleFonts.poppins()),
@@ -986,7 +986,7 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
           Expanded(
             child: _cargando
                 ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFC62828)),
+                    child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
                   )
                 : _error != null
                 ? Center(
@@ -1280,7 +1280,7 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
                   ),
                 ),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFC62828),
+                  backgroundColor: const Color(0xFF0F1B3D),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
                     vertical: 14,
@@ -1303,12 +1303,12 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFFFCE4E4),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFC62828)),
+        border: Border.all(color: const Color(0xFF0F1B3D)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.block_outlined, color: Color(0xFFC62828)),
+          const Icon(Icons.block_outlined, color: Color(0xFF0F1B3D)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1319,7 +1319,7 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
                   style: GoogleFonts.poppins(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFFC62828),
+                    color: const Color(0xFF0F1B3D),
                   ),
                 ),
                 if (venta.motivoAnulacion.isNotEmpty)
@@ -1443,7 +1443,7 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: activo ? const Color(0xFFC62828) : Colors.transparent,
+            color: activo ? const Color(0xFF0F1B3D) : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Text(
@@ -1568,7 +1568,7 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
                           'Código: ${item.codigosColor.join(', ')}',
                           style: GoogleFonts.poppins(
                             fontSize: 10.5,
-                            color: const Color(0xFFC62828),
+                            color: const Color(0xFF0F1B3D),
                           ),
                         ),
                       if (item.reembasado)
@@ -1641,7 +1641,7 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
                     'Código: ${item.codigosColor.join(', ')}',
                     style: GoogleFonts.poppins(
                       fontSize: 11,
-                      color: const Color(0xFFC62828),
+                      color: const Color(0xFF0F1B3D),
                     ),
                   ),
                 if (item.reembasado || item.descuentoPorcentaje > 0)
@@ -1711,7 +1711,7 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
-              color: const Color(0xFFC62828),
+              color: const Color(0xFF0F1B3D),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(

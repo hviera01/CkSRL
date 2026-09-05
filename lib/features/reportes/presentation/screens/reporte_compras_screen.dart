@@ -385,7 +385,7 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
                 child: _cargando
                     ? const Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFFC62828),
+                          color: Color(0xFF0F1B3D),
                         ),
                       )
                     : _error != null
@@ -429,11 +429,11 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFC62828),
+        color: const Color(0xFF0F1B3D),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFC62828).withOpacity(0.35),
+            color: const Color(0xFF0F1B3D).withOpacity(0.35),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),

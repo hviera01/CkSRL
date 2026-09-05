@@ -486,7 +486,7 @@ class _EscanearFacturaDialogState extends ConsumerState<EscanearFacturaDialog> {
                 ),
               ),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFC62828),
+                backgroundColor: const Color(0xFF0F1B3D),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -945,7 +945,7 @@ class _EscanearFacturaDialogState extends ConsumerState<EscanearFacturaDialog> {
                         const Icon(
                           Icons.error_outline,
                           size: 14,
-                          color: Color(0xFFC62828),
+                          color: Color(0xFF0F1B3D),
                         ),
                         const SizedBox(width: 6),
                         Expanded(
@@ -953,7 +953,7 @@ class _EscanearFacturaDialogState extends ConsumerState<EscanearFacturaDialog> {
                             'Sin coincidencia en el inventario',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
-                              color: const Color(0xFFC62828),
+                              color: const Color(0xFF0F1B3D),
                             ),
                           ),
                         ),
@@ -966,8 +966,8 @@ class _EscanearFacturaDialogState extends ConsumerState<EscanearFacturaDialog> {
                           child: OutlinedButton(
                             onPressed: () => _buscarManual(fila),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFFC62828),
-                              side: const BorderSide(color: Color(0xFFC62828)),
+                              foregroundColor: const Color(0xFF0F1B3D),
+                              side: const BorderSide(color: Color(0xFF0F1B3D)),
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               minimumSize: const Size(0, 0),
                             ),
@@ -985,7 +985,7 @@ class _EscanearFacturaDialogState extends ConsumerState<EscanearFacturaDialog> {
                           child: FilledButton(
                             onPressed: () => _crearProductoNuevo(fila),
                             style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFFC62828),
+                              backgroundColor: const Color(0xFF0F1B3D),
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               minimumSize: const Size(0, 0),
                             ),

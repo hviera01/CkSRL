@@ -73,16 +73,15 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   color: Colors.white,
                   boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 30, offset: const Offset(0, 12))],
                 ),
-                child: ClipOval(
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Image.asset('assets/images/logo.jpg', fit: BoxFit.cover),
-                  ),
+                child: const Icon(
+                  Icons.storefront_rounded,
+                  color: Color(0xFF0F1B3D),
+                  size: 56,
                 ),
               ),
               const SizedBox(height: 24),
               Text(
-                'SUPERCOLOR',
+                'CK S DE R.L. DE C.V.',
                 style: GoogleFonts.poppins(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: 1.2),
               ),
               const SizedBox(height: 6),

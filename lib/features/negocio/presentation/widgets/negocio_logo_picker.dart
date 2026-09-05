@@ -80,7 +80,7 @@ class _NegocioLogoPickerState extends ConsumerState<NegocioLogoPicker> {
           child: OutlinedButton.icon(
             onPressed: _subiendo ? null : _subir,
             icon: _subiendo
-                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC62828)))
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F1B3D)))
                 : const Icon(Icons.upload_outlined, size: 16),
             label: Text(_subiendo ? 'Guardando...' : 'Subir', style: GoogleFonts.poppins(fontSize: 12)),
             style: OutlinedButton.styleFrom(

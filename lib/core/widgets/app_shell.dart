@@ -296,7 +296,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       height: 64,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: const BoxDecoration(color: Color(0xFFC62828)),
+        decoration: const BoxDecoration(color: Color(0xFF0F1B3D)),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final esAngosto = constraints.maxWidth < 420;
@@ -320,20 +320,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                           shape: BoxShape.circle,
                           color: Colors.white,
                         ),
-                        child: ClipOval(
-                          child: Padding(
-                            padding: const EdgeInsets.all(3),
-                            child: Image.asset(
-                              'assets/images/logo.jpg',
-                              fit: BoxFit.cover,
-                            ),
-                          ),
+                        child: const Icon(
+                          Icons.storefront_rounded,
+                          color: Color(0xFF0F1B3D),
+                          size: 20,
                         ),
                       ),
                       if (!esAngosto) ...[
                         const SizedBox(width: 12),
                         Text(
-                          'SUPERCOLOR',
+                          'CK',
                           style: GoogleFonts.poppins(
                             color: Colors.white,
                             fontSize: 16,
@@ -432,11 +428,11 @@ class _AppShellState extends ConsumerState<AppShell> {
               margin: const EdgeInsets.only(right: 6, top: 6),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: activo ? const Color(0xFFFCE9E9) : Colors.transparent,
+                color: activo ? const Color(0xFFE8EAF0) : Colors.transparent,
                 borderRadius: BorderRadius.circular(10),
                 border: activo
                     ? Border.all(
-                        color: const Color(0xFFC62828).withOpacity(0.25),
+                        color: const Color(0xFF0F1B3D).withOpacity(0.25),
                       )
                     : null,
               ),
@@ -447,7 +443,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     tab.icono,
                     size: 16,
                     color: activo
-                        ? const Color(0xFFC62828)
+                        ? const Color(0xFF0F1B3D)
                         : Colors.grey.shade500,
                   ),
                   const SizedBox(width: 8),
@@ -456,7 +452,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     style: GoogleFonts.poppins(
                       fontSize: 12.5,
                       color: activo
-                          ? const Color(0xFFC62828)
+                          ? const Color(0xFF0F1B3D)
                           : Colors.grey.shade600,
                       fontWeight: activo ? FontWeight.w600 : FontWeight.w400,
                     ),

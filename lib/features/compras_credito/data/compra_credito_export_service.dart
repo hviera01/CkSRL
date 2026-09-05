@@ -34,7 +34,7 @@ class FilaEstadoCuenta {
 }
 
 class CompraCreditoExportService {
-  static const _colorMarca = PdfColor.fromInt(0xFFC62828);
+  static const _colorMarca = PdfColor.fromInt(0xFF0F1B3D);
   static const _colorVerde = PdfColor.fromInt(0xFF16A34A);
   static const _colorGrisTexto = PdfColor.fromInt(0xFF4B4F58);
   static const _colorGrisClaro = PdfColor.fromInt(0xFFF6F7FA);
@@ -247,7 +247,7 @@ class CompraCreditoExportService {
         header: (context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Text('Compras a Crédito', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFFC62828))),
+            pw.Text('Compras a Crédito', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF0F1B3D))),
             pw.SizedBox(height: 4),
             pw.Text('Total de créditos: ${lista.length}', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
             pw.SizedBox(height: 14),
@@ -270,7 +270,7 @@ class CompraCreditoExportService {
               ];
             }).toList(),
             headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.white),
-            headerDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFC62828)),
+            headerDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF0F1B3D)),
             cellStyle: const pw.TextStyle(fontSize: 8.5),
             cellAlignment: pw.Alignment.centerLeft,
             cellPadding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 7),

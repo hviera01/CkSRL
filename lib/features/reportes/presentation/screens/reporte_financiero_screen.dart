@@ -144,7 +144,7 @@ class _ReporteFinancieroScreenState
               if (_cargando)
                 const Expanded(
                   child: Center(
-                    child: CircularProgressIndicator(color: Color(0xFFC62828)),
+                    child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
                   ),
                 ),
               if (_error != null)
@@ -199,9 +199,9 @@ class _ReporteFinancieroScreenState
                     Expanded(
                       child: TabBar(
                         isScrollable: true,
-                        labelColor: const Color(0xFFC62828),
+                        labelColor: const Color(0xFF0F1B3D),
                         unselectedLabelColor: Colors.grey.shade600,
-                        indicatorColor: const Color(0xFFC62828),
+                        indicatorColor: const Color(0xFF0F1B3D),
                         labelStyle: GoogleFonts.poppins(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -294,7 +294,7 @@ class _ReporteFinancieroScreenState
             ),
           ),
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFFC62828),
+            backgroundColor: const Color(0xFF0F1B3D),
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),

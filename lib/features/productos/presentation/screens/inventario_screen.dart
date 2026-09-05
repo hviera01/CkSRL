@@ -478,7 +478,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Solo sin código', style: GoogleFonts.poppins()),
@@ -581,7 +581,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(
               context,
@@ -989,7 +989,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                           ),
                         ),
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFC62828),
+                          backgroundColor: const Color(0xFF0F1B3D),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 20,
                             vertical: 14,
@@ -1068,7 +1068,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                     );
                   },
                   loading: () => const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFC62828)),
+                    child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
                   ),
                   error: (e, st) => Center(
                     child: Text(
@@ -1301,7 +1301,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w700,
                                     color: bajoStock
-                                        ? const Color(0xFFC62828)
+                                        ? const Color(0xFF0F1B3D)
                                         : const Color(0xFF3B82F6),
                                   ),
                                 ),
@@ -1454,7 +1454,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: seleccionada
-                ? const Color(0xFFC62828)
+                ? const Color(0xFF0F1B3D)
                 : const Color(0xFFE0E2E8),
             width: seleccionada ? 1.6 : 1,
           ),
@@ -1479,7 +1479,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
               top: 0,
               bottom: 0,
               width: 4,
-              child: ColoredBox(color: Color(0xFFC62828)),
+              child: ColoredBox(color: Color(0xFF0F1B3D)),
             ),
             Padding(
               padding: const EdgeInsets.only(left: 4),
@@ -1600,7 +1600,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
                         color: bajoStock
-                            ? const Color(0xFFC62828)
+                            ? const Color(0xFF0F1B3D)
                             : const Color(0xFF1A1A1A),
                       ),
                     ),
@@ -1669,7 +1669,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                               style: GoogleFonts.poppins(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
-                                color: const Color(0xFFC62828),
+                                color: const Color(0xFF0F1B3D),
                               ),
                             ),
                           ],
@@ -1706,7 +1706,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: activo
-                        ? const Color(0xFFC62828)
+                        ? const Color(0xFF0F1B3D)
                         : Colors.grey.shade600,
                   ),
                 ),
@@ -1719,7 +1719,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                       : Icons.unfold_more,
                   size: 15,
                   color: activo
-                      ? const Color(0xFFC62828)
+                      ? const Color(0xFF0F1B3D)
                       : Colors.grey.shade400,
                 ),
               ],
@@ -1763,7 +1763,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                     fontSize: 10.5,
                     fontWeight: FontWeight.w700,
                     color: activa
-                        ? const Color(0xFFC62828)
+                        ? const Color(0xFF0F1B3D)
                         : const Color(0xFF666A72),
                     letterSpacing: 0.35,
                   ),
@@ -1779,7 +1779,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                       : Icons.unfold_more,
                   size: 13,
                   color: activa
-                      ? const Color(0xFFC62828)
+                      ? const Color(0xFF0F1B3D)
                       : Colors.grey.shade400,
                 ),
               ],
@@ -1854,7 +1854,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
           child: Icon(
             Icons.photo_outlined,
             size: tamanoIcono,
-            color: const Color(0xFFC62828),
+            color: const Color(0xFF0F1B3D),
           ),
         ),
       ),
@@ -2121,7 +2121,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
               children: [
                 _badgeInfo(
                   '${productos.length} productos',
-                  const Color(0xFFC62828),
+                  const Color(0xFF0F1B3D),
                 ),
                 _badgeInfo(
                   'Valor compra ${formatearMoneda(valorCompra)}',
@@ -2170,7 +2170,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: valorActual == v
-                      ? const Color(0xFFC62828)
+                      ? const Color(0xFF0F1B3D)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(6),
                 ),

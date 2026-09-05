@@ -57,7 +57,7 @@ class PromocionDetectadaDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       title: Row(
         children: [
-          const Icon(Icons.celebration_outlined, color: Color(0xFFC62828)),
+          const Icon(Icons.celebration_outlined, color: Color(0xFF0F1B3D)),
           const SizedBox(width: 10),
           Expanded(child: Text(_titulo, style: GoogleFonts.poppins(fontSize: 15.5, fontWeight: FontWeight.w700))),
         ],

@@ -48,7 +48,7 @@ class VentasEnEsperaDialog extends ConsumerWidget {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Eliminar', style: GoogleFonts.poppins()),
@@ -225,7 +225,7 @@ class VentasEnEsperaDialog extends ConsumerWidget {
                                 icon: const Icon(
                                   Icons.delete_outline,
                                   size: 20,
-                                  color: Color(0xFFC62828),
+                                  color: Color(0xFF0F1B3D),
                                 ),
                                 onPressed: () =>
                                     _eliminar(context, ref, sesion),
@@ -238,7 +238,7 @@ class VentasEnEsperaDialog extends ConsumerWidget {
                   );
                 },
                 loading: () => const Center(
-                  child: CircularProgressIndicator(color: Color(0xFFC62828)),
+                  child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
                 ),
                 error: (e, st) => Center(
                   child: Text(

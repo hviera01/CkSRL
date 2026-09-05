@@ -160,7 +160,7 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Eliminar', style: GoogleFonts.poppins()),
@@ -270,7 +270,7 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, controller.text.trim()),
             child: Text('Guardar', style: GoogleFonts.poppins()),
@@ -311,7 +311,7 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
             'No se pudo confirmar: la tarea programada que despacha los WhatsApp no dio señales de vida recientes en la PC principal. Quedó pedido igual, se manda apenas esa tarea vuelva a correr (ver tool/aviso_creditos_whatsapp/README.md).',
             style: GoogleFonts.poppins(fontSize: 12.5),
           ),
-          backgroundColor: const Color(0xFFC62828),
+          backgroundColor: const Color(0xFF0F1B3D),
           duration: const Duration(seconds: 10),
           showCloseIcon: true,
         ),
@@ -703,7 +703,7 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
                           ),
                         ),
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFC62828),
+                          backgroundColor: const Color(0xFF0F1B3D),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 20,
                             vertical: 14,
@@ -764,7 +764,7 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
                     return esMovil ? _tarjetas(lista) : _tabla(lista);
                   },
                   loading: () => const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFC62828)),
+                    child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
                   ),
                   error: (e, st) => Center(
                     child: Text(
@@ -786,11 +786,11 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFC62828),
+        color: const Color(0xFF0F1B3D),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFC62828).withOpacity(0.35),
+            color: const Color(0xFF0F1B3D).withOpacity(0.35),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -967,7 +967,7 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFFC62828),
+                color: const Color(0xFF0F1B3D),
               ),
             ),
           ),
@@ -1040,7 +1040,7 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
                             value: marcado,
                             onChanged: (_) =>
                                 _alternarSeleccionUnir(credito.id),
-                            activeColor: const Color(0xFFC62828),
+                            activeColor: const Color(0xFF0F1B3D),
                           ),
                         ),
                         if (mostrarFechaRegistro)
@@ -1241,7 +1241,7 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: seleccionada
-                    ? const Color(0xFFC62828)
+                    ? const Color(0xFF0F1B3D)
                     : const Color(0xFFC7CBD3),
               ),
             ),
@@ -1256,7 +1256,7 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
                       child: Checkbox(
                         value: marcado,
                         onChanged: (_) => _alternarSeleccionUnir(credito.id),
-                        activeColor: const Color(0xFFC62828),
+                        activeColor: const Color(0xFF0F1B3D),
                       ),
                     ),
                     Expanded(

@@ -84,7 +84,7 @@ class ProductoExportService {
         header: (context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Text('Inventario · SUPERCOLOR', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFFC62828))),
+            pw.Text('Inventario · CK', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF0F1B3D))),
             pw.SizedBox(height: 4),
             pw.Text('Total de productos: ${lista.length}', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
             pw.SizedBox(height: 14),
@@ -98,7 +98,7 @@ class ProductoExportService {
               return [for (final c in claves) fila[c]!];
             }).toList(),
             headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.white),
-            headerDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFC62828)),
+            headerDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF0F1B3D)),
             cellStyle: const pw.TextStyle(fontSize: 8.5),
             cellAlignment: pw.Alignment.centerLeft,
             cellPadding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 7),
@@ -125,7 +125,7 @@ class ProductoExportService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Center(child: pw.Text('SUPERCOLOR', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold))),
+              pw.Center(child: pw.Text('CK S DE R.L. DE C.V.', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold))),
               pw.Center(child: pw.Text('Listado de Inventario', style: const pw.TextStyle(fontSize: 9))),
               pw.SizedBox(height: 8),
               pw.Divider(),

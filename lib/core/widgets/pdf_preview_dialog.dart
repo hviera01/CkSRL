@@ -172,7 +172,7 @@ class _PdfPreviewDialogState extends State<PdfPreviewDialog> {
                     ),
                   ),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFC62828),
+                    backgroundColor: const Color(0xFF0F1B3D),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),

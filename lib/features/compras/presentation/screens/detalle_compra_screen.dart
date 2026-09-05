@@ -203,7 +203,7 @@ class _DetalleCompraScreenState extends ConsumerState<DetalleCompraScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Anular', style: GoogleFonts.poppins()),
@@ -359,7 +359,7 @@ class _DetalleCompraScreenState extends ConsumerState<DetalleCompraScreen> {
           Expanded(
             child: _cargando
                 ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFC62828)),
+                    child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
                   )
                 : _error != null
                 ? Center(
@@ -509,7 +509,7 @@ class _DetalleCompraScreenState extends ConsumerState<DetalleCompraScreen> {
                   ),
                 ),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFC62828),
+                  backgroundColor: const Color(0xFF0F1B3D),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
                     vertical: 14,
@@ -532,12 +532,12 @@ class _DetalleCompraScreenState extends ConsumerState<DetalleCompraScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFFFCE4E4),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFC62828)),
+        border: Border.all(color: const Color(0xFF0F1B3D)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.block_outlined, color: Color(0xFFC62828)),
+          const Icon(Icons.block_outlined, color: Color(0xFF0F1B3D)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -548,7 +548,7 @@ class _DetalleCompraScreenState extends ConsumerState<DetalleCompraScreen> {
                   style: GoogleFonts.poppins(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFFC62828),
+                    color: const Color(0xFF0F1B3D),
                   ),
                 ),
                 if (compra.motivoAnulacion.isNotEmpty)
@@ -821,7 +821,7 @@ class _DetalleCompraScreenState extends ConsumerState<DetalleCompraScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
-              color: const Color(0xFFC62828),
+              color: const Color(0xFF0F1B3D),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(

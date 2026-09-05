@@ -110,7 +110,7 @@ void abrirSubModulo(BuildContext context, WidgetRef ref, SubModulo sub) {
                   );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
               foregroundColor: Colors.white,
             ),
             child: const Text('Abrir pestaña nueva'),

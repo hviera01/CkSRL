@@ -242,7 +242,7 @@ class CategoriasScreen extends ConsumerWidget {
                     );
                   },
                   loading: () => const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFC62828)),
+                    child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
                   ),
                   error: (e, st) => Center(
                     child: Text(
@@ -319,7 +319,7 @@ class CategoriasScreen extends ConsumerWidget {
         style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
       ),
       style: FilledButton.styleFrom(
-        backgroundColor: const Color(0xFFC62828),
+        backgroundColor: const Color(0xFF0F1B3D),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),

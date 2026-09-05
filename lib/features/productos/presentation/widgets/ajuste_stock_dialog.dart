@@ -255,7 +255,7 @@ class _AjusteStockDialogState extends ConsumerState<AjusteStockDialog> {
                   const SizedBox(width: 10),
                   FilledButton(
                     onPressed: _guardando ? null : _guardar,
-                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFFC62828), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F1B3D), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     child: _guardando
                         ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.2))
                         : Text('Guardar', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.white)),
@@ -289,7 +289,7 @@ class _AjusteStockDialogState extends ConsumerState<AjusteStockDialog> {
       borderRadius: BorderRadius.circular(10),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(color: activo ? const Color(0xFFC62828) : Colors.transparent, borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: activo ? const Color(0xFF0F1B3D) : Colors.transparent, borderRadius: BorderRadius.circular(10)),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -305,7 +305,7 @@ class _AjusteStockDialogState extends ConsumerState<AjusteStockDialog> {
   Widget _selectorLote() {
     final async = ref.watch(lotesProductoProvider(widget.producto.id));
     return async.when(
-      loading: () => const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Center(child: CircularProgressIndicator(color: Color(0xFFC62828)))),
+      loading: () => const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Center(child: CircularProgressIndicator(color: Color(0xFF0F1B3D)))),
       error: (e, st) => Text('No se pudieron cargar los lotes: $e', style: GoogleFonts.poppins(fontSize: 12, color: Colors.red)),
       data: (lotes) {
         final conExistencia = lotes.where((l) => l.cantidadRestante > 0).toList();
@@ -346,11 +346,11 @@ class _AjusteStockDialogState extends ConsumerState<AjusteStockDialog> {
         decoration: BoxDecoration(
           color: seleccionado ? const Color(0xFFFCE4E4) : const Color(0xFFF7F7F9),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: seleccionado ? const Color(0xFFC62828) : Colors.transparent, width: 1.4),
+          border: Border.all(color: seleccionado ? const Color(0xFF0F1B3D) : Colors.transparent, width: 1.4),
         ),
         child: Row(
           children: [
-            Icon(seleccionado ? Icons.radio_button_checked : Icons.radio_button_off, size: 18, color: seleccionado ? const Color(0xFFC62828) : Colors.grey.shade400),
+            Icon(seleccionado ? Icons.radio_button_checked : Icons.radio_button_off, size: 18, color: seleccionado ? const Color(0xFF0F1B3D) : Colors.grey.shade400),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -362,7 +362,7 @@ class _AjusteStockDialogState extends ConsumerState<AjusteStockDialog> {
               ),
             ),
             if (esProximo)
-              Text('Sale primero', style: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w600, color: const Color(0xFFC62828))),
+              Text('Sale primero', style: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w600, color: const Color(0xFF0F1B3D))),
           ],
         ),
       ),
@@ -382,11 +382,11 @@ class _AjusteStockDialogState extends ConsumerState<AjusteStockDialog> {
         decoration: BoxDecoration(
           color: seleccionado ? const Color(0xFFFCE4E4) : const Color(0xFFF7F7F9),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: seleccionado ? const Color(0xFFC62828) : Colors.transparent, width: 1.4),
+          border: Border.all(color: seleccionado ? const Color(0xFF0F1B3D) : Colors.transparent, width: 1.4),
         ),
         child: Row(
           children: [
-            Icon(seleccionado ? Icons.radio_button_checked : Icons.radio_button_off, size: 18, color: seleccionado ? const Color(0xFFC62828) : Colors.grey.shade400),
+            Icon(seleccionado ? Icons.radio_button_checked : Icons.radio_button_off, size: 18, color: seleccionado ? const Color(0xFF0F1B3D) : Colors.grey.shade400),
             const SizedBox(width: 10),
             Expanded(child: Text('Sin lote específico', style: GoogleFonts.poppins(fontSize: 12.5, color: const Color(0xFF1A1A1A)))),
           ],

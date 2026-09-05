@@ -131,7 +131,7 @@ class _SeleccionarProductosDialogState extends ConsumerState<SeleccionarProducto
                               controlAffinity: ListTileControlAffinity.leading,
                               title: Text(p.nombre, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
                               subtitle: Text('${p.codigo} · ${formatearMoneda(p.precioVenta)}', style: GoogleFonts.poppins(fontSize: 11.5, color: Colors.grey.shade500)),
-                              activeColor: const Color(0xFFC62828),
+                              activeColor: const Color(0xFF0F1B3D),
                             );
                           },
                         ),
@@ -141,14 +141,14 @@ class _SeleccionarProductosDialogState extends ConsumerState<SeleccionarProducto
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: _seleccionados.isEmpty ? null : () => _confirmar(activos),
-                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFFC62828), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F1B3D), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     child: Text('Confirmar selección', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],
             );
           },
-          loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFC62828))),
+          loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF0F1B3D))),
           error: (e, st) => Center(child: Text('Error: $e', style: GoogleFonts.poppins(color: Colors.red))),
         ),
       ),

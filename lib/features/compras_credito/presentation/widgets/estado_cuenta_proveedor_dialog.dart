@@ -310,7 +310,7 @@ class _EstadoCuentaProveedorDialogState
                     icon: const Icon(
                       Icons.picture_as_pdf_outlined,
                       size: 22,
-                      color: Color(0xFFC62828),
+                      color: Color(0xFF0F1B3D),
                     ),
                     onPressed: _exportarPdf,
                   ),
@@ -327,7 +327,7 @@ class _EstadoCuentaProveedorDialogState
               child: _cargando
                   ? const Center(
                       child: CircularProgressIndicator(
-                        color: Color(0xFFC62828),
+                        color: Color(0xFF0F1B3D),
                       ),
                     )
                   : _error != null
@@ -404,7 +404,7 @@ class _EstadoCuentaProveedorDialogState
         _statChip(
           'SALDO PENDIENTE ACTUAL',
           formatearMoneda(_saldoActual),
-          const Color(0xFFC62828),
+          const Color(0xFF0F1B3D),
         ),
       ],
     );
@@ -607,7 +607,7 @@ class _EstadoCuentaProveedorDialogState
                           style: GoogleFonts.poppins(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w700,
-                            color: const Color(0xFFC62828),
+                            color: const Color(0xFF0F1B3D),
                           ),
                         ),
                       ),
@@ -696,7 +696,7 @@ class _EstadoCuentaProveedorDialogState
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
                       color: m.esCargo
-                          ? const Color(0xFFC62828)
+                          ? const Color(0xFF0F1B3D)
                           : const Color(0xFF16A34A),
                     ),
                   ),

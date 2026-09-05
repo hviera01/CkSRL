@@ -130,7 +130,7 @@ class _HistorialStockDialogState extends ConsumerState<HistorialStockDialog> {
             const SizedBox(height: 14),
             Expanded(
               child: historialAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFC62828))),
+                loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF0F1B3D))),
                 error: (e, st) => Center(child: Text('Error: $e', style: GoogleFonts.poppins(color: Colors.red))),
                 data: (data) {
                   final registros = _filtrar(data);
@@ -168,11 +168,11 @@ class _HistorialStockDialogState extends ConsumerState<HistorialStockDialog> {
                                   const SizedBox(height: 8),
                                   Row(
                                     children: [
-                                      Icon(subio ? Icons.arrow_upward : Icons.arrow_downward, size: 15, color: subio ? const Color(0xFF16A34A) : const Color(0xFFC62828)),
+                                      Icon(subio ? Icons.arrow_upward : Icons.arrow_downward, size: 15, color: subio ? const Color(0xFF16A34A) : const Color(0xFF0F1B3D)),
                                       const SizedBox(width: 6),
                                       Text('${r.stockAnterior} → ${r.stockNuevo}', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
                                       const SizedBox(width: 8),
-                                      Text('(${subio ? '+' : ''}${r.delta.toStringAsFixed(r.delta == r.delta.roundToDouble() ? 0 : 2)})', style: GoogleFonts.poppins(fontSize: 12, color: subio ? const Color(0xFF16A34A) : const Color(0xFFC62828))),
+                                      Text('(${subio ? '+' : ''}${r.delta.toStringAsFixed(r.delta == r.delta.roundToDouble() ? 0 : 2)})', style: GoogleFonts.poppins(fontSize: 12, color: subio ? const Color(0xFF16A34A) : const Color(0xFF0F1B3D))),
                                     ],
                                   ),
                                   if (r.motivo.isNotEmpty) ...[
@@ -237,7 +237,7 @@ class _HistorialStockDialogState extends ConsumerState<HistorialStockDialog> {
                                         flex: 1,
                                         child: Row(
                                           children: [
-                                            Icon(subio ? Icons.arrow_upward : Icons.arrow_downward, size: 13, color: subio ? const Color(0xFF16A34A) : const Color(0xFFC62828)),
+                                            Icon(subio ? Icons.arrow_upward : Icons.arrow_downward, size: 13, color: subio ? const Color(0xFF16A34A) : const Color(0xFF0F1B3D)),
                                             const SizedBox(width: 4),
                                             Text(r.stockNuevo.toString(), style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600)),
                                           ],
@@ -247,7 +247,7 @@ class _HistorialStockDialogState extends ConsumerState<HistorialStockDialog> {
                                         flex: 1,
                                         child: Text(
                                           '${subio ? '+' : ''}${r.delta.toStringAsFixed(r.delta == r.delta.roundToDouble() ? 0 : 2)}',
-                                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: subio ? const Color(0xFF16A34A) : const Color(0xFFC62828)),
+                                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: subio ? const Color(0xFF16A34A) : const Color(0xFF0F1B3D)),
                                         ),
                                       ),
                                       Expanded(flex: 5, child: Text(r.motivo.isEmpty ? '-' : r.motivo, style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis, maxLines: 3)),
@@ -274,9 +274,9 @@ class _HistorialStockDialogState extends ConsumerState<HistorialStockDialog> {
   Widget _chipTipo(TipoMovimientoStock tipo) {
     final (color, icono) = switch (tipo) {
       TipoMovimientoStock.venta => (const Color(0xFF16A34A), Icons.point_of_sale),
-      TipoMovimientoStock.anulacionVenta => (const Color(0xFFC62828), Icons.undo),
+      TipoMovimientoStock.anulacionVenta => (const Color(0xFF0F1B3D), Icons.undo),
       TipoMovimientoStock.compra => (const Color(0xFF2B6CB0), Icons.local_shipping_outlined),
-      TipoMovimientoStock.anulacionCompra => (const Color(0xFFC62828), Icons.undo),
+      TipoMovimientoStock.anulacionCompra => (const Color(0xFF0F1B3D), Icons.undo),
       TipoMovimientoStock.reembasado => (const Color(0xFF9333EA), Icons.opacity),
       TipoMovimientoStock.ajusteEntrada => (const Color(0xFF6B7280), Icons.tune),
       TipoMovimientoStock.ajusteSalida => (const Color(0xFF6B7280), Icons.tune),

@@ -115,7 +115,7 @@ class PendientesReposicionScreen extends ConsumerWidget {
                           ),
                     loading: () => const Center(
                       child: CircularProgressIndicator(
-                        color: Color(0xFFC62828),
+                        color: Color(0xFF0F1B3D),
                       ),
                     ),
                     error: (e, st) => Center(

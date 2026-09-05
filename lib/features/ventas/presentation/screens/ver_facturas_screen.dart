@@ -375,7 +375,7 @@ class _VerFacturasScreenState extends ConsumerState<VerFacturasScreen> {
                   child: _cargando
                       ? const Center(
                           child: CircularProgressIndicator(
-                            color: Color(0xFFC62828),
+                            color: Color(0xFF0F1B3D),
                           ),
                         )
                       : _error != null
@@ -594,7 +594,7 @@ class _VerFacturasScreenState extends ConsumerState<VerFacturasScreen> {
         style: GoogleFonts.poppins(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: anulada ? const Color(0xFFC62828) : const Color(0xFF16A34A),
+          color: anulada ? const Color(0xFF0F1B3D) : const Color(0xFF16A34A),
         ),
       ),
     );

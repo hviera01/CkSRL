@@ -563,8 +563,8 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
                       style: GoogleFonts.poppins(fontSize: 13),
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFC62828),
-                      side: const BorderSide(color: Color(0xFFC62828)),
+                      foregroundColor: const Color(0xFF0F1B3D),
+                      side: const BorderSide(color: Color(0xFF0F1B3D)),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 14,
@@ -671,7 +671,7 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
                       },
                       loading: () => const Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFFC62828),
+                          color: Color(0xFF0F1B3D),
                         ),
                       ),
                       error: (e, st) => Center(
@@ -708,7 +708,7 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           decoration: BoxDecoration(
-            color: activo ? const Color(0xFFC62828) : Colors.transparent,
+            color: activo ? const Color(0xFF0F1B3D) : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Text(
@@ -748,7 +748,7 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           decoration: BoxDecoration(
-            color: activo ? const Color(0xFFC62828) : Colors.transparent,
+            color: activo ? const Color(0xFF0F1B3D) : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Text(
@@ -828,7 +828,7 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
           Text(
             texto,
             style: activo
-                ? estilo.copyWith(color: const Color(0xFFC62828))
+                ? estilo.copyWith(color: const Color(0xFF0F1B3D))
                 : estilo,
           ),
           const SizedBox(width: 3),
@@ -837,7 +837,7 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
                 ? (_ordenAscendente ? Icons.arrow_upward : Icons.arrow_downward)
                 : Icons.unfold_more,
             size: 14,
-            color: activo ? const Color(0xFFC62828) : Colors.grey.shade400,
+            color: activo ? const Color(0xFF0F1B3D) : Colors.grey.shade400,
           ),
         ],
       ),
@@ -857,7 +857,7 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
         decoration: BoxDecoration(
-          color: const Color(0xFFC62828),
+          color: const Color(0xFF0F1B3D),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -935,7 +935,7 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
             color: seleccionada ? const Color(0xFFFBEAEA) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             border: seleccionada
-                ? Border.all(color: const Color(0xFFC62828), width: 1.4)
+                ? Border.all(color: const Color(0xFF0F1B3D), width: 1.4)
                 : Border.all(color: Colors.transparent, width: 1.4),
           ),
           child: Row(
@@ -1019,7 +1019,7 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: bajoStock
-                            ? const Color(0xFFC62828)
+                            ? const Color(0xFF0F1B3D)
                             : const Color(0xFF1E9E5A),
                       ),
                     ),
@@ -1061,7 +1061,7 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
                         icon: const Icon(
                           Icons.photo_outlined,
                           size: 18,
-                          color: Color(0xFFC62828),
+                          color: Color(0xFF0F1B3D),
                         ),
                         onPressed: () => _verFoto(p),
                       ),
@@ -1098,7 +1098,7 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
             color: seleccionada ? const Color(0xFFFBEAEA) : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
             border: seleccionada
-                ? Border.all(color: const Color(0xFFC62828), width: 1.4)
+                ? Border.all(color: const Color(0xFF0F1B3D), width: 1.4)
                 : Border.all(color: Colors.transparent, width: 1.4),
           ),
           child: Column(
@@ -1158,7 +1158,7 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                         color: bajoStock
-                            ? const Color(0xFFC62828)
+                            ? const Color(0xFF0F1B3D)
                             : const Color(0xFF1E9E5A),
                       ),
                     ),
@@ -1175,7 +1175,7 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
                       icon: const Icon(
                         Icons.photo_outlined,
                         size: 18,
-                        color: Color(0xFFC62828),
+                        color: Color(0xFF0F1B3D),
                       ),
                       onPressed: () => _verFoto(p),
                     ),

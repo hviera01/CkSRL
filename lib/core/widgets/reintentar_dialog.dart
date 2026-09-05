@@ -33,7 +33,7 @@ Future<T?> ejecutarConReintento<T>(
           ),
           title: Row(
             children: [
-              const Icon(Icons.wifi_off_outlined, color: Color(0xFFC62828)),
+              const Icon(Icons.wifi_off_outlined, color: Color(0xFF0F1B3D)),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -59,7 +59,7 @@ Future<T?> ejecutarConReintento<T>(
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFC62828),
+                backgroundColor: const Color(0xFF0F1B3D),
               ),
               onPressed: () => Navigator.pop(context, true),
               child: Text('Reintentar', style: GoogleFonts.poppins()),

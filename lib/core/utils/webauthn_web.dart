@@ -51,7 +51,7 @@ Future<String?> registrarCredencial({required String usuarioId, required String 
   final credentials = _navigator.getProperty('credentials'.toJS) as JSObject?;
   if (credentials == null) return null;
 
-  final rp = JSObject()..setProperty('name'.toJS, 'Super Color'.toJS);
+  final rp = JSObject()..setProperty('name'.toJS, 'Ck S de R.L. de C.V.'.toJS);
 
   final user = JSObject()
     ..setProperty('id'.toJS, _bytesAleatorios(16).toJS)

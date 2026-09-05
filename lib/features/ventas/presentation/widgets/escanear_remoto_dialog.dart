@@ -150,8 +150,8 @@ class EscaneoActivoDialog extends StatelessWidget {
                 icon: const Icon(Icons.stop_circle_outlined, size: 18),
                 label: Text('Finalizar escaneo', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFC62828),
-                  side: const BorderSide(color: Color(0xFFC62828)),
+                  foregroundColor: const Color(0xFF0F1B3D),
+                  side: const BorderSide(color: Color(0xFF0F1B3D)),
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),

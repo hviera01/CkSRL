@@ -8,7 +8,7 @@ import '../../proveedores/data/proveedor_model.dart';
 import '../../../core/utils/logo_pdf.dart';
 
 class PedidoExportService {
-  static const _colorMarca = PdfColor.fromInt(0xFFC62828);
+  static const _colorMarca = PdfColor.fromInt(0xFF0F1B3D);
   static const _colorGrisTexto = PdfColor.fromInt(0xFF4B4F58);
   static const _colorGrisClaro = PdfColor.fromInt(0xFFF2F3F7);
 

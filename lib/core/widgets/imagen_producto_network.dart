@@ -33,7 +33,7 @@ class ImagenProductoNetwork extends StatefulWidget {
     this.width,
     this.height,
     this.fit = BoxFit.cover,
-    this.loadingColor = const Color(0xFFC62828),
+    this.loadingColor = const Color(0xFF0F1B3D),
     this.iconColor = const Color(0xFF9CA3AF),
     this.textColor = const Color(0xFF9CA3AF),
     this.iconSize = 20,

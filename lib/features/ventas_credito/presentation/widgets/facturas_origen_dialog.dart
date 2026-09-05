@@ -336,12 +336,12 @@ class _FacturasOrigenDialogState extends ConsumerState<FacturasOrigenDialog> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFC62828).withOpacity(0.1),
+                    color: const Color(0xFF0F1B3D).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
                     Icons.call_merge_outlined,
-                    color: Color(0xFFC62828),
+                    color: Color(0xFF0F1B3D),
                     size: 20,
                   ),
                 ),
@@ -392,7 +392,7 @@ class _FacturasOrigenDialogState extends ConsumerState<FacturasOrigenDialog> {
               child: _cargando
                   ? const Center(
                       child: CircularProgressIndicator(
-                        color: Color(0xFFC62828),
+                        color: Color(0xFF0F1B3D),
                       ),
                     )
                   : _items.isEmpty
@@ -493,7 +493,7 @@ class _FacturasOrigenDialogState extends ConsumerState<FacturasOrigenDialog> {
                       ),
                     ),
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFC62828),
+                      backgroundColor: const Color(0xFF0F1B3D),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 12,
@@ -523,7 +523,7 @@ class _FacturasOrigenDialogState extends ConsumerState<FacturasOrigenDialog> {
             padding: const EdgeInsets.symmetric(vertical: 9),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: activo ? const Color(0xFFC62828) : Colors.transparent,
+              color: activo ? const Color(0xFF0F1B3D) : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(

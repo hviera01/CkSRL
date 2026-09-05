@@ -61,7 +61,7 @@ class SideMenu extends ConsumerWidget {
                   horizontal: 20,
                   vertical: 18,
                 ),
-                color: const Color(0xFFC62828),
+                color: const Color(0xFF0F1B3D),
                 child: Row(
                   children: [
                     Text(

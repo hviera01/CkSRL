@@ -127,8 +127,8 @@ class _EditarAbonoDialogState extends ConsumerState<EditarAbonoDialog> {
                   Container(
                     width: 44,
                     height: 44,
-                    decoration: BoxDecoration(color: const Color(0xFFC62828).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(14)),
-                    child: const Icon(Icons.edit_outlined, color: Color(0xFFC62828)),
+                    decoration: BoxDecoration(color: const Color(0xFF0F1B3D).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(14)),
+                    child: const Icon(Icons.edit_outlined, color: Color(0xFF0F1B3D)),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -261,7 +261,7 @@ class _EditarAbonoDialogState extends ConsumerState<EditarAbonoDialog> {
                   FilledButton(
                     onPressed: _guardando ? null : _guardar,
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFC62828),
+                      backgroundColor: const Color(0xFF0F1B3D),
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),

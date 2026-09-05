@@ -237,7 +237,7 @@ class _CierreCajaScreenState extends ConsumerState<CierreCajaScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensaje),
-        backgroundColor: esError ? const Color(0xFFC62828) : null,
+        backgroundColor: esError ? const Color(0xFF0F1B3D) : null,
       ),
     );
   }
@@ -250,7 +250,7 @@ class _CierreCajaScreenState extends ConsumerState<CierreCajaScreen> {
       color: const Color(0xFFF2F3F7),
       child: _cargando
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFC62828)),
+              child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
             )
           : LayoutBuilder(
               builder: (context, constraints) {
@@ -330,7 +330,7 @@ class _CierreCajaScreenState extends ConsumerState<CierreCajaScreen> {
             'Gran total',
             _granTotal,
             negrita: true,
-            color: const Color(0xFFC62828),
+            color: const Color(0xFF0F1B3D),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -443,7 +443,7 @@ class _CierreCajaScreenState extends ConsumerState<CierreCajaScreen> {
                     fontWeight: FontWeight.w700,
                     color: _diferencia == 0
                         ? const Color(0xFF16A34A)
-                        : const Color(0xFFC62828),
+                        : const Color(0xFF0F1B3D),
                   ),
                 ),
               ],
@@ -507,7 +507,7 @@ class _CierreCajaScreenState extends ConsumerState<CierreCajaScreen> {
                 ),
               ),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFC62828),
+                backgroundColor: const Color(0xFF0F1B3D),
                 padding: const EdgeInsets.symmetric(vertical: 15),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),

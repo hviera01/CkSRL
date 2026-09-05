@@ -76,7 +76,7 @@ class _PromocionesScreenState extends ConsumerState<PromocionesScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
+              backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Eliminar', style: GoogleFonts.poppins()),
@@ -144,7 +144,7 @@ class _PromocionesScreenState extends ConsumerState<PromocionesScreen> {
                         ),
                       ),
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFC62828),
+                        backgroundColor: const Color(0xFF0F1B3D),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
                           vertical: 14,
@@ -207,7 +207,7 @@ class _PromocionesScreenState extends ConsumerState<PromocionesScreen> {
                     },
                     loading: () => const Center(
                       child: CircularProgressIndicator(
-                        color: Color(0xFFC62828),
+                        color: Color(0xFF0F1B3D),
                       ),
                     ),
                     error: (e, st) => Center(
@@ -378,7 +378,7 @@ class _PromocionesScreenState extends ConsumerState<PromocionesScreen> {
                       'Eliminar',
                       style: GoogleFonts.poppins(
                         fontSize: 12.5,
-                        color: const Color(0xFFC62828),
+                        color: const Color(0xFF0F1B3D),
                       ),
                     ),
                   ),
@@ -408,7 +408,7 @@ class _PromocionesScreenState extends ConsumerState<PromocionesScreen> {
             style: GoogleFonts.poppins(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFFC62828),
+              color: const Color(0xFF0F1B3D),
             ),
           ),
           const SizedBox(height: 4),

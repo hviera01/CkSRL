@@ -141,7 +141,7 @@ class _HistorialMovimientosDialogState extends ConsumerState<HistorialMovimiento
   Widget _contenidoVentas(DateFormat formatoFecha) {
     final async = ref.watch(historialVentasProductoProvider(widget.producto.id));
     return async.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFC62828))),
+      loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF0F1B3D))),
       error: (e, st) => Center(child: Text('Error: $e', style: GoogleFonts.poppins(color: Colors.red))),
       data: (data) {
         final filas = _filtrar(data
@@ -162,7 +162,7 @@ class _HistorialMovimientosDialogState extends ConsumerState<HistorialMovimiento
   Widget _contenidoCompras(DateFormat formatoFecha) {
     final async = ref.watch(historialPreciosCompraProvider(widget.producto.id));
     return async.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFC62828))),
+      loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF0F1B3D))),
       error: (e, st) => Center(child: Text('Error: $e', style: GoogleFonts.poppins(color: Colors.red))),
       data: (data) {
         final filas = _filtrar(data
@@ -187,7 +187,7 @@ class _HistorialMovimientosDialogState extends ConsumerState<HistorialMovimiento
   Widget _contenidoLotes(DateFormat formatoDia) {
     final async = ref.watch(lotesProductoProvider(widget.producto.id));
     return async.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFC62828))),
+      loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF0F1B3D))),
       error: (e, st) => Center(child: Text('Error: $e', style: GoogleFonts.poppins(color: Colors.red))),
       data: (data) {
         final lotes = data.where((l) {
@@ -312,7 +312,7 @@ class _HistorialMovimientosDialogState extends ConsumerState<HistorialMovimiento
                                           visualDensity: VisualDensity.compact,
                                           padding: EdgeInsets.zero,
                                           constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                          color: indiceActivo == 0 ? Colors.grey.shade300 : const Color(0xFFC62828),
+                                          color: indiceActivo == 0 ? Colors.grey.shade300 : const Color(0xFF0F1B3D),
                                           onPressed: indiceActivo == 0 ? null : () => _moverLote(activos, indiceActivo, -1),
                                         ),
                                         IconButton(
@@ -321,7 +321,7 @@ class _HistorialMovimientosDialogState extends ConsumerState<HistorialMovimiento
                                           visualDensity: VisualDensity.compact,
                                           padding: EdgeInsets.zero,
                                           constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                          color: indiceActivo == activos.length - 1 ? Colors.grey.shade300 : const Color(0xFFC62828),
+                                          color: indiceActivo == activos.length - 1 ? Colors.grey.shade300 : const Color(0xFF0F1B3D),
                                           onPressed: indiceActivo == activos.length - 1 ? null : () => _moverLote(activos, indiceActivo, 1),
                                         ),
                                       ],
@@ -331,7 +331,7 @@ class _HistorialMovimientosDialogState extends ConsumerState<HistorialMovimiento
                               child: esProximo
                                   ? Padding(
                                       padding: const EdgeInsets.only(left: 8),
-                                      child: Text('Se vende primero', style: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w600, color: const Color(0xFFC62828))),
+                                      child: Text('Se vende primero', style: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w600, color: const Color(0xFF0F1B3D))),
                                     )
                                   : (agotado ? Padding(padding: const EdgeInsets.only(left: 8), child: Text('Agotado', style: GoogleFonts.poppins(fontSize: 10.5, color: Colors.grey.shade400))) : const SizedBox()),
                             ),
@@ -405,7 +405,7 @@ class _HistorialMovimientosDialogState extends ConsumerState<HistorialMovimiento
                               width: 48,
                               child: IconButton(
                                 tooltip: 'Ver detalle',
-                                icon: const Icon(Icons.receipt_long_outlined, size: 18, color: Color(0xFFC62828)),
+                                icon: const Icon(Icons.receipt_long_outlined, size: 18, color: Color(0xFF0F1B3D)),
                                 onPressed: () => _verDetalle(r),
                               ),
                             ),

@@ -509,7 +509,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
                 child: _cargando
                     ? const Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFFC62828),
+                          color: Color(0xFF0F1B3D),
                         ),
                       )
                     : _error != null
@@ -553,11 +553,11 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFC62828),
+        color: const Color(0xFF0F1B3D),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFC62828).withOpacity(0.35),
+            color: const Color(0xFF0F1B3D).withOpacity(0.35),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -778,7 +778,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
         style: GoogleFonts.poppins(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: anulada ? const Color(0xFFC62828) : const Color(0xFF16A34A),
+          color: anulada ? const Color(0xFF0F1B3D) : const Color(0xFF16A34A),
         ),
       ),
     );
