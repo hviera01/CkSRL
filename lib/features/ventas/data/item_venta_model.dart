@@ -76,6 +76,11 @@ class ItemVentaModel {
 
   bool get esCombo => componentes.isNotEmpty;
 
+  /// Lee de un jsonb embebido que fue guardado con [toMap] tal cual (mismas
+  /// claves camelCase) — el caso de `ventas_en_espera.items` y del payload
+  /// que se manda a la función `registrar_venta` de Postgres. Para leer una
+  /// fila REAL de la tabla `venta_items` (columnas snake_case) usar
+  /// [ItemVentaModel.fromRow].
   factory ItemVentaModel.fromMap(Map<String, dynamic> data) {
     return ItemVentaModel(
       idProducto: data['idProducto'] ?? '',
@@ -92,6 +97,26 @@ class ItemVentaModel {
           .toList(),
       pendienteCompra: data['pendienteCompra'] ?? false,
       codigosColor: (data['codigosColor'] as List<dynamic>? ?? []).map((c) => c.toString()).toList(),
+    );
+  }
+
+  /// Lee una fila real de la tabla `venta_items` (columnas snake_case).
+  factory ItemVentaModel.fromRow(Map<String, dynamic> data) {
+    return ItemVentaModel(
+      idProducto: data['id_producto'] ?? '',
+      idCategoria: data['id_categoria'] ?? '',
+      nombreProducto: data['nombre_producto'] ?? '',
+      precioVenta: (data['precio_venta'] ?? 0).toDouble(),
+      cantidad: (data['cantidad'] ?? 0).toDouble(),
+      subtotal: (data['subtotal'] ?? 0).toDouble(),
+      precioCompraUsado: (data['precio_compra_usado'] ?? 0).toDouble(),
+      reembasado: data['reembasado'] ?? false,
+      descuentoPorcentaje: (data['descuento_porcentaje'] ?? 0).toDouble(),
+      componentes: (data['componentes'] as List<dynamic>? ?? [])
+          .map((c) => ComponenteComboSnapshot.fromMap(Map<String, dynamic>.from(c)))
+          .toList(),
+      pendienteCompra: data['pendiente_compra'] ?? false,
+      codigosColor: (data['codigos_color'] as List<dynamic>? ?? []).map((c) => c.toString()).toList(),
     );
   }
 

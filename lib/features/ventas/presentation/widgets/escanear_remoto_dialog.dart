@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -19,7 +18,7 @@ const _urlSitioWeb = 'https://hviera01.github.io/SistemaVentas/';
 /// el botón "Finalizar escaneo" (ver EscaneoActivoDialog).
 class EscanearRemotoDialog extends StatefulWidget {
   final String codigo;
-  final Stream<QuerySnapshot<Map<String, dynamic>>> eventos;
+  final Stream<List<Map<String, dynamic>>> eventos;
   final Stream<bool> conectado;
 
   const EscanearRemotoDialog({super.key, required this.codigo, required this.eventos, required this.conectado});
@@ -89,7 +88,7 @@ class _EscanearRemotoDialogState extends State<EscanearRemotoDialog> {
 /// (un celular ya se conectó): deja elegir entre terminarla o cerrarla para
 /// empezar de cero con otro celular.
 class EscaneoActivoDialog extends StatelessWidget {
-  final Stream<QuerySnapshot<Map<String, dynamic>>> eventos;
+  final Stream<List<Map<String, dynamic>>> eventos;
   final VoidCallback alFinalizar;
   final VoidCallback alEscanearOtro;
 
@@ -116,10 +115,10 @@ class EscaneoActivoDialog extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            StreamBuilder<List<Map<String, dynamic>>>(
               stream: eventos,
               builder: (context, snapshot) {
-                final total = snapshot.data?.docs.length ?? 0;
+                final total = snapshot.data?.length ?? 0;
                 return Text(
                   'Hay un celular conectado y escaneando ($total código(s) recibido(s)).',
                   textAlign: TextAlign.center,

@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Igual que PresenciaImpresionRepository, pero para saber si la tarea
 /// programada `tool/aviso_creditos_whatsapp/escuchar.js` sigue corriendo en
@@ -16,19 +16,40 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// carpeta)-, así que el umbral tiene que ser bastante mayor a ese intervalo
 /// para no marcar "desconectado" solo porque todavía no le tocó la próxima
 /// corrida.
+///
+/// Comparte la tabla `presencia` con PresenciaImpresionRepository (ver
+/// comentario en supabase/schema.sql): esta fila usa el id
+/// 'aviso_whatsapp_escuchador', distinto del 'pc_principal' de la otra, así
+/// que un latido no pisa al otro.
+///
+/// OJO: `tool/aviso_creditos_whatsapp` (el `escuchar.js` que mandaba el
+/// latido de verdad) ya NO existe en este repo -se quitó por completo junto
+/// con el resto de automatizaciones de WhatsApp específicas de Super Color
+/// (cuentas bancarias/teléfonos reales, ver commit "Quita las
+/// automatizaciones de WhatsApp de Super Color..."). Nada va a escribir
+/// nunca en esta fila para Ck, así que `estaConectado()` siempre va a dar
+/// `false` y el botón "Enviar estado de cuenta por WhatsApp" en
+/// VentasCreditoScreen va a mostrar siempre el aviso de "no se pudo
+/// confirmar" -queda pendiente decidir si esa función se reconstruye para
+/// Ck con datos propios, o si se quita del todo el botón (ver reporte de la
+/// tarea)-.
 class PresenciaAvisoWhatsappRepository {
   static const umbralConectada = Duration(minutes: 4);
+  static const _id = 'aviso_whatsapp_escuchador';
 
-  final _doc = FirebaseFirestore.instance.collection('presenciaAvisoWhatsapp').doc('escuchador');
+  final _db = Supabase.instance.client;
 
-  /// Lee del servidor (no del caché local) para no dar un falso "conectado"
-  /// con un latido viejo que quedó guardado en caché.
   Future<bool> estaConectado() async {
     try {
-      final snap = await _doc.get(const GetOptions(source: Source.server));
-      final ts = snap.data()?['ultimoLatido'] as Timestamp?;
-      if (ts == null) return false;
-      return DateTime.now().difference(ts.toDate()) < umbralConectada;
+      final filas = await _db
+          .from('presencia')
+          .select('ultimo_latido')
+          .eq('id', _id)
+          .limit(1);
+      if (filas.isEmpty) return false;
+      final texto = filas.first['ultimo_latido'] as String?;
+      if (texto == null) return false;
+      return DateTime.now().difference(DateTime.parse(texto)) < umbralConectada;
     } catch (_) {
       return false;
     }

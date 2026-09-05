@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class DispositivoModel {
   final String id;
   final String plataforma;
@@ -19,9 +17,9 @@ class DispositivoModel {
     return DispositivoModel(
       id: id,
       plataforma: data['plataforma'] ?? '',
-      versionApp: (data['versionApp'] as num?)?.toInt() ?? 0,
+      versionApp: (data['version_app'] as num?)?.toInt() ?? 0,
       usuario: data['usuario'] ?? '',
-      ultimaConexion: (data['ultimaConexion'] as Timestamp?)?.toDate(),
+      ultimaConexion: data['ultima_conexion'] == null ? null : DateTime.parse(data['ultima_conexion'] as String),
     );
   }
 }

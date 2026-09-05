@@ -20,7 +20,7 @@ class CategoriaModel {
       id: id,
       descripcion: data['descripcion'] ?? '',
       estado: data['estado'] ?? true,
-      controlaStock: data['controlaStock'] ?? true,
+      controlaStock: data['controla_stock'] ?? true,
     );
   }
 }

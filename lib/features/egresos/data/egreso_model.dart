@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class EgresoModel {
   final String id;
   final DateTime fecha;
@@ -27,30 +25,29 @@ class EgresoModel {
 
   Map<String, dynamic> toMap() {
     return {
-      'fecha': Timestamp.fromDate(fecha),
+      'fecha': fecha.toIso8601String(),
       'monto': monto,
       'descripcion': descripcion,
       'usuario': usuario,
-      'metodoPago': metodoPago,
+      'metodo_pago': metodoPago,
       'categoria': categoria,
-      'esPagado': esPagado,
-      'fechaPago': fechaPago != null ? Timestamp.fromDate(fechaPago!) : null,
-      'fechaRegistro': FieldValue.serverTimestamp(),
+      'es_pagado': esPagado,
+      'fecha_pago': fechaPago?.toIso8601String(),
     };
   }
 
   factory EgresoModel.fromMap(String id, Map<String, dynamic> data) {
     return EgresoModel(
       id: id,
-      fecha: (data['fecha'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      fecha: data['fecha'] == null ? DateTime.now() : DateTime.parse(data['fecha'] as String),
       monto: (data['monto'] ?? 0).toDouble(),
       descripcion: data['descripcion'] ?? '',
       usuario: data['usuario'] ?? '',
-      metodoPago: data['metodoPago'] ?? 'Efectivo',
+      metodoPago: data['metodo_pago'] ?? 'Efectivo',
       categoria: data['categoria'] ?? 'Negocio',
-      esPagado: data['esPagado'] ?? true,
-      fechaPago: (data['fechaPago'] as Timestamp?)?.toDate(),
-      fechaRegistro: (data['fechaRegistro'] as Timestamp?)?.toDate(),
+      esPagado: data['es_pagado'] ?? true,
+      fechaPago: data['fecha_pago'] == null ? null : DateTime.parse(data['fecha_pago'] as String),
+      fechaRegistro: data['fecha_registro'] == null ? null : DateTime.parse(data['fecha_registro'] as String),
     );
   }
 

@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class AbonoCompraModel {
   final String id;
   final String idCompra;
@@ -32,16 +30,16 @@ class AbonoCompraModel {
   factory AbonoCompraModel.fromMap(String id, Map<String, dynamic> data) {
     return AbonoCompraModel(
       id: id,
-      idCompra: data['idCompra'] ?? '',
-      idProveedor: data['idProveedor'] ?? '',
-      nombreProveedor: data['nombreProveedor'] ?? '',
-      fecha: (data['fecha'] as Timestamp?)?.toDate(),
-      montoAbonado: (data['montoAbonado'] ?? 0).toDouble(),
-      saldoAnterior: (data['saldoAnterior'] ?? 0).toDouble(),
+      idCompra: data['id_compra_credito'] ?? '',
+      idProveedor: data['id_proveedor'] ?? '',
+      nombreProveedor: data['nombre_proveedor'] ?? '',
+      fecha: data['fecha'] == null ? null : DateTime.parse(data['fecha'] as String),
+      montoAbonado: (data['monto_abonado'] ?? 0).toDouble(),
+      saldoAnterior: (data['saldo_anterior'] ?? 0).toDouble(),
       interes: (data['interes'] ?? 0).toDouble(),
-      saldoPendiente: (data['saldoPendiente'] ?? 0).toDouble(),
-      metodoPago: data['metodoPago'] ?? '',
-      numeroRecibo: data['numeroRecibo'] ?? '',
+      saldoPendiente: (data['saldo_pendiente'] ?? 0).toDouble(),
+      metodoPago: data['metodo_pago'] ?? '',
+      numeroRecibo: data['numero_recibo'] ?? '',
       usuario: data['usuario'] ?? '',
     );
   }

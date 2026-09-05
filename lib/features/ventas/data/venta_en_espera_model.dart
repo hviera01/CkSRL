@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'item_venta_model.dart';
 import '../../../core/utils/formato_moneda.dart';
 
@@ -116,36 +115,38 @@ class VentaEnEsperaModel {
     final itemsRaw = (data['items'] as List<dynamic>? ?? []);
     return VentaEnEsperaModel(
       id: id,
-      fecha: (data['fecha'] as Timestamp?)?.toDate(),
-      tipoDocumento: data['tipoDocumento'] ?? 'Factura',
+      fecha: data['fecha'] == null ? null : DateTime.parse(data['fecha'] as String),
+      tipoDocumento: data['tipo_documento'] ?? 'Factura',
       condicion: data['condicion'] ?? 'Contado',
-      metodoPago: data['metodoPago'] ?? 'Efectivo',
-      documentoCliente: data['documentoCliente'] ?? '',
-      nombreCliente: data['nombreCliente'] ?? '',
-      idCliente: data['idCliente'] as String?,
-      fechaVencimiento: (data['fechaVencimiento'] as Timestamp?)?.toDate(),
+      metodoPago: data['metodo_pago'] ?? 'Efectivo',
+      documentoCliente: data['documento_cliente'] ?? '',
+      nombreCliente: data['nombre_cliente'] ?? '',
+      idCliente: data['id_cliente'] as String?,
+      fechaVencimiento: data['fecha_vencimiento'] == null ? null : DateTime.parse(data['fecha_vencimiento'] as String),
       oc: data['oc'] ?? '',
-      regExonerado: data['regExonerado'] ?? '',
-      regSag: data['regSag'] ?? '',
+      regExonerado: data['reg_exonerado'] ?? '',
+      regSag: data['reg_sag'] ?? '',
       observaciones: data['observaciones'] ?? '',
-      descuentoGlobal: (data['descuentoGlobal'] ?? 0).toDouble(),
+      descuentoGlobal: (data['descuento_global'] ?? 0).toDouble(),
       items: itemsRaw.map((e) => ItemVentaModel.fromMap(Map<String, dynamic>.from(e as Map))).toList(),
       origen: data['origen'] ?? OrigenVentaEnEspera.automatico,
-      stockReservado: data['stockReservado'] ?? false,
-      cantidadesReservadas: (data['cantidadesReservadas'] as Map<String, dynamic>? ?? const {}).map((k, v) => MapEntry(k, (v as num).toDouble())),
+      stockReservado: data['stock_reservado'] ?? false,
+      cantidadesReservadas: (data['cantidades_reservadas'] as Map<String, dynamic>? ?? const {}).map((k, v) => MapEntry(k, (v as num).toDouble())),
     );
   }
 
+  /// Serializa para el payload de la función `guardar_venta_en_espera_manual`
+  /// (claves camelCase, igual que siempre) — la tabla en sí usa columnas
+  /// snake_case, pero eso lo resuelve la función de Postgres, no Dart.
   Map<String, dynamic> toMap() {
     return {
-      'fecha': FieldValue.serverTimestamp(),
       'tipoDocumento': tipoDocumento,
       'condicion': condicion,
       'metodoPago': metodoPago,
       'documentoCliente': documentoCliente,
       'nombreCliente': nombreCliente,
       'idCliente': idCliente,
-      'fechaVencimiento': fechaVencimiento != null ? Timestamp.fromDate(fechaVencimiento!) : null,
+      'fechaVencimiento': fechaVencimiento?.toIso8601String(),
       'oc': oc,
       'regExonerado': regExonerado,
       'regSag': regSag,
@@ -155,6 +156,30 @@ class VentaEnEsperaModel {
       'origen': origen,
       'stockReservado': stockReservado,
       'cantidadesReservadas': cantidadesReservadas,
+    };
+  }
+
+  /// Fila directa para `ventas_en_espera` (columnas snake_case) — usada solo
+  /// por el autoguardado silencioso (`guardarVentaEnEsperaAutomatica`), que
+  /// escribe directo a la tabla porque NUNCA toca stock (no necesita pasar
+  /// por la función `guardar_venta_en_espera_manual`, esa sí atómica con
+  /// stock/historial).
+  Map<String, dynamic> toRow() {
+    return {
+      'fecha': DateTime.now().toIso8601String(),
+      'tipo_documento': tipoDocumento,
+      'condicion': condicion,
+      'metodo_pago': metodoPago,
+      'documento_cliente': documentoCliente,
+      'nombre_cliente': nombreCliente,
+      'id_cliente': idCliente,
+      'fecha_vencimiento': fechaVencimiento?.toIso8601String(),
+      'oc': oc,
+      'reg_exonerado': regExonerado,
+      'reg_sag': regSag,
+      'observaciones': observaciones,
+      'descuento_global': descuentoGlobal,
+      'items': items.map((i) => i.toMap()).toList(),
     };
   }
 }

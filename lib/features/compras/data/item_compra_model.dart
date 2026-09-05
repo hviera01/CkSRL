@@ -37,6 +37,11 @@ class ItemCompraModel {
     this.nombreProductoVentaVinculada,
   });
 
+  /// Lee de un jsonb embebido guardado con [toMap] tal cual (mismas claves
+  /// camelCase) — el caso de `compras_en_espera.items` y del payload que se
+  /// manda a la función `registrar_compra` de Postgres. Para leer una fila
+  /// REAL de la tabla `compra_items` (columnas snake_case) usar
+  /// [ItemCompraModel.fromRow].
   factory ItemCompraModel.fromMap(Map<String, dynamic> data) {
     return ItemCompraModel(
       idProducto: data['idProducto'] ?? '',
@@ -50,6 +55,23 @@ class ItemCompraModel {
       idPendienteReposicionVinculado: data['idPendienteReposicionVinculado'] as String?,
       numeroDocumentoVentaVinculada: data['numeroDocumentoVentaVinculada'] as String?,
       nombreProductoVentaVinculada: data['nombreProductoVentaVinculada'] as String?,
+    );
+  }
+
+  /// Lee una fila real de la tabla `compra_items` (columnas snake_case).
+  factory ItemCompraModel.fromRow(Map<String, dynamic> data) {
+    return ItemCompraModel(
+      idProducto: data['id_producto'] ?? '',
+      idCategoria: data['id_categoria'] ?? '',
+      nombreProducto: data['nombre_producto'] ?? '',
+      precioCompra: (data['precio_compra'] ?? 0).toDouble(),
+      cantidad: (data['cantidad'] ?? 0).toDouble(),
+      subtotal: (data['subtotal'] ?? 0).toDouble(),
+      descuentoPorcentaje: (data['descuento_porcentaje'] ?? 0).toDouble(),
+      precioVentaNuevo: (data['precio_venta_nuevo'] as num?)?.toDouble(),
+      idPendienteReposicionVinculado: data['id_pendiente_reposicion_vinculado'] as String?,
+      numeroDocumentoVentaVinculada: data['numero_documento_venta_vinculada'] as String?,
+      nombreProductoVentaVinculada: data['nombre_producto_venta_vinculada'] as String?,
     );
   }
 

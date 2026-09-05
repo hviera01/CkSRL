@@ -19,7 +19,7 @@ class ProveedorModel {
     return ProveedorModel(
       id: id,
       rtn: data['rtn'] ?? '',
-      razonSocial: data['razonSocial'] ?? '',
+      razonSocial: data['razon_social'] ?? '',
       correo: data['correo'] ?? '',
       telefono: data['telefono'] ?? '',
       estado: data['estado'] ?? true,

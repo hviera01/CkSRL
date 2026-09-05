@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 /// Los 5 tipos de promoción que puede armar el usuario:
 /// - [porcentaje]: % de descuento sobre uno o varios productos.
 /// - [precioFijo]: precio especial (fijo) sobre uno o varios productos.
@@ -161,83 +159,66 @@ class PromocionModel {
     }
   }
 
-  factory PromocionModel.fromMap(String id, Map<String, dynamic> data) {
-    // Migración de documentos viejos de "regalo" (creados antes de permitir
-    // varios productos regalo): si no hay idsProductosRegalo/
-    // nombresProductosRegalo todavía, pero sí el campo único idProductoRegalo/
-    // nombreProductoRegalo de antes, se envuelve en una lista de 1 elemento
-    // para no romper esas promociones ya creadas en producción.
-    final idsRegaloNuevo = data['idsProductosRegalo'];
-    final idRegaloViejo = data['idProductoRegalo'] as String?;
-    final idsProductosRegalo = idsRegaloNuevo is List
-        ? List<String>.from(idsRegaloNuevo)
-        : (idRegaloViejo != null && idRegaloViejo.isNotEmpty ? [idRegaloViejo] : const <String>[]);
-
-    final nombresRegaloNuevo = data['nombresProductosRegalo'];
-    final nombreRegaloViejo = data['nombreProductoRegalo'] as String?;
-    final nombresProductosRegalo = nombresRegaloNuevo is List
-        ? List<String>.from(nombresRegaloNuevo)
-        : (nombreRegaloViejo != null && nombreRegaloViejo.isNotEmpty ? [nombreRegaloViejo] : const <String>[]);
-
-    // Migración de documentos viejos (creados antes de permitir varios
-    // métodos de pago a la vez): si no hay metodosPagoAlcance todavía, pero
-    // sí el campo único metodoPagoAlcance de antes ('Todos' | un método),
-    // se convierte a lista para no romper esas promociones ya creadas.
-    final metodosPagoNuevo = data['metodosPagoAlcance'];
-    final metodoPagoViejo = data['metodoPagoAlcance'] as String?;
-    final metodosPagoAlcance = metodosPagoNuevo is List
-        ? List<String>.from(metodosPagoNuevo)
-        : (metodoPagoViejo != null && metodoPagoViejo.isNotEmpty && metodoPagoViejo != 'Todos' ? [metodoPagoViejo] : const <String>[]);
-
+  /// [data] es la fila de `promociones` (columnas snake_case); las 3 listas
+  /// de productos ya NO viven ahí (ver comentario en supabase/schema.sql:
+  /// se normalizaron en la tabla puente `promocion_productos`, un catálogo
+  /// VIVO en vez de un snapshot) — el repositorio las resuelve aparte
+  /// (join contra `productos` para el nombre actual) y las pasa acá ya
+  /// armadas, agrupadas por rol.
+  factory PromocionModel.fromMap(
+    String id,
+    Map<String, dynamic> data, {
+    List<String> idsProductos = const [],
+    List<String> nombresProductos = const [],
+    List<String> idsProductosCombo = const [],
+    List<String> nombresProductosCombo = const [],
+    List<String> idsProductosRegalo = const [],
+    List<String> nombresProductosRegalo = const [],
+  }) {
     return PromocionModel(
       id: id,
       nombre: data['nombre'] ?? '',
       tipo: tipoPromocionDesdeTexto(data['tipo'] as String?),
-      idsProductos: List<String>.from(data['idsProductos'] ?? const []),
-      nombresProductos: List<String>.from(data['nombresProductos'] ?? const []),
+      idsProductos: idsProductos,
+      nombresProductos: nombresProductos,
       valor: (data['valor'] ?? 0).toDouble(),
-      idProductoBase: data['idProductoBase'] ?? '',
-      nombreProductoBase: data['nombreProductoBase'] ?? '',
-      cantidadRequerida: (data['cantidadRequerida'] ?? 1).toInt(),
-      precioCombo: (data['precioCombo'] ?? 0).toDouble(),
-      idsProductosCombo: List<String>.from(data['idsProductosCombo'] ?? const []),
-      nombresProductosCombo: List<String>.from(data['nombresProductosCombo'] ?? const []),
+      idProductoBase: data['id_producto_base'] ?? '',
+      nombreProductoBase: data['nombre_producto_base'] ?? '',
+      cantidadRequerida: (data['cantidad_requerida'] ?? 1).toInt(),
+      precioCombo: (data['precio_combo'] ?? 0).toDouble(),
+      idsProductosCombo: idsProductosCombo,
+      nombresProductosCombo: nombresProductosCombo,
       idsProductosRegalo: idsProductosRegalo,
       nombresProductosRegalo: nombresProductosRegalo,
-      cantidadRegalo: (data['cantidadRegalo'] ?? 1).toInt(),
-      fechaInicio: (data['fechaInicio'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      fechaFin: (data['fechaFin'] as Timestamp?)?.toDate(),
-      alcancePago: data['alcancePago'] ?? 'Todos',
-      metodosPagoAlcance: metodosPagoAlcance,
+      cantidadRegalo: (data['cantidad_regalo'] ?? 1).toInt(),
+      fechaInicio: data['fecha_inicio'] == null ? DateTime.now() : DateTime.parse(data['fecha_inicio'] as String),
+      fechaFin: data['fecha_fin'] == null ? null : DateTime.parse(data['fecha_fin'] as String),
+      alcancePago: data['alcance_pago'] ?? 'Todos',
+      metodosPagoAlcance: List<String>.from(data['metodos_pago_alcance'] ?? const []),
       activo: data['activo'] ?? true,
-      creadoEn: (data['creadoEn'] as Timestamp?)?.toDate(),
-      creadoPor: data['creadoPor'] ?? '',
+      creadoEn: data['creado_en'] == null ? null : DateTime.parse(data['creado_en'] as String),
+      creadoPor: data['creado_por'] ?? '',
     );
   }
 
+  /// Solo los campos propios de `promociones` -las listas de productos las
+  /// escribe el repositorio aparte, en `promocion_productos`.
   Map<String, dynamic> toMap() {
     return {
       'nombre': nombre,
       'tipo': tipo.name,
-      'idsProductos': idsProductos,
-      'nombresProductos': nombresProductos,
       'valor': valor,
-      'idProductoBase': idProductoBase,
-      'nombreProductoBase': nombreProductoBase,
-      'cantidadRequerida': cantidadRequerida,
-      'precioCombo': precioCombo,
-      'idsProductosCombo': idsProductosCombo,
-      'nombresProductosCombo': nombresProductosCombo,
-      'idsProductosRegalo': idsProductosRegalo,
-      'nombresProductosRegalo': nombresProductosRegalo,
-      'cantidadRegalo': cantidadRegalo,
-      'fechaInicio': Timestamp.fromDate(fechaInicio),
-      'fechaFin': fechaFin == null ? null : Timestamp.fromDate(fechaFin!),
-      'alcancePago': alcancePago,
-      'metodosPagoAlcance': metodosPagoAlcance,
+      'id_producto_base': idProductoBase.isEmpty ? null : idProductoBase,
+      'nombre_producto_base': nombreProductoBase,
+      'cantidad_requerida': cantidadRequerida,
+      'precio_combo': precioCombo,
+      'cantidad_regalo': cantidadRegalo,
+      'fecha_inicio': fechaInicio.toIso8601String(),
+      'fecha_fin': fechaFin?.toIso8601String(),
+      'alcance_pago': alcancePago,
+      'metodos_pago_alcance': metodosPagoAlcance,
       'activo': activo,
-      'creadoEn': creadoEn == null ? FieldValue.serverTimestamp() : Timestamp.fromDate(creadoEn!),
-      'creadoPor': creadoPor,
+      'creado_por': creadoPor,
     };
   }
 

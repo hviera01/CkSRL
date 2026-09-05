@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'item_compra_model.dart';
 
 class CompraModel {
@@ -59,32 +58,33 @@ class CompraModel {
   });
 
   factory CompraModel.fromMap(String id, Map<String, dynamic> data, List<ItemCompraModel> detalle) {
+    DateTime? fecha(String? iso) => iso == null ? null : DateTime.parse(iso);
     return CompraModel(
       id: id,
-      tipoDocumento: data['tipoDocumento'] ?? 'Factura',
-      numeroDocumento: data['numeroDocumento'] ?? '',
-      noFactura: data['noFactura'] ?? '',
-      idProveedor: data['idProveedor'] ?? '',
-      documentoProveedor: data['documentoProveedor'] ?? '',
-      razonSocial: data['razonSocial'] ?? '',
+      tipoDocumento: data['tipo_documento'] ?? 'Factura',
+      numeroDocumento: data['numero_documento'] ?? '',
+      noFactura: data['no_factura'] ?? '',
+      idProveedor: data['id_proveedor'] ?? '',
+      documentoProveedor: data['documento_proveedor'] ?? '',
+      razonSocial: data['razon_social'] ?? '',
       condicion: data['condicion'] ?? '',
-      metodoPago: data['metodoPago'] ?? '',
+      metodoPago: data['metodo_pago'] ?? '',
       subtotal: (data['subtotal'] ?? 0).toDouble(),
-      descuentoGlobalPorcentaje: (data['descuentoGlobalPorcentaje'] ?? 0).toDouble(),
-      descuentoTotalMonto: (data['descuentoTotalMonto'] ?? 0).toDouble(),
-      isvPorcentaje: (data['isvPorcentaje'] ?? 15).toDouble(),
+      descuentoGlobalPorcentaje: (data['descuento_global_porcentaje'] ?? 0).toDouble(),
+      descuentoTotalMonto: (data['descuento_total_monto'] ?? 0).toDouble(),
+      isvPorcentaje: (data['isv_porcentaje'] ?? 15).toDouble(),
       impuesto: (data['impuesto'] ?? 0).toDouble(),
-      ajusteManual: (data['ajusteManual'] ?? 0).toDouble(),
-      totalAPagar: (data['totalAPagar'] ?? 0).toDouble(),
-      fechaRegistro: (data['fechaRegistro'] as Timestamp?)?.toDate(),
-      fechaVencimiento: (data['fechaVencimiento'] as Timestamp?)?.toDate(),
+      ajusteManual: (data['ajuste_manual'] ?? 0).toDouble(),
+      totalAPagar: (data['total_a_pagar'] ?? 0).toDouble(),
+      fechaRegistro: fecha(data['fecha_registro'] as String?),
+      fechaVencimiento: fecha(data['fecha_vencimiento'] as String?),
       estado: data['estado'] ?? 'Activa',
-      usuarioRegistro: data['usuarioRegistro'] ?? '',
-      cantidadProductos: (data['cantidadProductos'] ?? 0).toDouble(),
+      usuarioRegistro: data['usuario_registro'] ?? '',
+      cantidadProductos: (data['cantidad_productos'] ?? 0).toDouble(),
       detalle: detalle,
-      usuarioAnulacion: data['usuarioAnulacion'] ?? '',
-      motivoAnulacion: data['motivoAnulacion'] ?? '',
-      fechaAnulacion: (data['fechaAnulacion'] as Timestamp?)?.toDate(),
+      usuarioAnulacion: data['usuario_anulacion'] ?? '',
+      motivoAnulacion: data['motivo_anulacion'] ?? '',
+      fechaAnulacion: fecha(data['fecha_anulacion'] as String?),
     );
   }
 }

@@ -1,4 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/data/base_repository.dart';
 import 'compra_credito_model.dart';
 import 'abono_compra_model.dart';
 import 'compra_credito_import_service.dart';
@@ -19,10 +20,8 @@ class ResumenImportacionComprasCredito {
   ResumenImportacionComprasCredito({required this.creados, required this.proveedoresCreados});
 }
 
-class CompraCreditoRepository {
-  final _db = FirebaseFirestore.instance;
-  final _col = FirebaseFirestore.instance.collection('comprasCredito');
-  final _colProveedores = FirebaseFirestore.instance.collection('proveedores');
+class CompraCreditoRepository with ConRedMixin {
+  final _db = Supabase.instance.client;
 
   String _generarNumeroDocumento() {
     final ahora = DateTime.now().millisecondsSinceEpoch.toString();
@@ -30,15 +29,20 @@ class CompraCreditoRepository {
   }
 
   Stream<List<CompraCreditoModel>> obtenerCompras() {
-    return _col.orderBy('fechaRegistro', descending: true).snapshots().map((snap) {
-      return snap.docs.map((d) => CompraCreditoModel.fromMap(d.id, d.data())).toList();
-    });
+    return conRedStream(() => _db
+        .from('compras_credito')
+        .stream(primaryKey: ['id'])
+        .order('fecha_registro', ascending: false)
+        .map((filas) => filas.map((d) => CompraCreditoModel.fromMap(d['id'] as String, d)).toList()));
   }
 
   Stream<List<AbonoCompraModel>> obtenerAbonos(String idCompra) {
-    return _col.doc(idCompra).collection('abonosCompra').orderBy('fecha', descending: true).snapshots().map((snap) {
-      return snap.docs.map((d) => AbonoCompraModel.fromMap(d.id, d.data())).toList();
-    });
+    return conRedStream(() => _db
+        .from('compra_credito_abonos')
+        .stream(primaryKey: ['id'])
+        .eq('id_compra_credito', idCompra)
+        .order('fecha', ascending: false)
+        .map((filas) => filas.map((d) => AbonoCompraModel.fromMap(d['id'] as String, d)).toList()));
   }
 
   Future<void> crearCreditoManual({
@@ -50,19 +54,18 @@ class CompraCreditoRepository {
     required double montoTotal,
     required double saldoPendiente,
     required DateTime fechaVencimiento,
-  }) async {
-    await _col.add({
-      'idProveedor': idProveedor,
-      'documentoProveedor': documentoProveedor.isEmpty ? 'N/A' : documentoProveedor,
-      'nombreProveedor': nombreProveedor,
-      'numeroDocumento': numeroDocumento.isEmpty ? _generarNumeroDocumento() : numeroDocumento,
-      'noFactura': noFactura,
-      'montoTotal': redondearMoneda(montoTotal),
-      'saldoPendiente': redondearMoneda(saldoPendiente),
-      'fechaRegistro': FieldValue.serverTimestamp(),
-      'fechaVencimiento': Timestamp.fromDate(fechaVencimiento),
-      'manual': true,
-    });
+  }) {
+    return conRed(() => _db.from('compras_credito').insert({
+          'id_proveedor': idProveedor.isEmpty ? null : idProveedor,
+          'documento_proveedor': documentoProveedor.isEmpty ? 'N/A' : documentoProveedor,
+          'nombre_proveedor': nombreProveedor,
+          'numero_documento': numeroDocumento.isEmpty ? _generarNumeroDocumento() : numeroDocumento,
+          'no_factura': noFactura,
+          'monto_total': redondearMoneda(montoTotal),
+          'saldo_pendiente': redondearMoneda(saldoPendiente),
+          'fecha_vencimiento': fechaVencimiento.toIso8601String(),
+          'manual': true,
+        }));
   }
 
   Future<void> registrarAbono({
@@ -76,67 +79,34 @@ class CompraCreditoRepository {
     required String numeroRecibo,
     required String usuario,
     required DateTime fecha,
-  }) async {
-    // Redondear a centavos antes de guardar: sin esto, restas sucesivas de
-    // `double` binario dejan saldos como 0.0000000000018 en vez de 0 exacto,
-    // que la app muestra como "L.0.00" pero que técnicamente sigue siendo
-    // > 0 -así una factura ya pagada queda marcada "Debe" para siempre hasta
-    // que alguien note el error visualmente y tenga que forzarla con un
-    // abono simbólico (caso real: proveedor Ventura, 2026-08-29)-.
-    if (montoAbonado > saldoAnterior + interes + 0.01) {
-      throw Exception('El abono (${formatearMoneda(montoAbonado)}) supera el saldo disponible en esa factura (${formatearMoneda(saldoAnterior + interes)})');
-    }
-    final nuevoSaldo = redondearMoneda((saldoAnterior - montoAbonado + interes).clamp(0, double.infinity).toDouble());
-    final batch = _db.batch();
-    batch.update(_col.doc(idCompra), {'saldoPendiente': nuevoSaldo});
-    final abonoRef = _col.doc(idCompra).collection('abonosCompra').doc();
-    batch.set(abonoRef, {
-      'idCompra': idCompra,
-      'idProveedor': idProveedor,
-      'nombreProveedor': nombreProveedor,
-      'fecha': Timestamp.fromDate(fecha),
-      'montoAbonado': redondearMoneda(montoAbonado),
-      'saldoAnterior': redondearMoneda(saldoAnterior),
-      'interes': redondearMoneda(interes),
-      'saldoPendiente': nuevoSaldo,
-      'metodoPago': metodoPago,
-      'numeroRecibo': numeroRecibo,
-      'usuario': usuario,
-    });
-    await batch.commit();
-  }
-
-  /// Recalcula, en orden cronológico, el saldoAnterior/saldoPendiente de cada
-  /// abono restante de una compra y el saldoPendiente final de la compra —
-  /// se usa después de editar o eliminar un abono, porque cada abono depende
-  /// del resultado del anterior (una cadena), así que tocar uno de en medio
-  /// deja mal a todos los que vienen después si no se recorre de nuevo desde
-  /// el montoTotal. Lanza una excepción si algún paso da negativo antes de
-  /// redondear/limitar a 0 (significa que ese abono, con los datos nuevos,
-  /// pagaría más de lo que había pendiente en ese momento).
-  Future<void> _recalcularCadenaAbonos(String idCompra, double montoTotal) async {
-    final abonosSnap = await _col.doc(idCompra).collection('abonosCompra').orderBy('fecha').get();
-    final batch = _db.batch();
-    var saldo = redondearMoneda(montoTotal);
-    for (final doc in abonosSnap.docs) {
-      final data = doc.data();
-      final montoAbonado = (data['montoAbonado'] ?? 0).toDouble();
-      final interes = (data['interes'] ?? 0).toDouble();
-      final saldoAnterior = saldo;
-      final crudo = saldoAnterior - montoAbonado + interes;
-      if (crudo < -0.01) {
-        throw Exception('El abono de ${formatearMoneda(montoAbonado)} superaría el saldo disponible en ese momento (${formatearMoneda(saldoAnterior + interes)})');
+  }) {
+    return conRed(() async {
+      if (montoAbonado > saldoAnterior + interes + 0.01) {
+        throw Exception('El abono (${formatearMoneda(montoAbonado)}) supera el saldo disponible en esa factura (${formatearMoneda(saldoAnterior + interes)})');
       }
-      saldo = redondearMoneda(crudo.clamp(0, double.infinity).toDouble());
-      batch.update(doc.reference, {'saldoAnterior': redondearMoneda(saldoAnterior), 'saldoPendiente': saldo});
-    }
-    batch.update(_col.doc(idCompra), {'saldoPendiente': saldo});
-    await batch.commit();
+      await _db.rpc('registrar_abono_compra_credito', params: {
+        'payload': {
+          'idCompra': idCompra,
+          'idProveedor': idProveedor.isEmpty ? null : idProveedor,
+          'nombreProveedor': nombreProveedor,
+          'saldoAnterior': saldoAnterior,
+          'montoAbonado': montoAbonado,
+          'interes': interes,
+          'metodoPago': metodoPago,
+          'numeroRecibo': numeroRecibo,
+          'usuario': usuario,
+          'fecha': fecha.toIso8601String(),
+        },
+      });
+    });
   }
 
-  Future<void> eliminarAbono({required String idCompra, required String idAbono, required double montoTotal}) async {
-    await _col.doc(idCompra).collection('abonosCompra').doc(idAbono).delete();
-    await _recalcularCadenaAbonos(idCompra, montoTotal);
+  Future<void> eliminarAbono({required String idCompra, required String idAbono, required double montoTotal}) {
+    return conRed(() => _db.rpc('eliminar_abono_compra_credito', params: {
+          'p_id_compra': idCompra,
+          'p_id_abono': idAbono,
+          'p_monto_total': montoTotal,
+        }));
   }
 
   Future<void> editarAbono({
@@ -148,100 +118,96 @@ class CompraCreditoRepository {
     required DateTime fecha,
     required String metodoPago,
     required String numeroRecibo,
-  }) async {
-    await _col.doc(idCompra).collection('abonosCompra').doc(idAbono).update({
-      'montoAbonado': redondearMoneda(montoAbonado),
-      'interes': redondearMoneda(interes),
-      'fecha': Timestamp.fromDate(fecha),
-      'metodoPago': metodoPago,
-      'numeroRecibo': numeroRecibo,
+  }) {
+    return conRed(() => _db.rpc('editar_abono_compra_credito', params: {
+          'payload': {
+            'idCompra': idCompra,
+            'idAbono': idAbono,
+            'montoTotal': montoTotal,
+            'montoAbonado': montoAbonado,
+            'interes': interes,
+            'fecha': fecha.toIso8601String(),
+            'metodoPago': metodoPago,
+            'numeroRecibo': numeroRecibo,
+          },
+        }));
+  }
+
+  Future<void> eliminar(String id) {
+    return conRed(() => _db.from('compras_credito').delete().eq('id', id));
+  }
+
+  Future<List<CompraCreditoModel>> obtenerComprasPorProveedor(String idProveedor) {
+    return conRed(() async {
+      final filas = await _db.from('compras_credito').select().eq('id_proveedor', idProveedor);
+      return filas.map((d) => CompraCreditoModel.fromMap(d['id'] as String, d)).toList();
     });
-    await _recalcularCadenaAbonos(idCompra, montoTotal);
   }
 
-  Future<void> eliminar(String id) async {
-    await _col.doc(id).delete();
+  Future<List<AbonoCompraModel>> obtenerAbonosPorProveedor(String idProveedor) {
+    return conRed(() async {
+      final filas = await _db.from('compra_credito_abonos').select().eq('id_proveedor', idProveedor);
+      return filas.map((d) => AbonoCompraModel.fromMap(d['id'] as String, d)).toList();
+    });
   }
 
-  Future<List<CompraCreditoModel>> obtenerComprasPorProveedor(String idProveedor) async {
-    final snap = await _col.where('idProveedor', isEqualTo: idProveedor).get();
-    return snap.docs.map((d) => CompraCreditoModel.fromMap(d.id, d.data())).toList();
-  }
-
-  Future<List<AbonoCompraModel>> obtenerAbonosPorProveedor(String idProveedor) async {
-    final snap = await _db.collectionGroup('abonosCompra').where('idProveedor', isEqualTo: idProveedor).get();
-    return snap.docs.map((d) => AbonoCompraModel.fromMap(d.id, d.data())).toList();
-  }
-
-  /// Crea en lote los créditos de compra de una importación desde Excel.
-  /// Cada fila se agrega como un crédito manual nuevo (no empareja con
-  /// créditos existentes). Los proveedores que no existan todavía por nombre
-  /// se crean automáticamente, igual que las categorías al importar productos.
-  Future<ResumenImportacionComprasCredito> importarCreditos(List<FilaImportacionCompraCredito> filas) async {
-    final proveedoresSnap = await _colProveedores.get();
-    final idProveedorPorNombre = <String, String>{};
-    final rtnPorId = <String, String>{};
-    for (final d in proveedoresSnap.docs) {
-      final nombre = (d.data()['razonSocial'] as String? ?? '').trim().toLowerCase();
-      if (nombre.isNotEmpty) idProveedorPorNombre[nombre] = d.id;
-      rtnPorId[d.id] = (d.data()['rtn'] as String? ?? '');
-    }
-
-    var creados = 0, proveedoresCreados = 0;
-    var batch = _db.batch();
-    var operacionesEnBatch = 0;
-
-    Future<void> descargarBatch() async {
-      if (operacionesEnBatch == 0) return;
-      await batch.commit();
-      batch = _db.batch();
-      operacionesEnBatch = 0;
-    }
-
-    for (final fila in filas.where((f) => f.valido)) {
-      final nombreNorm = fila.nombreProveedor.trim().toLowerCase();
-      var idProveedor = idProveedorPorNombre[nombreNorm];
-      if (idProveedor == null) {
-        final ref = _colProveedores.doc();
-        batch.set(ref, {
-          'rtn': '',
-          'razonSocial': fila.nombreProveedor.trim(),
-          'correo': '',
-          'telefono': '',
-          'estado': true,
-          'fechaRegistro': FieldValue.serverTimestamp(),
-        });
-        idProveedor = ref.id;
-        idProveedorPorNombre[nombreNorm] = idProveedor;
-        rtnPorId[idProveedor] = '';
-        proveedoresCreados++;
-        operacionesEnBatch++;
+  /// Crea en lote los créditos de compra de una importación desde Excel. Los
+  /// proveedores que no existan todavía por nombre se crean automáticamente.
+  Future<ResumenImportacionComprasCredito> importarCreditos(List<FilaImportacionCompraCredito> filas) {
+    return conRed(() async {
+      final proveedoresExistentes = await _db.from('proveedores').select('id, razon_social, rtn');
+      final idProveedorPorNombre = <String, String>{};
+      final rtnPorId = <String, String>{};
+      for (final d in proveedoresExistentes) {
+        final nombre = (d['razon_social'] as String? ?? '').trim().toLowerCase();
+        if (nombre.isNotEmpty) idProveedorPorNombre[nombre] = d['id'] as String;
+        rtnPorId[d['id'] as String] = (d['rtn'] as String? ?? '');
       }
 
-      final ref = _col.doc();
-      batch.set(ref, {
-        'idProveedor': idProveedor,
-        'documentoProveedor': rtnPorId[idProveedor]?.isNotEmpty == true ? rtnPorId[idProveedor] : 'N/A',
-        'nombreProveedor': fila.nombreProveedor,
-        'numeroDocumento': fila.numeroDocumento.isEmpty ? fila.numeroFila.toString() : fila.numeroDocumento,
-        'noFactura': fila.noFactura,
-        'montoTotal': fila.montoTotal,
-        'saldoPendiente': fila.saldoPendiente,
-        'fechaRegistro': fila.fechaRegistro != null ? Timestamp.fromDate(fila.fechaRegistro!) : FieldValue.serverTimestamp(),
-        'fechaVencimiento': Timestamp.fromDate(fila.fechaVencimiento),
-        'manual': true,
-      });
-      creados++;
-      operacionesEnBatch++;
-      if (operacionesEnBatch >= 400) await descargarBatch();
-    }
-    await descargarBatch();
+      var creados = 0, proveedoresCreados = 0;
+      final proveedoresNuevos = <String, Map<String, dynamic>>{};
 
-    return ResumenImportacionComprasCredito(creados: creados, proveedoresCreados: proveedoresCreados);
+      for (final fila in filas.where((f) => f.valido)) {
+        final nombreNorm = fila.nombreProveedor.trim().toLowerCase();
+        if (idProveedorPorNombre[nombreNorm] == null && !proveedoresNuevos.containsKey(nombreNorm)) {
+          proveedoresNuevos[nombreNorm] = {'rtn': '', 'razon_social': fila.nombreProveedor.trim(), 'correo': '', 'telefono': '', 'estado': true};
+        }
+      }
+
+      if (proveedoresNuevos.isNotEmpty) {
+        final insertados = await _db.from('proveedores').insert(proveedoresNuevos.values.toList()).select('id, razon_social');
+        for (final p in insertados) {
+          idProveedorPorNombre[(p['razon_social'] as String).trim().toLowerCase()] = p['id'] as String;
+          rtnPorId[p['id'] as String] = '';
+        }
+        proveedoresCreados = insertados.length;
+      }
+
+      final filasInsertar = <Map<String, dynamic>>[];
+      for (final fila in filas.where((f) => f.valido)) {
+        final idProveedor = idProveedorPorNombre[fila.nombreProveedor.trim().toLowerCase()];
+        filasInsertar.add({
+          'id_proveedor': idProveedor,
+          'documento_proveedor': (idProveedor != null && (rtnPorId[idProveedor]?.isNotEmpty ?? false)) ? rtnPorId[idProveedor] : 'N/A',
+          'nombre_proveedor': fila.nombreProveedor,
+          'numero_documento': fila.numeroDocumento.isEmpty ? fila.numeroFila.toString() : fila.numeroDocumento,
+          'no_factura': fila.noFactura,
+          'monto_total': fila.montoTotal,
+          'saldo_pendiente': fila.saldoPendiente,
+          'fecha_registro': fila.fechaRegistro?.toIso8601String(),
+          'fecha_vencimiento': fila.fechaVencimiento.toIso8601String(),
+          'manual': true,
+        });
+        creados++;
+      }
+      if (filasInsertar.isNotEmpty) await _db.from('compras_credito').insert(filasInsertar);
+
+      return ResumenImportacionComprasCredito(creados: creados, proveedoresCreados: proveedoresCreados);
+    });
   }
 
-  /// Calcula cómo se repartiría [monto] entre las facturas pendientes de un proveedor,
-  /// pagando primero las que vencen antes. No escribe nada todavía.
+  /// Calcula cómo se repartiría [monto] entre las facturas pendientes de un
+  /// proveedor, pagando primero las que vencen antes. No escribe nada todavía.
   List<DistribucionAbono> calcularDistribucion(List<CompraCreditoModel> comprasProveedor, double monto) {
     final pendientes = comprasProveedor.where((c) => !c.liquidada).toList()
       ..sort((a, b) {
@@ -267,40 +233,39 @@ class CompraCreditoRepository {
     required String metodoPago,
     required String usuario,
     required DateTime fecha,
-  }) async {
-    for (final item in distribucion) {
-      if (item.montoAplicado > item.compra.saldoPendiente + 0.01) {
-        throw Exception('El monto asignado a la factura ${item.compra.noFactura} supera su saldo pendiente');
+  }) {
+    return conRed(() async {
+      for (final item in distribucion) {
+        if (item.montoAplicado > item.compra.saldoPendiente + 0.01) {
+          throw Exception('El monto asignado a la factura ${item.compra.noFactura} supera su saldo pendiente');
+        }
       }
-    }
-    final batch = _db.batch();
-    for (final item in distribucion) {
-      batch.update(_col.doc(item.compra.id), {'saldoPendiente': item.saldoResultante});
-      final abonoRef = _col.doc(item.compra.id).collection('abonosCompra').doc();
-      batch.set(abonoRef, {
-        'idCompra': item.compra.id,
-        'idProveedor': item.compra.idProveedor,
-        'nombreProveedor': item.compra.nombreProveedor,
-        'fecha': Timestamp.fromDate(fecha),
-        'montoAbonado': item.montoAplicado,
-        'saldoAnterior': item.compra.saldoPendiente,
-        'interes': 0,
-        'saldoPendiente': item.saldoResultante,
-        'metodoPago': metodoPago,
-        'numeroRecibo': '',
-        'usuario': usuario,
-        'esAbonoGeneral': true,
+      await _db.rpc('registrar_abono_general_compra_credito', params: {
+        'payload': {
+          'metodoPago': metodoPago,
+          'usuario': usuario,
+          'fecha': fecha.toIso8601String(),
+          'distribucion': distribucion
+              .map((item) => {
+                    'idCompra': item.compra.id,
+                    'idProveedor': item.compra.idProveedor.isEmpty ? null : item.compra.idProveedor,
+                    'nombreProveedor': item.compra.nombreProveedor,
+                    'montoAplicado': item.montoAplicado,
+                  })
+              .toList(),
+        },
       });
-    }
-    await batch.commit();
+    });
   }
 
-  Future<List<AbonoCompraModel>> obtenerAbonosPorRango(DateTime inicio, DateTime finInclusive) async {
-    final snap = await _db
-        .collectionGroup('abonosCompra')
-        .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(inicio))
-        .where('fecha', isLessThanOrEqualTo: Timestamp.fromDate(finInclusive))
-        .get();
-    return snap.docs.map((d) => AbonoCompraModel.fromMap(d.id, d.data())).toList();
+  Future<List<AbonoCompraModel>> obtenerAbonosPorRango(DateTime inicio, DateTime finInclusive) {
+    return conRed(() async {
+      final filas = await _db
+          .from('compra_credito_abonos')
+          .select()
+          .gte('fecha', inicio.toIso8601String())
+          .lte('fecha', finInclusive.toIso8601String());
+      return filas.map((d) => AbonoCompraModel.fromMap(d['id'] as String, d)).toList();
+    });
   }
 }

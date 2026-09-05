@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'item_compra_model.dart';
 
 class CompraEnEsperaModel {
@@ -38,38 +37,39 @@ class CompraEnEsperaModel {
 
   factory CompraEnEsperaModel.fromMap(String id, Map<String, dynamic> data) {
     final itemsRaw = (data['items'] as List<dynamic>? ?? []);
+    DateTime? fecha(String? iso) => iso == null ? null : DateTime.parse(iso);
     return CompraEnEsperaModel(
       id: id,
-      fecha: (data['fecha'] as Timestamp?)?.toDate(),
-      idProveedor: data['idProveedor'] ?? '',
-      documentoProveedor: data['documentoProveedor'] ?? '',
-      razonSocial: data['razonSocial'] ?? '',
-      noFactura: data['noFactura'] ?? '',
+      fecha: fecha(data['fecha'] as String?),
+      idProveedor: data['id_proveedor'] ?? '',
+      documentoProveedor: data['documento_proveedor'] ?? '',
+      razonSocial: data['razon_social'] ?? '',
+      noFactura: data['no_factura'] ?? '',
       condicion: data['condicion'] ?? 'Contado',
-      metodoPago: data['metodoPago'] ?? 'Efectivo',
-      fechaRegistro: (data['fechaRegistro'] as Timestamp?)?.toDate(),
-      fechaVencimiento: (data['fechaVencimiento'] as Timestamp?)?.toDate(),
-      descuentoGlobalPorcentaje: (data['descuentoGlobalPorcentaje'] ?? 0).toDouble(),
-      isvPorcentaje: (data['isvPorcentaje'] ?? 15).toDouble(),
-      ajusteManual: (data['ajusteManual'] ?? 0).toDouble(),
+      metodoPago: data['metodo_pago'] ?? 'Efectivo',
+      fechaRegistro: fecha(data['fecha_registro'] as String?),
+      fechaVencimiento: fecha(data['fecha_vencimiento'] as String?),
+      descuentoGlobalPorcentaje: (data['descuento_global_porcentaje'] ?? 0).toDouble(),
+      isvPorcentaje: (data['isv_porcentaje'] ?? 15).toDouble(),
+      ajusteManual: (data['ajuste_manual'] ?? 0).toDouble(),
       items: itemsRaw.map((e) => ItemCompraModel.fromMap(Map<String, dynamic>.from(e as Map))).toList(),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'fecha': FieldValue.serverTimestamp(),
-      'idProveedor': idProveedor,
-      'documentoProveedor': documentoProveedor,
-      'razonSocial': razonSocial,
-      'noFactura': noFactura,
+      'fecha': DateTime.now().toIso8601String(),
+      'id_proveedor': idProveedor.isEmpty ? null : idProveedor,
+      'documento_proveedor': documentoProveedor,
+      'razon_social': razonSocial,
+      'no_factura': noFactura,
       'condicion': condicion,
-      'metodoPago': metodoPago,
-      'fechaRegistro': fechaRegistro != null ? Timestamp.fromDate(fechaRegistro!) : null,
-      'fechaVencimiento': fechaVencimiento != null ? Timestamp.fromDate(fechaVencimiento!) : null,
-      'descuentoGlobalPorcentaje': descuentoGlobalPorcentaje,
-      'isvPorcentaje': isvPorcentaje,
-      'ajusteManual': ajusteManual,
+      'metodo_pago': metodoPago,
+      'fecha_registro': fechaRegistro?.toIso8601String(),
+      'fecha_vencimiento': fechaVencimiento?.toIso8601String(),
+      'descuento_global_porcentaje': descuentoGlobalPorcentaje,
+      'isv_porcentaje': isvPorcentaje,
+      'ajuste_manual': ajusteManual,
       'items': items.map((i) => i.toMap()).toList(),
     };
   }

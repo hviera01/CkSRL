@@ -899,3 +899,1117 @@ alter publication supabase_realtime add table
   apartado_items,
   apartado_cuotas,
   apartado_abonos;
+
+-- ============================================================================
+-- Ck S de R.L. de C.V. — funciones Postgres para operaciones ATÓMICAS que en
+-- Firestore corrían dentro de una Transaction (contadores, costeo FIFO,
+-- registrar/anular venta y compra, reservas de stock de "en espera", abonos
+-- de crédito con cadena dependiente, cierre de caja). Ver el comentario de
+-- cada función para el porqué. Aplicado con tool/supabase_sql.dart y luego
+-- documentado (append) en supabase/schema.sql.
+-- ============================================================================
+
+-- Falta en el esquema original: los reportes necesitan poder ordenar por el
+-- momento REAL de creación (creadoEn en Firestore), distinto de
+-- fecha_registro (fecha de negocio, que el cajero puede atrasar a mano).
+alter table ventas add column if not exists creado_en timestamptz not null default now();
+
+-- Falta en el esquema original: en Firestore cada línea de detalle llevaba
+-- un campo 'orden' (id autogenerado no garantiza el orden de lectura) — acá
+-- las filas tampoco vienen garantizadas en orden de inserción sin un ORDER
+-- BY explícito, así que hace falta la misma columna.
+alter table venta_items add column if not exists orden integer;
+alter table compra_items add column if not exists orden integer;
+
+-- ----------------------------------------------------------------------------
+-- incrementar_contador: reemplaza el patrón lectura+escritura de
+-- VentaRepository._claveContador/CompraRepository -dos cajeros no pueden
+-- sacar el mismo número-. Un solo UPDATE/INSERT atómico.
+-- ----------------------------------------------------------------------------
+create or replace function incrementar_contador(p_clave text) returns integer
+language plpgsql as $$
+declare
+  v_nuevo integer;
+begin
+  insert into contadores (clave, ultimo) values (p_clave, 1)
+  on conflict (clave) do update set ultimo = contadores.ultimo + 1
+  returning ultimo into v_nuevo;
+  return v_nuevo;
+end;
+$$;
+
+create or replace function formatear_cantidad(p_cantidad numeric) returns text
+language sql immutable as $$
+  select case when p_cantidad = round(p_cantidad, 0)
+    then round(p_cantidad, 0)::bigint::text
+    else round(p_cantidad, 2)::text
+  end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- consumir_fifo_lotes: consume [p_cantidad] de los lotes de un producto (el
+-- más viejo primero, o por prioridad manual — ver reordenar_lotes), bloqueando
+-- las filas tocadas (FOR UPDATE) para que dos ventas concurrentes del mismo
+-- producto no consuman el mismo lote dos veces. Devuelve el costo unitario
+-- promedio ponderado de lo consumido (usa p_costo_fallback para lo que no
+-- alcance a cubrir ningún lote).
+-- ----------------------------------------------------------------------------
+create or replace function consumir_fifo_lotes(p_id_producto uuid, p_cantidad numeric, p_costo_fallback numeric)
+returns numeric
+language plpgsql as $$
+declare
+  v_restante numeric := p_cantidad;
+  v_costo_total numeric := 0;
+  v_consumido numeric;
+  lote record;
+begin
+  if p_cantidad is null or p_cantidad <= 0 then
+    return p_costo_fallback;
+  end if;
+  for lote in
+    select id, cantidad_restante, costo_unitario
+    from producto_lotes_costo
+    where id_producto = p_id_producto and cantidad_restante > 0
+    order by (prioridad is null), prioridad, fecha
+    for update
+  loop
+    exit when v_restante <= 0;
+    v_consumido := least(lote.cantidad_restante, v_restante);
+    update producto_lotes_costo set cantidad_restante = cantidad_restante - v_consumido where id = lote.id;
+    v_costo_total := v_costo_total + v_consumido * lote.costo_unitario;
+    v_restante := v_restante - v_consumido;
+  end loop;
+  if v_restante > 0 then
+    v_costo_total := v_costo_total + v_restante * coalesce(p_costo_fallback, 0);
+  end if;
+  return v_costo_total / p_cantidad;
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- sincronizar_precio_compra_activo: productos.precio_compra refleja el lote
+-- que el FIFO va a consumir A CONTINUACIÓN (ver comentario grande en
+-- lote_costo_repository.dart original). Se llama luego de cualquier
+-- operación que toque lotes.
+-- ----------------------------------------------------------------------------
+create or replace function sincronizar_precio_compra_activo(p_id_producto uuid) returns void
+language plpgsql as $$
+declare
+  v_costo numeric;
+begin
+  select costo_unitario into v_costo
+  from producto_lotes_costo
+  where id_producto = p_id_producto and cantidad_restante > 0
+  order by (prioridad is null), prioridad, fecha
+  limit 1;
+  if v_costo is not null then
+    update productos set precio_compra = v_costo where id = p_id_producto;
+  end if;
+end;
+$$;
+
+create or replace function reordenar_lotes(p_id_producto uuid, p_ids_orden uuid[]) returns void
+language plpgsql as $$
+declare
+  v_id uuid;
+  v_idx integer := 0;
+begin
+  foreach v_id in array p_ids_orden loop
+    update producto_lotes_costo set prioridad = v_idx where id = v_id and id_producto = p_id_producto;
+    v_idx := v_idx + 1;
+  end loop;
+  perform sincronizar_precio_compra_activo(p_id_producto);
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- calcular_cantidades_descuento: dado un array de ítems (ItemVentaModel.toMap
+-- en camelCase, con 'componentes' si es combo), expande cada combo en sus
+-- componentes (mismo criterio que VentaRepository._expandirComponentes) y
+-- agrupa la cantidad total a descontar por idProducto, excluyendo líneas
+-- reembasadas o de categorías que no controlan stock (consultado en vivo
+-- contra `categorias`, no confiado a un set que mande el cliente). Reusado
+-- por registrar_venta (costeo + stock) y por guardar_venta_en_espera_manual
+-- (reserva de stock, sin costeo).
+-- ----------------------------------------------------------------------------
+create or replace function calcular_cantidades_descuento(p_items jsonb) returns jsonb
+language plpgsql as $$
+declare
+  v_result jsonb := '{}'::jsonb;
+  item jsonb;
+  comp jsonb;
+  v_id_producto text;
+  v_id_categoria uuid;
+  v_cantidad numeric;
+  v_controla boolean;
+begin
+  for item in select * from jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) loop
+    if (item->'componentes' is null or jsonb_array_length(item->'componentes') = 0) then
+      if coalesce((item->>'reembasado')::boolean, false) = false then
+        v_id_producto := nullif(item->>'idProducto', '');
+        if v_id_producto is not null then
+          v_id_categoria := nullif(item->>'idCategoria', '')::uuid;
+          select controla_stock into v_controla from categorias where id = v_id_categoria;
+          if coalesce(v_controla, true) then
+            v_cantidad := (item->>'cantidad')::numeric;
+            v_result := jsonb_set(v_result, array[v_id_producto], to_jsonb(coalesce((v_result->>v_id_producto)::numeric, 0) + v_cantidad));
+          end if;
+        end if;
+      end if;
+    else
+      for comp in select * from jsonb_array_elements(item->'componentes') loop
+        v_id_producto := nullif(comp->>'idProducto', '');
+        if v_id_producto is not null then
+          v_id_categoria := nullif(comp->>'idCategoria', '')::uuid;
+          select controla_stock into v_controla from categorias where id = v_id_categoria;
+          if coalesce(v_controla, true) then
+            v_cantidad := (comp->>'cantidad')::numeric * (item->>'cantidad')::numeric;
+            v_result := jsonb_set(v_result, array[v_id_producto], to_jsonb(coalesce((v_result->>v_id_producto)::numeric, 0) + v_cantidad));
+          end if;
+        end if;
+      end loop;
+    end if;
+  end loop;
+  return v_result;
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- registrar_venta: equivalente a VentaRepository.registrarVenta (la
+-- transacción completa de Firestore). Ver comentario de cada bloque.
+-- payload (jsonb, claves camelCase como en ItemVentaModel/VentaModel):
+--   tipoDocumento, condicion, metodoPago, documentoCliente, nombreCliente,
+--   idCliente, nombreClienteNormalizado (precalculado en Dart con
+--   normalizarNombreCliente), fechaRegistro, fechaVencimiento,
+--   telefonoCredito, oc, regExonerado, regSag, observaciones,
+--   descuentoGlobal, montoPago, montoCambio, pagosMixtos, subtotal,
+--   impuesto, totalAPagar, usuario, esEnvio, envioNombre, envioDireccion,
+--   envioTelefono, items: [ItemVentaModel.toMap() + 'orden' implícito].
+-- Devuelve {id, numeroDocumento, creadoEn, detalleCostos:[...]} — Dart hace
+-- items[i].copyWith(precioCompraUsado: detalleCostos[i]) para reconstruir el
+-- VentaModel final.
+-- ----------------------------------------------------------------------------
+create or replace function registrar_venta(payload jsonb) returns jsonb
+language plpgsql as $$
+declare
+  v_tipo_documento text := payload->>'tipoDocumento';
+  v_condicion text := payload->>'condicion';
+  v_clave_contador text;
+  v_numero integer;
+  v_numero_documento text;
+  v_id_venta uuid := gen_random_uuid();
+  v_id_cliente uuid;
+  v_nombre_cliente text := coalesce(payload->>'nombreCliente', '');
+  v_documento_cliente text := coalesce(payload->>'documentoCliente', '');
+  v_fecha_registro timestamptz := (payload->>'fechaRegistro')::timestamptz;
+  v_fecha_vencimiento timestamptz := nullif(payload->>'fechaVencimiento', '')::timestamptz;
+  v_creado_en timestamptz := now();
+  v_cantidad_productos numeric := 0;
+  v_cantidades jsonb;
+  v_costo_por_producto jsonb := '{}'::jsonb;
+  v_id_producto_txt text;
+  v_cantidad numeric;
+  v_stock_actual numeric;
+  v_precio_compra numeric;
+  v_costo numeric;
+  v_stock_nuevo numeric;
+  item jsonb;
+  v_idx integer;
+  v_item_ref uuid;
+  v_id_categoria uuid;
+  v_controla boolean;
+  v_es_combo boolean;
+  v_costo_item numeric;
+  v_detalle_costos jsonb := '[]'::jsonb;
+  v_aplica_isv boolean;
+  v_precio_con_isv numeric;
+begin
+  v_clave_contador := case v_tipo_documento
+    when 'Cotizacion' then 'cotizacion'
+    when 'VentaSinFacturar' then 'ventaSinFacturar'
+    else 'venta'
+  end;
+  v_numero := incrementar_contador(v_clave_contador);
+  v_numero_documento := case when v_tipo_documento = 'VentaSinFacturar'
+    then lpad(v_numero::text, 4, '0')
+    else lpad(v_numero::text, 8, '0')
+  end;
+
+  -- Resolver/crear cliente (igual que VentaRepository._resolverIdCliente).
+  v_id_cliente := nullif(payload->>'idCliente', '')::uuid;
+  if v_tipo_documento <> 'Cotizacion' and v_id_cliente is null then
+    if trim(v_nombre_cliente) <> '' and upper(trim(v_nombre_cliente)) <> 'CONSUMIDOR FINAL' then
+      select id into v_id_cliente from clientes where nombre_normalizado = payload->>'nombreClienteNormalizado' limit 1;
+      if v_id_cliente is null then
+        insert into clientes (dni, nombre_completo, nombre_normalizado, direccion, telefono, estado)
+        values (
+          case when trim(v_documento_cliente) = '' or trim(v_documento_cliente) = 'N/A' then '' else trim(v_documento_cliente) end,
+          trim(v_nombre_cliente), payload->>'nombreClienteNormalizado', '', '', true
+        ) returning id into v_id_cliente;
+      end if;
+    end if;
+  end if;
+
+  select coalesce(sum((i->>'cantidad')::numeric), 0) into v_cantidad_productos from jsonb_array_elements(payload->'items') i;
+
+  insert into ventas (
+    id, tipo_documento, numero_documento, documento_cliente, nombre_cliente, id_cliente,
+    metodo_pago, monto_pago, monto_cambio, subtotal, impuesto, total_a_pagar, condicion,
+    fecha_vencimiento, fecha_registro, creado_en, estado, usuario_registro, cantidad_productos,
+    oc, reg_exonerado, reg_sag, observaciones, descuento_global, pagos_mixtos,
+    pendiente_impresion, es_envio, envio_nombre, envio_direccion, envio_telefono
+  ) values (
+    v_id_venta, v_tipo_documento, v_numero_documento, v_documento_cliente, v_nombre_cliente, v_id_cliente,
+    payload->>'metodoPago', (payload->>'montoPago')::numeric, (payload->>'montoCambio')::numeric,
+    (payload->>'subtotal')::numeric, (payload->>'impuesto')::numeric, (payload->>'totalAPagar')::numeric,
+    v_condicion, v_fecha_vencimiento, v_fecha_registro, v_creado_en, 'Activa', coalesce(payload->>'usuario', ''),
+    v_cantidad_productos, coalesce(payload->>'oc', ''), coalesce(payload->>'regExonerado', ''),
+    coalesce(payload->>'regSag', ''), coalesce(payload->>'observaciones', ''),
+    coalesce((payload->>'descuentoGlobal')::numeric, 0), coalesce(payload->'pagosMixtos', '[]'::jsonb),
+    false, coalesce((payload->>'esEnvio')::boolean, false), coalesce(payload->>'envioNombre', ''),
+    coalesce(payload->>'envioDireccion', ''), coalesce(payload->>'envioTelefono', '')
+  );
+
+  if v_condicion = 'Credito' then
+    insert into ventas_credito (
+      id, documento_cliente, nombre_cliente, id_cliente, numero_documento, monto_total,
+      saldo_pendiente, fecha_registro, fecha_vencimiento, telefono
+    ) values (
+      v_id_venta, case when v_documento_cliente = '' then 'N/A' else v_documento_cliente end, v_nombre_cliente,
+      v_id_cliente, v_numero_documento, (payload->>'totalAPagar')::numeric, (payload->>'totalAPagar')::numeric,
+      v_fecha_registro, coalesce(v_fecha_vencimiento, v_fecha_registro), coalesce(trim(payload->>'telefonoCredito'), '')
+    );
+  end if;
+
+  if v_id_cliente is not null and v_tipo_documento <> 'Cotizacion' then
+    update clientes set fecha_ultima_compra = v_fecha_registro where id = v_id_cliente;
+  end if;
+
+  -- Costeo FIFO + descuento de stock, agrupado por producto único (evita el
+  -- bug de "dos líneas del mismo producto" que documenta el código Dart
+  -- original: acá no puede pasar porque se agrupa ANTES de tocar nada).
+  v_cantidades := calcular_cantidades_descuento(payload->'items');
+  for v_id_producto_txt in select jsonb_object_keys(v_cantidades) loop
+    v_cantidad := (v_cantidades->>v_id_producto_txt)::numeric;
+    select stock, precio_compra into v_stock_actual, v_precio_compra from productos where id = v_id_producto_txt::uuid for update;
+    v_costo := consumir_fifo_lotes(v_id_producto_txt::uuid, v_cantidad, coalesce(v_precio_compra, 0));
+    v_costo_por_producto := jsonb_set(v_costo_por_producto, array[v_id_producto_txt], to_jsonb(v_costo));
+    v_stock_nuevo := greatest(coalesce(v_stock_actual, 0) - v_cantidad, 0);
+    update productos set stock = v_stock_nuevo where id = v_id_producto_txt::uuid;
+    insert into producto_historial_stock (id_producto, stock_anterior, stock_nuevo, usuario, motivo, fecha)
+    values (v_id_producto_txt::uuid, coalesce(v_stock_actual, 0), v_stock_nuevo, coalesce(payload->>'usuario', ''), 'Venta ' || v_numero_documento, now());
+  end loop;
+
+  -- Detalle (venta_items), historial de ventas por producto, y pendientes de
+  -- reposición (venta anticipada) — en el mismo orden del carrito.
+  v_idx := 0;
+  v_aplica_isv := v_tipo_documento in ('Factura', 'Boleta');
+  for item in select * from jsonb_array_elements(payload->'items') loop
+    v_id_categoria := nullif(item->>'idCategoria', '')::uuid;
+    v_es_combo := (item->'componentes' is not null and jsonb_array_length(item->'componentes') > 0);
+    v_costo_item := (item->>'precioCompraUsado')::numeric;
+    if not v_es_combo and coalesce((item->>'reembasado')::boolean, false) = false then
+      select controla_stock into v_controla from categorias where id = v_id_categoria;
+      if coalesce(v_controla, true) and v_costo_por_producto ? (item->>'idProducto') then
+        v_costo_item := (v_costo_por_producto->>(item->>'idProducto'))::numeric;
+      end if;
+    end if;
+    v_detalle_costos := v_detalle_costos || to_jsonb(v_costo_item);
+
+    insert into venta_items (
+      id_venta, id_producto, id_categoria, nombre_producto, precio_venta, cantidad, subtotal,
+      precio_compra_usado, reembasado, descuento_porcentaje, componentes, pendiente_compra, codigos_color, orden
+    ) values (
+      v_id_venta, nullif(item->>'idProducto', '')::uuid, v_id_categoria, item->>'nombreProducto',
+      (item->>'precioVenta')::numeric, (item->>'cantidad')::numeric, (item->>'subtotal')::numeric,
+      v_costo_item, coalesce((item->>'reembasado')::boolean, false), coalesce((item->>'descuentoPorcentaje')::numeric, 0),
+      coalesce(item->'componentes', '[]'::jsonb), coalesce((item->>'pendienteCompra')::boolean, false),
+      coalesce(array(select jsonb_array_elements_text(coalesce(item->'codigosColor', '[]'::jsonb))), '{}'), v_idx
+    ) returning id into v_item_ref;
+
+    if v_tipo_documento <> 'Cotizacion' and coalesce((item->>'pendienteCompra')::boolean, false) and not v_es_combo then
+      insert into pendientes_reposicion (
+        id_venta, numero_documento_venta, id_item_detalle, id_producto, nombre_producto, id_categoria,
+        cantidad_original, cantidad_pendiente, costo_registrado, fecha_registro, estado, usuario
+      ) values (
+        v_id_venta, v_numero_documento, v_item_ref, nullif(item->>'idProducto', '')::uuid, item->>'nombreProducto',
+        v_id_categoria, (item->>'cantidad')::numeric, (item->>'cantidad')::numeric, v_costo_item,
+        v_fecha_registro, 'Pendiente', coalesce(payload->>'usuario', '')
+      );
+    end if;
+
+    if v_tipo_documento <> 'Cotizacion' then
+      v_precio_con_isv := round((item->>'precioVenta')::numeric * (1 - coalesce((item->>'descuentoPorcentaje')::numeric, 0) / 100) * (case when v_aplica_isv then 1.15 else 1 end), 2);
+      insert into producto_historial_ventas (
+        id_producto, id_venta, precio_venta, precio_unitario, descuento_porcentaje, cantidad,
+        fecha, tipo_documento, numero_documento, cliente, usuario
+      ) values (
+        nullif(item->>'idProducto', '')::uuid, v_id_venta, v_precio_con_isv, (item->>'precioVenta')::numeric,
+        coalesce((item->>'descuentoPorcentaje')::numeric, 0), (item->>'cantidad')::numeric, now(),
+        v_tipo_documento, v_numero_documento, v_nombre_cliente, coalesce(payload->>'usuario', '')
+      );
+    end if;
+    v_idx := v_idx + 1;
+  end loop;
+
+  for v_id_producto_txt in select jsonb_object_keys(v_cantidades) loop
+    perform sincronizar_precio_compra_activo(v_id_producto_txt::uuid);
+  end loop;
+
+  return jsonb_build_object('id', v_id_venta, 'numeroDocumento', v_numero_documento, 'creadoEn', v_creado_en, 'idCliente', v_id_cliente, 'detalleCostos', v_detalle_costos);
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- anular_venta: repone stock (agrupado por producto único), crea un lote de
+-- ajuste al costo promedio ponderado repuesto, cancela pendientes de
+-- reposición abiertas de esta venta, y borra el crédito asociado si no tiene
+-- abonos (si tiene, rechaza igual que la versión Dart).
+-- ----------------------------------------------------------------------------
+create or replace function anular_venta(p_id uuid, p_usuario text, p_motivo text default '') returns void
+language plpgsql as $$
+declare
+  v_estado text;
+  v_condicion text;
+  v_numero_documento text;
+  v_credito_existe boolean := false;
+  v_monto_total numeric;
+  v_saldo_pendiente numeric;
+  item record;
+  v_id_categoria uuid;
+  v_es_combo boolean;
+  v_controla boolean;
+  v_cantidad numeric;
+  v_totales jsonb := '{}'::jsonb; -- idProducto -> {cantidad, costoTotal}
+  v_id_producto_txt text;
+  v_cantidad_total numeric;
+  v_costo_total numeric;
+  v_stock_actual numeric;
+  v_stock_nuevo numeric;
+  v_costo_promedio numeric;
+begin
+  select estado, condicion, numero_documento into v_estado, v_condicion, v_numero_documento from ventas where id = p_id for update;
+  if not found then
+    raise exception 'No se encontró la venta';
+  end if;
+  if v_estado = 'Anulada' then
+    raise exception 'Esta venta ya está anulada';
+  end if;
+
+  if v_condicion = 'Credito' then
+    select monto_total, saldo_pendiente into v_monto_total, v_saldo_pendiente from ventas_credito where id = p_id;
+    if found then
+      v_credito_existe := true;
+      if v_saldo_pendiente < v_monto_total then
+        raise exception 'No se puede anular: esta venta a crédito ya tiene abonos registrados';
+      end if;
+    end if;
+  end if;
+
+  update ventas set estado = 'Anulada', usuario_anulacion = p_usuario, motivo_anulacion = coalesce(p_motivo, ''), fecha_anulacion = now() where id = p_id;
+  if v_credito_existe then
+    delete from ventas_credito where id = p_id;
+  end if;
+  update pendientes_reposicion set estado = 'Cancelado', fecha_completado = now() where id_venta = p_id and estado = 'Pendiente';
+
+  -- Expandir combos (igual que _expandirComponentes) y agrupar por producto.
+  -- OJO: en una línea combo, vi.id_producto es el producto DEL COMBO (nunca
+  -- null), así que acá NO se puede usar coalesce(vi.id_producto, ...) -hay
+  -- que decidir con CASE cuál id_producto/id_categoria/cantidad corresponde
+  -- según si esta línea es combo o no.
+  for item in
+    select
+      case when jsonb_array_length(coalesce(vi.componentes, '[]'::jsonb)) = 0 then vi.id_producto else nullif(comp->>'idProducto', '')::uuid end as id_producto,
+      case when jsonb_array_length(coalesce(vi.componentes, '[]'::jsonb)) = 0 then vi.id_categoria else nullif(comp->>'idCategoria', '')::uuid end as id_categoria,
+      case when jsonb_array_length(coalesce(vi.componentes, '[]'::jsonb)) = 0 then vi.cantidad else (comp->>'cantidad')::numeric * vi.cantidad end as cantidad,
+      vi.reembasado,
+      case when jsonb_array_length(coalesce(vi.componentes, '[]'::jsonb)) = 0 then vi.precio_compra_usado else (comp->>'precioCompraUsado')::numeric end as costo_unitario
+    from venta_items vi
+    left join lateral jsonb_array_elements(case when jsonb_array_length(coalesce(vi.componentes, '[]'::jsonb)) = 0 then '[null]'::jsonb else vi.componentes end) comp on true
+    where vi.id_venta = p_id
+  loop
+    if item.reembasado then continue; end if;
+    select controla_stock into v_controla from categorias where id = item.id_categoria;
+    if not coalesce(v_controla, true) then continue; end if;
+    v_id_producto_txt := item.id_producto::text;
+    v_cantidad_total := coalesce((v_totales->v_id_producto_txt->>'cantidad')::numeric, 0) + item.cantidad;
+    v_costo_total := coalesce((v_totales->v_id_producto_txt->>'costoTotal')::numeric, 0) + item.cantidad * coalesce(item.costo_unitario, 0);
+    v_totales := jsonb_set(v_totales, array[v_id_producto_txt], jsonb_build_object('cantidad', v_cantidad_total, 'costoTotal', v_costo_total));
+  end loop;
+
+  for v_id_producto_txt in select jsonb_object_keys(v_totales) loop
+    v_cantidad_total := (v_totales->v_id_producto_txt->>'cantidad')::numeric;
+    v_costo_total := (v_totales->v_id_producto_txt->>'costoTotal')::numeric;
+    v_costo_promedio := case when v_cantidad_total > 0 then v_costo_total / v_cantidad_total else 0 end;
+    select stock into v_stock_actual from productos where id = v_id_producto_txt::uuid for update;
+    v_stock_nuevo := coalesce(v_stock_actual, 0) + v_cantidad_total;
+    update productos set stock = v_stock_nuevo where id = v_id_producto_txt::uuid;
+    insert into producto_historial_stock (id_producto, stock_anterior, stock_nuevo, usuario, motivo, fecha)
+    values (v_id_producto_txt::uuid, coalesce(v_stock_actual, 0), v_stock_nuevo, p_usuario, 'Anulación de venta ' || v_numero_documento, now());
+    insert into producto_lotes_costo (id_producto, cantidad_original, cantidad_restante, costo_unitario, fecha, origen)
+    values (v_id_producto_txt::uuid, v_cantidad_total, v_cantidad_total, v_costo_promedio, now(), 'ajuste');
+    perform sincronizar_precio_compra_activo(v_id_producto_txt::uuid);
+  end loop;
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- aplicar_pendiente_reposicion: reparte cantidad disponible de una línea de
+-- compra contra UNA venta pendiente de reposición puntual (bloqueando la
+-- fila). Devuelve cuánto se aplicó y el numeroDocumento de la venta cubierta
+-- (para el mensaje de historial), o (0, null) si no aplica.
+-- ----------------------------------------------------------------------------
+create or replace function aplicar_pendiente_reposicion(
+  p_id_pendiente uuid, p_disponible numeric, p_costo_unitario numeric,
+  out p_aplicado numeric, out p_numero_documento_venta text
+) language plpgsql as $$
+declare
+  v_cant_pendiente numeric;
+  v_cant_original numeric;
+  v_costo_registrado numeric;
+  v_id_venta uuid;
+  v_id_item_detalle uuid;
+  v_numero_doc text;
+  v_nueva_pendiente numeric;
+  v_cubierta numeric;
+  v_base numeric;
+  v_costo_ponderado numeric;
+begin
+  p_aplicado := 0;
+  p_numero_documento_venta := null;
+  select cantidad_pendiente, cantidad_original, costo_registrado, id_venta, id_item_detalle, numero_documento_venta
+    into v_cant_pendiente, v_cant_original, v_costo_registrado, v_id_venta, v_id_item_detalle, v_numero_doc
+    from pendientes_reposicion where id = p_id_pendiente and estado = 'Pendiente'
+    for update;
+  if not found or v_cant_pendiente <= 0 or p_disponible <= 0 then
+    return;
+  end if;
+  p_aplicado := least(p_disponible, v_cant_pendiente);
+  v_nueva_pendiente := round(v_cant_pendiente - p_aplicado, 3);
+  v_cubierta := v_cant_original - v_cant_pendiente;
+  v_base := v_cubierta + p_aplicado;
+  v_costo_ponderado := case when v_base <= 0 then p_costo_unitario else ((v_costo_registrado * v_cubierta) + (p_costo_unitario * p_aplicado)) / v_base end;
+  update pendientes_reposicion set
+    cantidad_pendiente = v_nueva_pendiente,
+    costo_registrado = v_costo_ponderado,
+    estado = case when v_nueva_pendiente <= 0 then 'Completado' else estado end,
+    fecha_completado = case when v_nueva_pendiente <= 0 then now() else fecha_completado end
+  where id = p_id_pendiente;
+  if v_id_venta is not null and v_id_item_detalle is not null then
+    update venta_items set precio_compra_usado = v_costo_ponderado where id = v_id_item_detalle;
+  end if;
+  p_numero_documento_venta := v_numero_doc;
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- registrar_compra: equivalente a CompraRepository.registrarCompra. payload:
+--   noFactura, idProveedor, documentoProveedor, razonSocial, condicion,
+--   metodoPago, fechaRegistro, fechaVencimiento, descuentoGlobalPorcentaje,
+--   descuentoTotalMonto, isvPorcentaje, ajusteManual, subtotal, impuesto,
+--   totalAPagar, usuario, items: [ItemCompraModel.toMap()].
+-- Devuelve {id, numeroDocumento}.
+-- ----------------------------------------------------------------------------
+create or replace function registrar_compra(payload jsonb) returns jsonb
+language plpgsql as $$
+declare
+  v_numero integer;
+  v_numero_documento text;
+  v_id_compra uuid := gen_random_uuid();
+  v_condicion text := payload->>'condicion';
+  v_fecha_registro timestamptz := (payload->>'fechaRegistro')::timestamptz;
+  v_fecha_vencimiento timestamptz := nullif(payload->>'fechaVencimiento', '')::timestamptz;
+  v_isv_porcentaje numeric := coalesce((payload->>'isvPorcentaje')::numeric, 15);
+  v_cantidad_productos numeric := 0;
+  item jsonb;
+  v_id_producto uuid;
+  v_id_categoria uuid;
+  v_precio_final numeric;
+  v_stock_actual numeric;
+  v_stock_nuevo numeric;
+  v_disponible numeric;
+  v_numeros_cubiertos text[] := '{}';
+  v_id_vinculado uuid;
+  pend record;
+  v_resultado record;
+  v_cantidad_aplicada numeric;
+  v_motivo text;
+  v_precio_venta_nuevo numeric;
+  v_idx integer := 0;
+begin
+  v_numero := incrementar_contador('compra');
+  v_numero_documento := lpad(v_numero::text, 8, '0');
+
+  select coalesce(sum((i->>'cantidad')::numeric), 0) into v_cantidad_productos from jsonb_array_elements(payload->'items') i;
+
+  insert into compras (
+    id, tipo_documento, numero_documento, no_factura, id_proveedor, documento_proveedor, razon_social,
+    condicion, metodo_pago, subtotal, descuento_global_porcentaje, descuento_total_monto, isv_porcentaje,
+    impuesto, ajuste_manual, total_a_pagar, fecha_registro, fecha_vencimiento, estado, usuario_registro,
+    cantidad_productos
+  ) values (
+    v_id_compra, 'Factura', v_numero_documento, coalesce(payload->>'noFactura', ''), nullif(payload->>'idProveedor', '')::uuid,
+    coalesce(payload->>'documentoProveedor', ''), coalesce(payload->>'razonSocial', ''), v_condicion,
+    coalesce(payload->>'metodoPago', ''), (payload->>'subtotal')::numeric, coalesce((payload->>'descuentoGlobalPorcentaje')::numeric, 0),
+    coalesce((payload->>'descuentoTotalMonto')::numeric, 0), v_isv_porcentaje, (payload->>'impuesto')::numeric,
+    coalesce((payload->>'ajusteManual')::numeric, 0), (payload->>'totalAPagar')::numeric, v_fecha_registro,
+    v_fecha_vencimiento, 'Activa', coalesce(payload->>'usuario', ''), v_cantidad_productos
+  );
+
+  if v_condicion = 'Credito' then
+    insert into compras_credito (
+      id, id_proveedor, documento_proveedor, nombre_proveedor, numero_documento, no_factura, monto_total,
+      saldo_pendiente, fecha_registro, fecha_vencimiento, manual
+    ) values (
+      v_id_compra, nullif(payload->>'idProveedor', '')::uuid,
+      case when coalesce(payload->>'documentoProveedor', '') = '' then 'N/A' else payload->>'documentoProveedor' end,
+      coalesce(payload->>'razonSocial', ''), v_numero_documento, coalesce(payload->>'noFactura', ''),
+      (payload->>'totalAPagar')::numeric, (payload->>'totalAPagar')::numeric, v_fecha_registro,
+      coalesce(v_fecha_vencimiento, v_fecha_registro), false
+    );
+  end if;
+
+  for item in select * from jsonb_array_elements(payload->'items') loop
+    v_id_producto := nullif(item->>'idProducto', '')::uuid;
+    v_id_categoria := nullif(item->>'idCategoria', '')::uuid;
+    v_precio_venta_nuevo := nullif(item->>'precioVentaNuevo', '')::numeric;
+    v_id_vinculado := nullif(item->>'idPendienteReposicionVinculado', '')::uuid;
+
+    insert into compra_items (
+      id_compra, id_producto, id_categoria, nombre_producto, precio_compra, cantidad, subtotal,
+      descuento_porcentaje, precio_venta_nuevo, id_pendiente_reposicion_vinculado,
+      numero_documento_venta_vinculada, nombre_producto_venta_vinculada, orden
+    ) values (
+      v_id_compra, v_id_producto, v_id_categoria, item->>'nombreProducto', (item->>'precioCompra')::numeric,
+      (item->>'cantidad')::numeric, (item->>'subtotal')::numeric, coalesce((item->>'descuentoPorcentaje')::numeric, 0),
+      v_precio_venta_nuevo, v_id_vinculado, item->>'numeroDocumentoVentaVinculada', item->>'nombreProductoVentaVinculada', v_idx
+    );
+    v_idx := v_idx + 1;
+
+    v_precio_final := round((item->>'precioCompra')::numeric * (1 - coalesce((item->>'descuentoPorcentaje')::numeric, 0) / 100) * (1 + v_isv_porcentaje / 100), 2);
+
+    select stock into v_stock_actual from productos where id = v_id_producto for update;
+    v_disponible := (item->>'cantidad')::numeric;
+    v_numeros_cubiertos := '{}';
+
+    if v_id_vinculado is not null then
+      select * into v_resultado from aplicar_pendiente_reposicion(v_id_vinculado, v_disponible, v_precio_final);
+      v_disponible := v_disponible - v_resultado.p_aplicado;
+      if v_resultado.p_aplicado > 0 and v_resultado.p_numero_documento_venta is not null and not (v_resultado.p_numero_documento_venta = any(v_numeros_cubiertos)) then
+        v_numeros_cubiertos := array_append(v_numeros_cubiertos, v_resultado.p_numero_documento_venta);
+      end if;
+    else
+      for pend in select id from pendientes_reposicion where id_producto = v_id_producto and estado = 'Pendiente' order by fecha_registro for update loop
+        exit when v_disponible <= 0;
+        select * into v_resultado from aplicar_pendiente_reposicion(pend.id, v_disponible, v_precio_final);
+        v_disponible := v_disponible - v_resultado.p_aplicado;
+        if v_resultado.p_aplicado > 0 and v_resultado.p_numero_documento_venta is not null and not (v_resultado.p_numero_documento_venta = any(v_numeros_cubiertos)) then
+          v_numeros_cubiertos := array_append(v_numeros_cubiertos, v_resultado.p_numero_documento_venta);
+        end if;
+      end loop;
+    end if;
+
+    v_cantidad_aplicada := round((item->>'cantidad')::numeric - v_disponible, 3);
+    v_stock_nuevo := coalesce(v_stock_actual, 0) + (item->>'cantidad')::numeric - v_cantidad_aplicada;
+    update productos set
+      stock = v_stock_nuevo,
+      precio_compra = v_precio_final,
+      precio_venta = coalesce(v_precio_venta_nuevo, precio_venta)
+    where id = v_id_producto;
+    v_stock_actual := v_stock_nuevo; -- arrastre para la próxima línea del mismo producto en esta compra
+
+    v_motivo := case when v_cantidad_aplicada > 0
+      then 'Compra ' || v_numero_documento || ' (' || formatear_cantidad(v_cantidad_aplicada) || ' ya vendida por adelantado en factura(s) ' || array_to_string(v_numeros_cubiertos, ', ') || ')'
+      else 'Compra ' || v_numero_documento
+    end;
+    insert into producto_historial_stock (id_producto, stock_anterior, stock_nuevo, usuario, motivo, fecha)
+    values (v_id_producto, coalesce(v_stock_actual, 0) - ((item->>'cantidad')::numeric - v_cantidad_aplicada), v_stock_nuevo, coalesce(payload->>'usuario', ''), v_motivo, now());
+
+    insert into producto_historial_precios_compra (
+      id_producto, id_compra, precio_compra, precio_unitario, descuento_porcentaje, isv_porcentaje,
+      cantidad, fecha, numero_documento, no_factura, proveedor, usuario
+    ) values (
+      v_id_producto, v_id_compra, v_precio_final, (item->>'precioCompra')::numeric, coalesce((item->>'descuentoPorcentaje')::numeric, 0),
+      v_isv_porcentaje, (item->>'cantidad')::numeric, now(), v_numero_documento, coalesce(payload->>'noFactura', ''),
+      coalesce(payload->>'razonSocial', ''), coalesce(payload->>'usuario', '')
+    );
+
+    insert into producto_lotes_costo (id_producto, cantidad_original, cantidad_restante, costo_unitario, fecha, origen, id_compra)
+    values (v_id_producto, (item->>'cantidad')::numeric, (item->>'cantidad')::numeric - v_cantidad_aplicada, v_precio_final, v_fecha_registro, 'compra', v_id_compra);
+
+    perform sincronizar_precio_compra_activo(v_id_producto);
+  end loop;
+
+  return jsonb_build_object('id', v_id_compra, 'numeroDocumento', v_numero_documento);
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- anular_compra: descuenta el stock que había sumado, recorta el lote que
+-- generó (sin "des-vender" lo ya consumido de él), y borra el crédito
+-- asociado si no tiene abonos.
+-- ----------------------------------------------------------------------------
+create or replace function anular_compra(p_id uuid, p_usuario text, p_motivo text default '') returns void
+language plpgsql as $$
+declare
+  v_estado text;
+  v_condicion text;
+  v_numero_documento text;
+  v_credito_existe boolean := false;
+  v_monto_total numeric;
+  v_saldo_pendiente numeric;
+  item record;
+  v_stock_actual numeric;
+  v_stock_nuevo numeric;
+  v_lote_id uuid;
+  v_restante_actual numeric;
+begin
+  select estado, condicion, numero_documento into v_estado, v_condicion, v_numero_documento from compras where id = p_id for update;
+  if not found then
+    raise exception 'No se encontró la compra';
+  end if;
+  if v_estado = 'Anulada' then
+    raise exception 'Esta compra ya está anulada';
+  end if;
+
+  if v_condicion = 'Credito' then
+    select monto_total, saldo_pendiente into v_monto_total, v_saldo_pendiente from compras_credito where id = p_id;
+    if found then
+      v_credito_existe := true;
+      if v_saldo_pendiente < v_monto_total then
+        raise exception 'No se puede anular: esta compra a crédito ya tiene abonos registrados';
+      end if;
+    end if;
+  end if;
+
+  update compras set estado = 'Anulada', usuario_anulacion = p_usuario, motivo_anulacion = coalesce(p_motivo, ''), fecha_anulacion = now() where id = p_id;
+  if v_credito_existe then
+    delete from compras_credito where id = p_id;
+  end if;
+
+  for item in select id_producto, cantidad from compra_items where id_compra = p_id loop
+    select stock into v_stock_actual from productos where id = item.id_producto for update;
+    v_stock_nuevo := coalesce(v_stock_actual, 0) - item.cantidad;
+    update productos set stock = v_stock_nuevo where id = item.id_producto;
+
+    select id, cantidad_restante into v_lote_id, v_restante_actual from producto_lotes_costo where id_producto = item.id_producto and id_compra = p_id limit 1 for update;
+    if v_lote_id is not null then
+      update producto_lotes_costo set cantidad_restante = greatest(v_restante_actual - item.cantidad, 0) where id = v_lote_id;
+    end if;
+
+    insert into producto_historial_stock (id_producto, stock_anterior, stock_nuevo, usuario, motivo, fecha)
+    values (item.id_producto, coalesce(v_stock_actual, 0), v_stock_nuevo, p_usuario, 'Anulación de compra ' || v_numero_documento, now());
+    perform sincronizar_precio_compra_activo(item.id_producto);
+  end loop;
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- guardar_venta_en_espera_manual / eliminar_venta_en_espera: reserva/libera
+-- stock igual que VentaRepository -sin costear nada, solo aparta cantidad-.
+-- ----------------------------------------------------------------------------
+create or replace function guardar_venta_en_espera_manual(payload jsonb) returns uuid
+language plpgsql as $$
+declare
+  v_es_nueva boolean := (payload->>'id' is null or payload->>'id' = '');
+  v_id uuid := case when v_es_nueva then gen_random_uuid() else (payload->>'id')::uuid end;
+  v_cantidades_nuevas jsonb;
+  v_cantidades_liberar jsonb := '{}'::jsonb;
+  v_stock_reservado boolean;
+  v_id_producto_txt text;
+  v_liberar numeric;
+  v_reservar numeric;
+  v_neto numeric;
+  v_stock_actual numeric;
+  v_stock_nuevo numeric;
+  v_usuario text := coalesce(payload->>'usuario', '');
+begin
+  v_cantidades_nuevas := calcular_cantidades_descuento(payload->'items');
+
+  if not v_es_nueva then
+    select stock_reservado, cantidades_reservadas into v_stock_reservado, v_cantidades_liberar from ventas_en_espera where id = v_id for update;
+    if not found or v_stock_reservado is not true then
+      v_cantidades_liberar := '{}'::jsonb;
+    end if;
+  end if;
+
+  for v_id_producto_txt in select key from jsonb_each(v_cantidades_nuevas) union select key from jsonb_each(coalesce(v_cantidades_liberar, '{}'::jsonb)) loop
+    v_liberar := coalesce((v_cantidades_liberar->>v_id_producto_txt)::numeric, 0);
+    v_reservar := coalesce((v_cantidades_nuevas->>v_id_producto_txt)::numeric, 0);
+    v_neto := v_reservar - v_liberar;
+    continue when v_neto = 0;
+    select stock into v_stock_actual from productos where id = v_id_producto_txt::uuid for update;
+    if not found then continue; end if;
+    v_stock_nuevo := coalesce(v_stock_actual, 0) - v_neto;
+    update productos set stock = v_stock_nuevo where id = v_id_producto_txt::uuid;
+    insert into producto_historial_stock (id_producto, stock_anterior, stock_nuevo, usuario, motivo, fecha)
+    values (v_id_producto_txt::uuid, coalesce(v_stock_actual, 0), v_stock_nuevo, v_usuario,
+      case when v_neto > 0 then 'Reservado para venta en espera' else 'Ajuste de reserva de venta en espera' end, now());
+  end loop;
+
+  insert into ventas_en_espera (
+    id, fecha, tipo_documento, condicion, metodo_pago, documento_cliente, nombre_cliente, id_cliente,
+    fecha_vencimiento, oc, reg_exonerado, reg_sag, observaciones, descuento_global, items, origen,
+    stock_reservado, cantidades_reservadas
+  ) values (
+    v_id, now(), coalesce(payload->>'tipoDocumento', 'Factura'), coalesce(payload->>'condicion', 'Contado'),
+    coalesce(payload->>'metodoPago', 'Efectivo'), coalesce(payload->>'documentoCliente', ''), coalesce(payload->>'nombreCliente', ''),
+    nullif(payload->>'idCliente', '')::uuid, nullif(payload->>'fechaVencimiento', '')::timestamptz, coalesce(payload->>'oc', ''),
+    coalesce(payload->>'regExonerado', ''), coalesce(payload->>'regSag', ''), coalesce(payload->>'observaciones', ''),
+    coalesce((payload->>'descuentoGlobal')::numeric, 0), coalesce(payload->'items', '[]'::jsonb), 'manual', true, v_cantidades_nuevas
+  )
+  on conflict (id) do update set
+    fecha = now(), tipo_documento = excluded.tipo_documento, condicion = excluded.condicion, metodo_pago = excluded.metodo_pago,
+    documento_cliente = excluded.documento_cliente, nombre_cliente = excluded.nombre_cliente, id_cliente = excluded.id_cliente,
+    fecha_vencimiento = excluded.fecha_vencimiento, oc = excluded.oc, reg_exonerado = excluded.reg_exonerado, reg_sag = excluded.reg_sag,
+    observaciones = excluded.observaciones, descuento_global = excluded.descuento_global, items = excluded.items,
+    origen = 'manual', stock_reservado = true, cantidades_reservadas = excluded.cantidades_reservadas;
+
+  return v_id;
+end;
+$$;
+
+create or replace function eliminar_venta_en_espera(p_id uuid, p_usuario text default '') returns void
+language plpgsql as $$
+declare
+  v_stock_reservado boolean;
+  v_cantidades jsonb;
+  v_id_producto_txt text;
+  v_cantidad numeric;
+  v_stock_actual numeric;
+  v_stock_nuevo numeric;
+begin
+  select stock_reservado, cantidades_reservadas into v_stock_reservado, v_cantidades from ventas_en_espera where id = p_id for update;
+  if not found then return; end if;
+  if v_stock_reservado then
+    for v_id_producto_txt in select key from jsonb_each(coalesce(v_cantidades, '{}'::jsonb)) loop
+      v_cantidad := (v_cantidades->>v_id_producto_txt)::numeric;
+      continue when v_cantidad = 0;
+      select stock into v_stock_actual from productos where id = v_id_producto_txt::uuid for update;
+      if not found then continue; end if;
+      v_stock_nuevo := coalesce(v_stock_actual, 0) + v_cantidad;
+      update productos set stock = v_stock_nuevo where id = v_id_producto_txt::uuid;
+      insert into producto_historial_stock (id_producto, stock_anterior, stock_nuevo, usuario, motivo, fecha)
+      values (v_id_producto_txt::uuid, coalesce(v_stock_actual, 0), v_stock_nuevo, p_usuario, 'Liberado de venta en espera', now());
+    end loop;
+  end if;
+  delete from ventas_en_espera where id = p_id;
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- Ajustes de stock manuales de Inventario (ProductoRepository.registrarIngreso
+-- /registrarSalida/descontarStock).
+-- ----------------------------------------------------------------------------
+create or replace function registrar_ingreso_stock(payload jsonb) returns void
+language plpgsql as $$
+declare
+  v_id uuid := (payload->>'id')::uuid;
+  v_cantidad numeric := (payload->>'cantidad')::numeric;
+  v_stock_actual numeric;
+  v_stock_nuevo numeric;
+begin
+  if v_cantidad <= 0 then raise exception 'La cantidad debe ser mayor a 0'; end if;
+  select stock into v_stock_actual from productos where id = v_id for update;
+  v_stock_nuevo := coalesce(v_stock_actual, 0) + v_cantidad;
+  update productos set stock = v_stock_nuevo where id = v_id;
+  insert into producto_historial_stock (id_producto, stock_anterior, stock_nuevo, usuario, motivo, fecha)
+  values (v_id, coalesce(v_stock_actual, 0), v_stock_nuevo, coalesce(payload->>'usuario', ''),
+    case when trim(coalesce(payload->>'motivo', '')) = '' then 'Ingreso manual' else trim(payload->>'motivo') end, now());
+  insert into producto_lotes_costo (id_producto, cantidad_original, cantidad_restante, costo_unitario, fecha, origen)
+  values (v_id, v_cantidad, v_cantidad, (payload->>'costoUnitario')::numeric, now(), 'ajuste');
+  perform sincronizar_precio_compra_activo(v_id);
+end;
+$$;
+
+create or replace function registrar_salida_stock(payload jsonb) returns void
+language plpgsql as $$
+declare
+  v_id uuid := (payload->>'id')::uuid;
+  v_cantidad numeric := (payload->>'cantidad')::numeric;
+  v_id_lote uuid := nullif(payload->>'idLote', '')::uuid;
+  v_stock_actual numeric;
+  v_stock_nuevo numeric;
+  v_restante_lote numeric;
+  v_precio_compra numeric;
+  v_costo numeric;
+begin
+  if v_cantidad <= 0 then raise exception 'La cantidad debe ser mayor a 0'; end if;
+  select stock, precio_compra into v_stock_actual, v_precio_compra from productos where id = v_id for update;
+
+  if v_id_lote is not null then
+    select cantidad_restante into v_restante_lote from producto_lotes_costo where id = v_id_lote for update;
+    if not found then raise exception 'Ese lote ya no existe, actualizá e intentá de nuevo'; end if;
+    if v_cantidad > v_restante_lote then
+      raise exception 'Ese lote solo tiene % unidades disponibles', formatear_cantidad(v_restante_lote);
+    end if;
+    update producto_lotes_costo set cantidad_restante = v_restante_lote - v_cantidad where id = v_id_lote;
+  else
+    if v_cantidad > coalesce(v_stock_actual, 0) then
+      raise exception 'No hay suficiente existencia sin lote específico';
+    end if;
+    v_costo := consumir_fifo_lotes(v_id, v_cantidad, coalesce(v_precio_compra, 0));
+  end if;
+
+  v_stock_nuevo := coalesce(v_stock_actual, 0) - v_cantidad;
+  update productos set stock = v_stock_nuevo where id = v_id;
+  insert into producto_historial_stock (id_producto, stock_anterior, stock_nuevo, usuario, motivo, fecha)
+  values (v_id, coalesce(v_stock_actual, 0), v_stock_nuevo, coalesce(payload->>'usuario', ''),
+    case when trim(coalesce(payload->>'motivo', '')) = '' then 'Salida manual' else trim(payload->>'motivo') end, now());
+  perform sincronizar_precio_compra_activo(v_id);
+end;
+$$;
+
+create or replace function descontar_stock(payload jsonb) returns void
+language plpgsql as $$
+declare
+  v_id uuid := (payload->>'id')::uuid;
+  v_cantidad numeric := (payload->>'cantidad')::numeric;
+  v_stock_actual numeric;
+  v_stock_nuevo numeric;
+begin
+  select stock into v_stock_actual from productos where id = v_id for update;
+  v_stock_nuevo := coalesce(v_stock_actual, 0) - v_cantidad;
+  update productos set stock = v_stock_nuevo where id = v_id;
+  insert into producto_historial_stock (id_producto, stock_anterior, stock_nuevo, usuario, motivo, fecha)
+  values (v_id, coalesce(v_stock_actual, 0), v_stock_nuevo, coalesce(payload->>'usuario', ''), coalesce(payload->>'motivo', ''), now());
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- Abonos de crédito (venta y compra): cadena dependiente -editar/eliminar uno
+-- del medio recalcula todos los que le siguen desde montoTotal-.
+-- ----------------------------------------------------------------------------
+create or replace function recalcular_cadena_abonos_venta_credito(p_id_credito uuid, p_monto_total numeric) returns void
+language plpgsql as $$
+declare
+  v_saldo numeric := round(p_monto_total, 2);
+  rec record;
+  v_saldo_anterior numeric;
+  v_crudo numeric;
+begin
+  for rec in select id, monto_abonado, interes from venta_credito_abonos where id_venta_credito = p_id_credito order by fecha for update loop
+    v_saldo_anterior := v_saldo;
+    v_crudo := v_saldo_anterior - rec.monto_abonado + rec.interes;
+    if v_crudo < -0.01 then
+      raise exception 'El abono de % superaría el saldo disponible en ese momento (%)', rec.monto_abonado, (v_saldo_anterior + rec.interes);
+    end if;
+    v_saldo := round(greatest(v_crudo, 0), 2);
+    update venta_credito_abonos set saldo_anterior = round(v_saldo_anterior, 2), saldo_pendiente = v_saldo where id = rec.id;
+  end loop;
+  update ventas_credito set saldo_pendiente = v_saldo where id = p_id_credito;
+end;
+$$;
+
+create or replace function registrar_abono_venta_credito(payload jsonb) returns void
+language plpgsql as $$
+declare
+  v_id_credito uuid := (payload->>'idCredito')::uuid;
+  v_saldo_anterior numeric := (payload->>'saldoAnterior')::numeric;
+  v_monto_abonado numeric := (payload->>'montoAbonado')::numeric;
+  v_interes numeric := coalesce((payload->>'interes')::numeric, 0);
+  v_nuevo_saldo numeric;
+begin
+  if v_monto_abonado > v_saldo_anterior + v_interes + 0.01 then
+    raise exception 'El abono supera el saldo disponible en este crédito';
+  end if;
+  v_nuevo_saldo := round(greatest(v_saldo_anterior - v_monto_abonado + v_interes, 0), 2);
+  update ventas_credito set saldo_pendiente = v_nuevo_saldo where id = v_id_credito;
+  insert into venta_credito_abonos (id_venta_credito, fecha, monto_abonado, saldo_anterior, interes, saldo_pendiente, metodo_pago, numero_recibo, usuario)
+  values (v_id_credito, (payload->>'fecha')::timestamptz, round(v_monto_abonado, 2), round(v_saldo_anterior, 2), round(v_interes, 2), v_nuevo_saldo,
+    coalesce(payload->>'metodoPago', ''), coalesce(payload->>'numeroRecibo', ''), coalesce(payload->>'usuario', ''));
+end;
+$$;
+
+create or replace function editar_abono_venta_credito(payload jsonb) returns void
+language plpgsql as $$
+declare
+  v_id_credito uuid := (payload->>'idCredito')::uuid;
+begin
+  update venta_credito_abonos set
+    monto_abonado = round((payload->>'montoAbonado')::numeric, 2),
+    interes = round(coalesce((payload->>'interes')::numeric, 0), 2),
+    fecha = (payload->>'fecha')::timestamptz,
+    metodo_pago = coalesce(payload->>'metodoPago', ''),
+    numero_recibo = coalesce(payload->>'numeroRecibo', '')
+  where id = (payload->>'idAbono')::uuid;
+  perform recalcular_cadena_abonos_venta_credito(v_id_credito, (payload->>'montoTotal')::numeric);
+end;
+$$;
+
+create or replace function eliminar_abono_venta_credito(p_id_credito uuid, p_id_abono uuid, p_monto_total numeric) returns void
+language plpgsql as $$
+begin
+  delete from venta_credito_abonos where id = p_id_abono;
+  perform recalcular_cadena_abonos_venta_credito(p_id_credito, p_monto_total);
+end;
+$$;
+
+create or replace function recalcular_cadena_abonos_compra_credito(p_id_compra uuid, p_monto_total numeric) returns void
+language plpgsql as $$
+declare
+  v_saldo numeric := round(p_monto_total, 2);
+  rec record;
+  v_saldo_anterior numeric;
+  v_crudo numeric;
+begin
+  for rec in select id, monto_abonado, interes from compra_credito_abonos where id_compra_credito = p_id_compra order by fecha for update loop
+    v_saldo_anterior := v_saldo;
+    v_crudo := v_saldo_anterior - rec.monto_abonado + rec.interes;
+    if v_crudo < -0.01 then
+      raise exception 'El abono de % superaría el saldo disponible en ese momento (%)', rec.monto_abonado, (v_saldo_anterior + rec.interes);
+    end if;
+    v_saldo := round(greatest(v_crudo, 0), 2);
+    update compra_credito_abonos set saldo_anterior = round(v_saldo_anterior, 2), saldo_pendiente = v_saldo where id = rec.id;
+  end loop;
+  update compras_credito set saldo_pendiente = v_saldo where id = p_id_compra;
+end;
+$$;
+
+create or replace function registrar_abono_compra_credito(payload jsonb) returns void
+language plpgsql as $$
+declare
+  v_id_compra uuid := (payload->>'idCompra')::uuid;
+  v_saldo_anterior numeric := (payload->>'saldoAnterior')::numeric;
+  v_monto_abonado numeric := (payload->>'montoAbonado')::numeric;
+  v_interes numeric := coalesce((payload->>'interes')::numeric, 0);
+  v_nuevo_saldo numeric;
+begin
+  if v_monto_abonado > v_saldo_anterior + v_interes + 0.01 then
+    raise exception 'El abono supera el saldo disponible en esa factura';
+  end if;
+  v_nuevo_saldo := round(greatest(v_saldo_anterior - v_monto_abonado + v_interes, 0), 2);
+  update compras_credito set saldo_pendiente = v_nuevo_saldo where id = v_id_compra;
+  insert into compra_credito_abonos (id_compra_credito, id_proveedor, nombre_proveedor, fecha, monto_abonado, saldo_anterior, interes, saldo_pendiente, metodo_pago, numero_recibo, usuario)
+  values (v_id_compra, nullif(payload->>'idProveedor', '')::uuid, coalesce(payload->>'nombreProveedor', ''), (payload->>'fecha')::timestamptz,
+    round(v_monto_abonado, 2), round(v_saldo_anterior, 2), round(v_interes, 2), v_nuevo_saldo, coalesce(payload->>'metodoPago', ''),
+    coalesce(payload->>'numeroRecibo', ''), coalesce(payload->>'usuario', ''));
+end;
+$$;
+
+create or replace function editar_abono_compra_credito(payload jsonb) returns void
+language plpgsql as $$
+declare
+  v_id_compra uuid := (payload->>'idCompra')::uuid;
+begin
+  update compra_credito_abonos set
+    monto_abonado = round((payload->>'montoAbonado')::numeric, 2),
+    interes = round(coalesce((payload->>'interes')::numeric, 0), 2),
+    fecha = (payload->>'fecha')::timestamptz,
+    metodo_pago = coalesce(payload->>'metodoPago', ''),
+    numero_recibo = coalesce(payload->>'numeroRecibo', '')
+  where id = (payload->>'idAbono')::uuid;
+  perform recalcular_cadena_abonos_compra_credito(v_id_compra, (payload->>'montoTotal')::numeric);
+end;
+$$;
+
+create or replace function eliminar_abono_compra_credito(p_id_compra uuid, p_id_abono uuid, p_monto_total numeric) returns void
+language plpgsql as $$
+begin
+  delete from compra_credito_abonos where id = p_id_abono;
+  perform recalcular_cadena_abonos_compra_credito(p_id_compra, p_monto_total);
+end;
+$$;
+
+create or replace function registrar_abono_general_compra_credito(payload jsonb) returns void
+language plpgsql as $$
+declare
+  item jsonb;
+  v_id_compra uuid;
+  v_saldo_actual numeric;
+  v_monto_aplicado numeric;
+  v_saldo_resultante numeric;
+begin
+  for item in select * from jsonb_array_elements(payload->'distribucion') loop
+    v_id_compra := (item->>'idCompra')::uuid;
+    v_monto_aplicado := (item->>'montoAplicado')::numeric;
+    select saldo_pendiente into v_saldo_actual from compras_credito where id = v_id_compra for update;
+    if v_monto_aplicado > coalesce(v_saldo_actual, 0) + 0.01 then
+      raise exception 'El monto asignado supera el saldo pendiente de una factura';
+    end if;
+    v_saldo_resultante := round(v_saldo_actual - v_monto_aplicado, 2);
+    update compras_credito set saldo_pendiente = v_saldo_resultante where id = v_id_compra;
+    insert into compra_credito_abonos (id_compra_credito, id_proveedor, nombre_proveedor, fecha, monto_abonado, saldo_anterior, interes, saldo_pendiente, metodo_pago, numero_recibo, usuario)
+    values (v_id_compra, nullif(item->>'idProveedor', '')::uuid, coalesce(item->>'nombreProveedor', ''), (payload->>'fecha')::timestamptz,
+      round(v_monto_aplicado, 2), round(v_saldo_actual, 2), 0, v_saldo_resultante, coalesce(payload->>'metodoPago', ''), '', coalesce(payload->>'usuario', ''));
+  end loop;
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- Cierre de caja: inserta el cierre y arranca el turno siguiente con el
+-- totalReal de este, en una sola operación (CierreCajaRepository.registrarCierre).
+-- ----------------------------------------------------------------------------
+create or replace function registrar_cierre_caja(payload jsonb) returns void
+language plpgsql as $$
+declare
+  v_fecha_fin timestamptz := (payload->>'fechaFin')::timestamptz;
+  v_total_real numeric := (payload->>'totalReal')::numeric;
+  v_usuario text := coalesce(payload->>'usuarioResponsable', '');
+begin
+  insert into cierres_caja (
+    fecha_inicio, fecha_fin, monto_inicial, ingresos_efectivo, ingresos_tarjeta, ingresos_transferencia,
+    egresos_efectivo, egresos_transferencia, total_calculado_efectivo, total_transferencia, gran_total,
+    total_real, diferencia, usuario_responsable, observaciones
+  ) values (
+    (payload->>'fechaInicio')::timestamptz, v_fecha_fin, (payload->>'montoInicial')::numeric,
+    (payload->>'ingresosEfectivo')::numeric, (payload->>'ingresosTarjeta')::numeric, (payload->>'ingresosTransferencia')::numeric,
+    (payload->>'egresosEfectivo')::numeric, (payload->>'egresosTransferencia')::numeric, (payload->>'totalCalculadoEfectivo')::numeric,
+    (payload->>'totalTransferencia')::numeric, (payload->>'granTotal')::numeric, v_total_real, (payload->>'diferencia')::numeric,
+    v_usuario, coalesce(payload->>'observaciones', '')
+  );
+  insert into caja_estado (id, fecha_desde, monto_inicial, usuario_responsable, actualizado_en)
+  values (1, v_fecha_fin, v_total_real, v_usuario, now())
+  on conflict (id) do update set fecha_desde = excluded.fecha_desde, monto_inicial = excluded.monto_inicial,
+    usuario_responsable = excluded.usuario_responsable, actualizado_en = excluded.actualizado_en;
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- escaneo_remoto: NO se migró a tabla en el diseño original del esquema (ver
+-- comentario en schema.sql: "encajan mejor como canal de Realtime"), pero la
+-- app sí necesita esta funcionalidad viva (celular como lector de código de
+-- barras) — se agrega como 2 tablas chicas, efímeras (sesiones de segundos de
+-- vida), en vez de rediseñar sobre Realtime broadcast/presence puro para no
+-- arriesgar una reimplementación sin poder probarla en este entorno.
+-- ----------------------------------------------------------------------------
+create table if not exists escaneos_remotos (
+  codigo text primary key,
+  conectado boolean not null default false,
+  creado_en timestamptz not null default now()
+);
+create table if not exists escaneo_remoto_eventos (
+  id uuid primary key default gen_random_uuid(),
+  codigo text not null references escaneos_remotos (codigo) on delete cascade,
+  valor text not null,
+  fecha timestamptz not null default now()
+);
+create index if not exists idx_escaneo_remoto_eventos_codigo on escaneo_remoto_eventos (codigo);
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename = 'escaneos_remotos' and policyname = 'escaneos_remotos_allow_all_anon') then
+    alter table public.escaneos_remotos enable row level security;
+    create policy escaneos_remotos_allow_all_anon on public.escaneos_remotos for all using (true) with check (true);
+  end if;
+  if not exists (select 1 from pg_policies where tablename = 'escaneo_remoto_eventos' and policyname = 'escaneo_remoto_eventos_allow_all_anon') then
+    alter table public.escaneo_remoto_eventos enable row level security;
+    create policy escaneo_remoto_eventos_allow_all_anon on public.escaneo_remoto_eventos for all using (true) with check (true);
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'escaneos_remotos'
+  ) then
+    alter publication supabase_realtime add table escaneos_remotos;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'escaneo_remoto_eventos'
+  ) then
+    alter publication supabase_realtime add table escaneo_remoto_eventos;
+  end if;
+end $$;

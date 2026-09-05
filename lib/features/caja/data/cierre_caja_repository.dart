@@ -1,4 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/data/base_repository.dart';
 import 'cierre_caja_model.dart';
 import '../../egresos/data/egreso_repository.dart';
 
@@ -9,32 +10,33 @@ class EstadoCaja {
   const EstadoCaja({required this.fechaDesde, required this.montoInicial});
 }
 
-class CierreCajaRepository {
-  final _db = FirebaseFirestore.instance;
-  final _col = FirebaseFirestore.instance.collection('cierresCaja');
-  final _docEstado = FirebaseFirestore.instance.collection('cajaEstado').doc('actual');
+class CierreCajaRepository with ConRedMixin {
+  final _db = Supabase.instance.client;
   final _egresoRepository = EgresoRepository();
 
-  Future<EstadoCaja> obtenerEstadoCaja() async {
-    final snap = await _docEstado.get();
-    final data = snap.data();
-    if (data == null) {
-      final hoy = DateTime.now();
-      return EstadoCaja(fechaDesde: DateTime(hoy.year, hoy.month, hoy.day), montoInicial: 0);
-    }
-    return EstadoCaja(
-      fechaDesde: (data['fechaDesde'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      montoInicial: (data['montoInicial'] ?? 0).toDouble(),
-    );
+  Future<EstadoCaja> obtenerEstadoCaja() {
+    return conRed(() async {
+      final filas = await _db.from('caja_estado').select().eq('id', 1).limit(1);
+      if (filas.isEmpty) {
+        final hoy = DateTime.now();
+        return EstadoCaja(fechaDesde: DateTime(hoy.year, hoy.month, hoy.day), montoInicial: 0);
+      }
+      final data = filas.first;
+      return EstadoCaja(
+        fechaDesde: data['fecha_desde'] == null ? DateTime.now() : DateTime.parse(data['fecha_desde'] as String),
+        montoInicial: (data['monto_inicial'] ?? 0).toDouble(),
+      );
+    });
   }
 
-  Future<void> guardarMontoInicial(DateTime fechaDesde, double montoInicial, String usuario) async {
-    await _docEstado.set({
-      'fechaDesde': Timestamp.fromDate(fechaDesde),
-      'montoInicial': montoInicial,
-      'usuarioResponsable': usuario,
-      'actualizadoEn': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  Future<void> guardarMontoInicial(DateTime fechaDesde, double montoInicial, String usuario) {
+    return conRed(() => _db.from('caja_estado').upsert({
+          'id': 1,
+          'fecha_desde': fechaDesde.toIso8601String(),
+          'monto_inicial': montoInicial,
+          'usuario_responsable': usuario,
+          'actualizado_en': DateTime.now().toIso8601String(),
+        }));
   }
 
   Future<TotalesCaja> calcularTotales(DateTime inicio, DateTime finInclusive) async {
@@ -77,14 +79,36 @@ class CierreCajaRepository {
     );
   }
 
-  Future<void> registrarCierre(CierreCajaModel cierre) async {
-    await _col.add(cierre.toMap());
-    await guardarMontoInicial(cierre.fechaFin, cierre.totalReal, cierre.usuarioResponsable);
+  /// Inserta el cierre y arranca el turno siguiente con el totalReal de
+  /// este, en una sola operación atómica — ver `registrar_cierre_caja` en
+  /// supabase/schema.sql.
+  Future<void> registrarCierre(CierreCajaModel cierre) {
+    return conRed(() => _db.rpc('registrar_cierre_caja', params: {
+          'payload': {
+            'fechaInicio': cierre.fechaInicio.toIso8601String(),
+            'fechaFin': cierre.fechaFin.toIso8601String(),
+            'montoInicial': cierre.montoInicial,
+            'ingresosEfectivo': cierre.ingresosEfectivo,
+            'ingresosTarjeta': cierre.ingresosTarjeta,
+            'ingresosTransferencia': cierre.ingresosTransferencia,
+            'egresosEfectivo': cierre.egresosEfectivo,
+            'egresosTransferencia': cierre.egresosTransferencia,
+            'totalCalculadoEfectivo': cierre.totalCalculadoEfectivo,
+            'totalTransferencia': cierre.totalTransferencia,
+            'granTotal': cierre.granTotal,
+            'totalReal': cierre.totalReal,
+            'diferencia': cierre.diferencia,
+            'usuarioResponsable': cierre.usuarioResponsable,
+            'observaciones': cierre.observaciones,
+          },
+        }));
   }
 
   Stream<List<CierreCajaModel>> obtenerHistorial() {
-    return _db.collection('cierresCaja').orderBy('fechaFin', descending: true).snapshots().map((snap) {
-      return snap.docs.map((d) => CierreCajaModel.fromMap(d.id, d.data())).toList();
-    });
+    return conRedStream(() => _db
+        .from('cierres_caja')
+        .stream(primaryKey: ['id'])
+        .order('fecha_fin', ascending: false)
+        .map((filas) => filas.map((d) => CierreCajaModel.fromMap(d['id'] as String, d)).toList()));
   }
 }

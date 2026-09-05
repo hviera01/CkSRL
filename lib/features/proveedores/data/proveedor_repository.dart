@@ -1,13 +1,16 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/data/base_repository.dart';
 import 'proveedor_model.dart';
 
-class ProveedorRepository {
-  final _col = FirebaseFirestore.instance.collection('proveedores');
+class ProveedorRepository with ConRedMixin {
+  final _db = Supabase.instance.client;
 
   Stream<List<ProveedorModel>> obtenerProveedores() {
-    return _col.orderBy('razonSocial').snapshots().map((snap) {
-      return snap.docs.map((d) => ProveedorModel.fromMap(d.id, d.data())).toList();
-    });
+    return conRedStream(() => _db
+        .from('proveedores')
+        .stream(primaryKey: ['id'])
+        .order('razon_social')
+        .map((filas) => filas.map((d) => ProveedorModel.fromMap(d['id'] as String, d)).toList()));
   }
 
   Future<void> crear({
@@ -16,20 +19,21 @@ class ProveedorRepository {
     required String correo,
     required String telefono,
     required bool estado,
-  }) async {
-    if (rtn.isNotEmpty) {
-      final existe = await _col.where('rtn', isEqualTo: rtn).limit(1).get();
-      if (existe.docs.isNotEmpty) {
-        throw Exception('Ya existe un proveedor con ese RTN');
+  }) {
+    return conRed(() async {
+      if (rtn.isNotEmpty) {
+        final existe = await _db.from('proveedores').select('id').eq('rtn', rtn).limit(1);
+        if (existe.isNotEmpty) {
+          throw Exception('Ya existe un proveedor con ese RTN');
+        }
       }
-    }
-    await _col.add({
-      'rtn': rtn,
-      'razonSocial': razonSocial,
-      'correo': correo,
-      'telefono': telefono,
-      'estado': estado,
-      'fechaRegistro': FieldValue.serverTimestamp(),
+      await _db.from('proveedores').insert({
+        'rtn': rtn,
+        'razon_social': razonSocial,
+        'correo': correo,
+        'telefono': telefono,
+        'estado': estado,
+      });
     });
   }
 
@@ -40,24 +44,26 @@ class ProveedorRepository {
     required String correo,
     required String telefono,
     required bool estado,
-  }) async {
-    if (rtn.isNotEmpty) {
-      final existe = await _col.where('rtn', isEqualTo: rtn).limit(2).get();
-      final duplicado = existe.docs.any((d) => d.id != id);
-      if (duplicado) {
-        throw Exception('Ya existe un proveedor con ese RTN');
+  }) {
+    return conRed(() async {
+      if (rtn.isNotEmpty) {
+        final existe = await _db.from('proveedores').select('id').eq('rtn', rtn).limit(2);
+        final duplicado = existe.any((d) => d['id'] != id);
+        if (duplicado) {
+          throw Exception('Ya existe un proveedor con ese RTN');
+        }
       }
-    }
-    await _col.doc(id).update({
-      'rtn': rtn,
-      'razonSocial': razonSocial,
-      'correo': correo,
-      'telefono': telefono,
-      'estado': estado,
+      await _db.from('proveedores').update({
+        'rtn': rtn,
+        'razon_social': razonSocial,
+        'correo': correo,
+        'telefono': telefono,
+        'estado': estado,
+      }).eq('id', id);
     });
   }
 
-  Future<void> eliminar(String id) async {
-    await _col.doc(id).delete();
+  Future<void> eliminar(String id) {
+    return conRed(() => _db.from('proveedores').delete().eq('id', id));
   }
 }

@@ -1,35 +1,39 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/data/base_repository.dart';
 import 'egreso_model.dart';
 import '../../reportes/data/reporte_repository.dart';
 import '../../ventas_credito/data/venta_credito_repository.dart';
 import '../../compras_credito/data/compra_credito_repository.dart';
 
-class EgresoRepository {
-  final _col = FirebaseFirestore.instance.collection('egresos');
+class EgresoRepository with ConRedMixin {
+  final _db = Supabase.instance.client;
   final _reporteRepository = ReporteRepository();
   final _ventaCreditoRepository = VentaCreditoRepository();
   final _compraCreditoRepository = CompraCreditoRepository();
 
-  Future<void> crear(EgresoModel egreso) async {
-    await _col.add(egreso.toMap());
+  Future<void> crear(EgresoModel egreso) {
+    return conRed(() => _db.from('egresos').insert(egreso.toMap()));
   }
 
-  Future<void> actualizar(EgresoModel egreso) async {
-    await _col.doc(egreso.id).update(egreso.toMap());
+  Future<void> actualizar(EgresoModel egreso) {
+    return conRed(() => _db.from('egresos').update(egreso.toMap()).eq('id', egreso.id));
   }
 
-  Future<void> eliminar(String id) async {
-    await _col.doc(id).delete();
+  Future<void> eliminar(String id) {
+    return conRed(() => _db.from('egresos').delete().eq('id', id));
   }
 
-  Future<List<EgresoModel>> obtenerEgresosPorRango(DateTime inicio, DateTime finInclusive) async {
-    final snap = await _col
-        .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(inicio))
-        .where('fecha', isLessThanOrEqualTo: Timestamp.fromDate(finInclusive))
-        .orderBy('fecha', descending: true)
-        .get();
-    return snap.docs.map((d) => EgresoModel.fromMap(d.id, d.data())).toList();
+  Future<List<EgresoModel>> obtenerEgresosPorRango(DateTime inicio, DateTime finInclusive) {
+    return conRed(() async {
+      final filas = await _db
+          .from('egresos')
+          .select()
+          .gte('fecha', inicio.toIso8601String())
+          .lte('fecha', finInclusive.toIso8601String())
+          .order('fecha', ascending: false);
+      return filas.map((d) => EgresoModel.fromMap(d['id'] as String, d)).toList();
+    });
   }
 
   /// Junta ventas de contado, abonos a crédito (venta y compra) y egresos
@@ -63,10 +67,6 @@ class EgresoRepository {
       if (v.estado != 'Activa' || v.condicion != 'Contado' || v.tipoDocumento == 'Cotizacion') continue;
       final descripcion = 'Doc. ${v.numeroDocumento} · ${v.nombreCliente.isEmpty ? 'Consumidor final' : v.nombreCliente}';
       if (v.metodoPago == 'Mixto' && v.pagosMixtos.isNotEmpty) {
-        // Una venta con pago mixto no cae en un solo balde de
-        // efectivo/tarjeta/transferencia: se reparte en un movimiento por
-        // cada método, cada uno con su propio monto, para que el cierre de
-        // caja cuadre con lo que de verdad entró por cada método.
         for (final pago in v.pagosMixtos) {
           movimientos.add(MovimientoFinanciero(
             fecha: v.fechaRegistro ?? DateTime.now(),

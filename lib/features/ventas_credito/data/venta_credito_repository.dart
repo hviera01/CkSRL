@@ -1,12 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/data/base_repository.dart';
 import 'venta_credito_model.dart';
 import 'abono_model.dart';
 import 'venta_credito_import_service.dart';
 import '../../../core/utils/formato_moneda.dart';
 
-class VentaCreditoRepository {
-  final _db = FirebaseFirestore.instance;
-  final _col = FirebaseFirestore.instance.collection('ventasCredito');
+class VentaCreditoRepository with ConRedMixin {
+  final _db = Supabase.instance.client;
 
   String _generarNumeroDocumento() {
     final ahora = DateTime.now().millisecondsSinceEpoch.toString();
@@ -14,50 +14,53 @@ class VentaCreditoRepository {
   }
 
   Stream<List<VentaCreditoModel>> obtenerCreditos() {
-    return _col.orderBy('fechaRegistro', descending: true).snapshots().map((snap) {
-      return snap.docs.map((d) => VentaCreditoModel.fromMap(d.id, d.data())).toList();
-    });
+    return conRedStream(() => _db
+        .from('ventas_credito')
+        .stream(primaryKey: ['id'])
+        .order('fecha_registro', ascending: false)
+        .map((filas) => filas.map((d) => VentaCreditoModel.fromMap(d['id'] as String, d)).toList()));
   }
 
-  /// El documento de `ventasCredito` de una venta a crédito se crea con el
-  /// mismo id que la venta (ver `VentaRepository.registrarVenta`), así que se
-  /// puede ir directo a buscarlo por id en vez de filtrar toda la colección.
-  Future<VentaCreditoModel?> obtenerPorId(String id) async {
-    final snap = await _col.doc(id).get();
-    if (!snap.exists) return null;
-    return VentaCreditoModel.fromMap(snap.id, snap.data()!);
+  /// El registro de `ventas_credito` de una venta a crédito se crea con el
+  /// mismo id que la venta (ver `registrar_venta` en supabase/schema.sql).
+  Future<VentaCreditoModel?> obtenerPorId(String id) {
+    return conRed(() async {
+      final filas = await _db.from('ventas_credito').select().eq('id', id).limit(1);
+      if (filas.isEmpty) return null;
+      return VentaCreditoModel.fromMap(filas.first['id'] as String, filas.first);
+    });
   }
 
   Stream<List<AbonoModel>> obtenerAbonos(String idCredito) {
-    return _col.doc(idCredito).collection('abonos').orderBy('fecha', descending: true).snapshots().map((snap) {
-      return snap.docs.map((d) => AbonoModel.fromMap(d.id, d.data())).toList();
+    return conRedStream(() => _db
+        .from('venta_credito_abonos')
+        .stream(primaryKey: ['id'])
+        .eq('id_venta_credito', idCredito)
+        .order('fecha', ascending: false)
+        .map((filas) => filas.map((d) => AbonoModel.fromMap(d['id'] as String, d)).toList()));
+  }
+
+  Future<List<AbonoModel>> obtenerAbonosUnaVez(String idCredito) {
+    return conRed(() async {
+      final filas = await _db.from('venta_credito_abonos').select().eq('id_venta_credito', idCredito);
+      return filas.map((d) => AbonoModel.fromMap(d['id'] as String, d)).toList();
     });
   }
 
-  /// Igual que [obtenerAbonos] pero de una sola vez (no stream): para
-  /// agregaciones puntuales como la puntualidad histórica de pago en
-  /// Detalle de Cliente, que no necesitan quedar escuchando cambios en vivo.
-  Future<List<AbonoModel>> obtenerAbonosUnaVez(String idCredito) async {
-    final snap = await _col.doc(idCredito).collection('abonos').get();
-    return snap.docs.map((d) => AbonoModel.fromMap(d.id, d.data())).toList();
-  }
-
-  /// Créditos de un cliente vinculado, para el aviso de "crédito vencido" al
-  /// fiar de nuevo (ver RegistrarVentaScreen/RegistrarCreditoDialog) y para
-  /// Detalle de Cliente. Prioriza [idCliente] (vínculo real); si no hay,
-  /// cae a [documentoCliente] (RTN/DNI, el único dato confiable que ya
-  /// existía antes del vínculo real).
-  Future<List<VentaCreditoModel>> obtenerCreditosDeCliente({String? idCliente, String? documentoCliente}) async {
-    Query<Map<String, dynamic>> query;
-    if (idCliente != null && idCliente.isNotEmpty) {
-      query = _col.where('idCliente', isEqualTo: idCliente);
-    } else if (documentoCliente != null && documentoCliente.trim().isNotEmpty && documentoCliente.trim() != 'N/A') {
-      query = _col.where('documentoCliente', isEqualTo: documentoCliente.trim());
-    } else {
-      return [];
-    }
-    final snap = await query.get();
-    return snap.docs.map((d) => VentaCreditoModel.fromMap(d.id, d.data())).toList();
+  /// Créditos de un cliente vinculado. Prioriza [idCliente]; si no hay, cae
+  /// a [documentoCliente].
+  Future<List<VentaCreditoModel>> obtenerCreditosDeCliente({String? idCliente, String? documentoCliente}) {
+    return conRed(() async {
+      List<Map<String, dynamic>> filas;
+      if (idCliente != null && idCliente.isNotEmpty) {
+        filas = await _db.from('ventas_credito').select().eq('id_cliente', idCliente);
+      } else if (documentoCliente != null && documentoCliente.trim().isNotEmpty && documentoCliente.trim() != 'N/A') {
+        filas = await _db.from('ventas_credito').select().eq('documento_cliente', documentoCliente.trim());
+      } else {
+        return <VentaCreditoModel>[];
+      }
+      return filas.map((d) => VentaCreditoModel.fromMap(d['id'] as String, d)).toList();
+    });
   }
 
   Future<void> crearCreditoManual({
@@ -69,46 +72,33 @@ class VentaCreditoRepository {
     required double saldoPendiente,
     required DateTime fechaVencimiento,
     String telefono = '',
-  }) async {
-    await _col.add({
-      'documentoCliente': documentoCliente.isEmpty ? 'N/A' : documentoCliente,
-      'nombreCliente': nombreCliente,
-      'idCliente': idCliente,
-      'numeroDocumento': numeroDocumento.isEmpty ? _generarNumeroDocumento() : numeroDocumento,
-      'montoTotal': redondearMoneda(montoTotal),
-      'saldoPendiente': redondearMoneda(saldoPendiente),
-      'fechaRegistro': FieldValue.serverTimestamp(),
-      'fechaVencimiento': Timestamp.fromDate(fechaVencimiento),
-      'sinVentaOrigen': true,
-      'telefono': telefono.trim(),
-    });
+  }) {
+    return conRed(() => _db.from('ventas_credito').insert({
+          'documento_cliente': documentoCliente.isEmpty ? 'N/A' : documentoCliente,
+          'nombre_cliente': nombreCliente,
+          'id_cliente': (idCliente == null || idCliente.isEmpty) ? null : idCliente,
+          'numero_documento': numeroDocumento.isEmpty ? _generarNumeroDocumento() : numeroDocumento,
+          'monto_total': redondearMoneda(montoTotal),
+          'saldo_pendiente': redondearMoneda(saldoPendiente),
+          'fecha_vencimiento': fechaVencimiento.toIso8601String(),
+          'sin_venta_origen': true,
+          'telefono': telefono.trim(),
+        }));
   }
 
   /// Cambia (o agrega) el teléfono de contacto de ESTE crédito puntual, sin
-  /// tocar el registro de 'clientes' aunque esté vinculado -pedido explícito
-  /// del dueño-. Pensado para la acción "Editar teléfono" de
-  /// VentasCreditoScreen, sobre todo en créditos viejos/manuales/importados
-  /// que nunca tuvieron cliente vinculado y por eso no reciben el aviso
-  /// automático de crédito vencido (ver tool/aviso_creditos_whatsapp).
-  Future<void> actualizarTelefono(String id, String telefono) async {
-    await _col.doc(id).update({'telefono': telefono.trim()});
+  /// tocar el registro de 'clientes'.
+  Future<void> actualizarTelefono(String id, String telefono) {
+    return conRed(() => _db.from('ventas_credito').update({'telefono': telefono.trim()}).eq('id', id));
   }
 
-  /// Pide que se mande YA el aviso de WhatsApp de crédito vencido para
-  /// [idCredito] -botón "Enviar aviso ahora" en VentasCreditoScreen-, sin
-  /// esperar a la tarea diaria (ver tool/aviso_creditos_whatsapp/README.md).
-  /// El envío real lo hace ese script Node aparte (tiene la sesión de
-  /// WhatsApp, la app Flutter no) — acá solo se deja marcado el pedido en el
-  /// propio documento del crédito, mismo patrón ya probado que
-  /// `solicitudImpresionGuiaEnvio` (ver VentaRepository) para pedirle algo a
-  /// la PC principal desde cualquier dispositivo sin necesitar una colección
-  /// ni reglas nuevas. `escuchar.js`, corriendo en la PC, lo detecta en unos
-  /// segundos, arma el estado de cuenta y lo manda.
-  Future<void> solicitarAvisoWhatsApp(String idCredito) async {
-    // Limpia el error del intento anterior (si lo hubo): así, si este nuevo
-    // intento también falla, `errorAvisoWhatsApp` que muestra la pantalla
-    // siempre es del pedido actual, no uno viejo que ya se resolvió.
-    await _col.doc(idCredito).update({'solicitudAvisoWhatsApp': true, 'errorAvisoWhatsApp': FieldValue.delete()});
+  /// Pide que se mande YA el aviso de WhatsApp de crédito vencido — el envío
+  /// real lo hace el script Node aparte, acá solo se marca el pedido.
+  Future<void> solicitarAvisoWhatsApp(String idCredito) {
+    return conRed(() => _db.from('ventas_credito').update({
+          'solicitud_aviso_whatsapp': true,
+          'error_aviso_whatsapp': null,
+        }).eq('id', idCredito));
   }
 
   Future<void> registrarAbono({
@@ -120,53 +110,32 @@ class VentaCreditoRepository {
     required String numeroRecibo,
     required String usuario,
     required DateTime fecha,
-  }) async {
-    if (montoAbonado > saldoAnterior + interes + 0.01) {
-      throw Exception('El abono (${formatearMoneda(montoAbonado)}) supera el saldo disponible en este crédito (${formatearMoneda(saldoAnterior + interes)})');
-    }
-    final nuevoSaldo = redondearMoneda((saldoAnterior - montoAbonado + interes).clamp(0, double.infinity).toDouble());
-    final batch = _db.batch();
-    batch.update(_col.doc(idCredito), {'saldoPendiente': nuevoSaldo});
-    final abonoRef = _col.doc(idCredito).collection('abonos').doc();
-    batch.set(abonoRef, {
-      'fecha': Timestamp.fromDate(fecha),
-      'montoAbonado': redondearMoneda(montoAbonado),
-      'saldoAnterior': redondearMoneda(saldoAnterior),
-      'interes': redondearMoneda(interes),
-      'saldoPendiente': nuevoSaldo,
-      'metodoPago': metodoPago,
-      'numeroRecibo': numeroRecibo,
-      'usuario': usuario,
-    });
-    await batch.commit();
-  }
-
-  /// Ver comentario de `_recalcularCadenaAbonos` en CompraCreditoRepository:
-  /// mismo problema (cadena de abonos que depende cada uno del anterior) y
-  /// misma solución.
-  Future<void> _recalcularCadenaAbonos(String idCredito, double montoTotal) async {
-    final abonosSnap = await _col.doc(idCredito).collection('abonos').orderBy('fecha').get();
-    final batch = _db.batch();
-    var saldo = redondearMoneda(montoTotal);
-    for (final doc in abonosSnap.docs) {
-      final data = doc.data();
-      final montoAbonado = (data['montoAbonado'] ?? 0).toDouble();
-      final interes = (data['interes'] ?? 0).toDouble();
-      final saldoAnterior = saldo;
-      final crudo = saldoAnterior - montoAbonado + interes;
-      if (crudo < -0.01) {
-        throw Exception('El abono de ${formatearMoneda(montoAbonado)} superaría el saldo disponible en ese momento (${formatearMoneda(saldoAnterior + interes)})');
+  }) {
+    return conRed(() async {
+      if (montoAbonado > saldoAnterior + interes + 0.01) {
+        throw Exception('El abono (${formatearMoneda(montoAbonado)}) supera el saldo disponible en este crédito (${formatearMoneda(saldoAnterior + interes)})');
       }
-      saldo = redondearMoneda(crudo.clamp(0, double.infinity).toDouble());
-      batch.update(doc.reference, {'saldoAnterior': redondearMoneda(saldoAnterior), 'saldoPendiente': saldo});
-    }
-    batch.update(_col.doc(idCredito), {'saldoPendiente': saldo});
-    await batch.commit();
+      await _db.rpc('registrar_abono_venta_credito', params: {
+        'payload': {
+          'idCredito': idCredito,
+          'saldoAnterior': saldoAnterior,
+          'montoAbonado': montoAbonado,
+          'interes': interes,
+          'metodoPago': metodoPago,
+          'numeroRecibo': numeroRecibo,
+          'usuario': usuario,
+          'fecha': fecha.toIso8601String(),
+        },
+      });
+    });
   }
 
-  Future<void> eliminarAbono({required String idCredito, required String idAbono, required double montoTotal}) async {
-    await _col.doc(idCredito).collection('abonos').doc(idAbono).delete();
-    await _recalcularCadenaAbonos(idCredito, montoTotal);
+  Future<void> eliminarAbono({required String idCredito, required String idAbono, required double montoTotal}) {
+    return conRed(() => _db.rpc('eliminar_abono_venta_credito', params: {
+          'p_id_credito': idCredito,
+          'p_id_abono': idAbono,
+          'p_monto_total': montoTotal,
+        }));
   }
 
   Future<void> editarAbono({
@@ -178,15 +147,19 @@ class VentaCreditoRepository {
     required DateTime fecha,
     required String metodoPago,
     required String numeroRecibo,
-  }) async {
-    await _col.doc(idCredito).collection('abonos').doc(idAbono).update({
-      'montoAbonado': redondearMoneda(montoAbonado),
-      'interes': redondearMoneda(interes),
-      'fecha': Timestamp.fromDate(fecha),
-      'metodoPago': metodoPago,
-      'numeroRecibo': numeroRecibo,
-    });
-    await _recalcularCadenaAbonos(idCredito, montoTotal);
+  }) {
+    return conRed(() => _db.rpc('editar_abono_venta_credito', params: {
+          'payload': {
+            'idCredito': idCredito,
+            'idAbono': idAbono,
+            'montoTotal': montoTotal,
+            'montoAbonado': montoAbonado,
+            'interes': interes,
+            'fecha': fecha.toIso8601String(),
+            'metodoPago': metodoPago,
+            'numeroRecibo': numeroRecibo,
+          },
+        }));
   }
 
   Future<void> unirFacturas({
@@ -194,84 +167,67 @@ class VentaCreditoRepository {
     required String documentoCliente,
     required String nombreCliente,
     required DateTime fechaVencimiento,
-  }) async {
-    final total = redondearMoneda(facturas.fold<double>(0, (s, f) => s + f.saldoPendiente));
-    final batch = _db.batch();
-    for (final factura in facturas) {
-      batch.update(_col.doc(factura.id), {'saldoPendiente': 0, 'fusionada': true});
-    }
-    // Si una de las facturas que se está uniendo ya era, a su vez, el
-    // resultado de una unión anterior, se guardan sus facturas de origen
-    // reales en vez de su propio id (que no tiene venta real ni detalle
-    // propio) — así el nuevo crédito siempre apunta directo a las ventas
-    // reales del fondo, sin importar cuántas uniones se encadenen.
-    final facturasOrigenPlanas = <FacturaOrigenModel>[
-      for (final factura in facturas)
-        if (factura.esFusion)
-          ...factura.facturasOrigen
-        else
-          FacturaOrigenModel(id: factura.id, numeroDocumento: factura.numeroDocumento, saldoPendiente: factura.saldoPendiente),
-    ];
-    final nuevaRef = _col.doc();
-    batch.set(nuevaRef, {
-      'documentoCliente': documentoCliente.isEmpty ? 'N/A' : documentoCliente,
-      'nombreCliente': nombreCliente,
-      'numeroDocumento': _generarNumeroDocumento(),
-      'montoTotal': total,
-      'saldoPendiente': total,
-      'fechaRegistro': FieldValue.serverTimestamp(),
-      'fechaVencimiento': Timestamp.fromDate(fechaVencimiento),
-      'sinVentaOrigen': true,
-      'facturasOrigen': facturasOrigenPlanas.map((f) => f.toMap()).toList(),
+  }) {
+    return conRed(() async {
+      final total = redondearMoneda(facturas.fold<double>(0, (s, f) => s + f.saldoPendiente));
+      for (final factura in facturas) {
+        await _db.from('ventas_credito').update({'saldo_pendiente': 0, 'fusionada': true}).eq('id', factura.id);
+      }
+      // Si una de las facturas que se está uniendo ya era, a su vez, el
+      // resultado de una unión anterior, se guardan sus facturas de origen
+      // reales en vez de su propio id.
+      final facturasOrigenPlanas = <FacturaOrigenModel>[
+        for (final factura in facturas)
+          if (factura.esFusion)
+            ...factura.facturasOrigen
+          else
+            FacturaOrigenModel(id: factura.id, numeroDocumento: factura.numeroDocumento, saldoPendiente: factura.saldoPendiente),
+      ];
+      await _db.from('ventas_credito').insert({
+        'documento_cliente': documentoCliente.isEmpty ? 'N/A' : documentoCliente,
+        'nombre_cliente': nombreCliente,
+        'numero_documento': _generarNumeroDocumento(),
+        'monto_total': total,
+        'saldo_pendiente': total,
+        'fecha_vencimiento': fechaVencimiento.toIso8601String(),
+        'sin_venta_origen': true,
+        'facturas_origen': facturasOrigenPlanas.map((f) => f.toMap()).toList(),
+      });
     });
-    await batch.commit();
   }
 
-  Future<void> eliminar(String id) async {
-    await _col.doc(id).delete();
+  Future<void> eliminar(String id) {
+    return conRed(() => _db.from('ventas_credito').delete().eq('id', id));
   }
 
   /// Crea en lote los créditos de venta de una importación desde Excel.
-  /// Cada fila se agrega como un crédito manual nuevo (no empareja con
-  /// créditos existentes).
-  Future<int> importarCreditos(List<FilaImportacionVentaCredito> filas) async {
-    var creados = 0;
-    var batch = _db.batch();
-    var operacionesEnBatch = 0;
-
-    Future<void> descargarBatch() async {
-      if (operacionesEnBatch == 0) return;
-      await batch.commit();
-      batch = _db.batch();
-      operacionesEnBatch = 0;
-    }
-
-    for (final fila in filas.where((f) => f.valido)) {
-      final ref = _col.doc();
-      batch.set(ref, {
-        'documentoCliente': fila.documentoCliente.isEmpty ? 'N/A' : fila.documentoCliente,
-        'nombreCliente': fila.nombreCliente,
-        'numeroDocumento': fila.numeroDocumento.isEmpty ? fila.numeroFila.toString() : fila.numeroDocumento,
-        'montoTotal': fila.montoTotal,
-        'saldoPendiente': fila.saldoPendiente,
-        'fechaRegistro': fila.fechaRegistro != null ? Timestamp.fromDate(fila.fechaRegistro!) : FieldValue.serverTimestamp(),
-        'fechaVencimiento': Timestamp.fromDate(fila.fechaVencimiento),
-        'sinVentaOrigen': true,
-      });
-      creados++;
-      operacionesEnBatch++;
-      if (operacionesEnBatch >= 400) await descargarBatch();
-    }
-    await descargarBatch();
-    return creados;
+  Future<int> importarCreditos(List<FilaImportacionVentaCredito> filas) {
+    return conRed(() async {
+      final validas = filas.where((f) => f.valido).toList();
+      if (validas.isEmpty) return 0;
+      final filasInsertar = validas.map((fila) => {
+            'documento_cliente': fila.documentoCliente.isEmpty ? 'N/A' : fila.documentoCliente,
+            'nombre_cliente': fila.nombreCliente,
+            'numero_documento': fila.numeroDocumento.isEmpty ? fila.numeroFila.toString() : fila.numeroDocumento,
+            'monto_total': fila.montoTotal,
+            'saldo_pendiente': fila.saldoPendiente,
+            'fecha_registro': fila.fechaRegistro?.toIso8601String(),
+            'fecha_vencimiento': fila.fechaVencimiento.toIso8601String(),
+            'sin_venta_origen': true,
+          }).toList();
+      await _db.from('ventas_credito').insert(filasInsertar);
+      return validas.length;
+    });
   }
 
-  Future<List<AbonoModel>> obtenerAbonosPorRango(DateTime inicio, DateTime finInclusive) async {
-    final snap = await _db
-        .collectionGroup('abonos')
-        .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(inicio))
-        .where('fecha', isLessThanOrEqualTo: Timestamp.fromDate(finInclusive))
-        .get();
-    return snap.docs.map((d) => AbonoModel.fromMap(d.id, d.data())).toList();
+  Future<List<AbonoModel>> obtenerAbonosPorRango(DateTime inicio, DateTime finInclusive) {
+    return conRed(() async {
+      final filas = await _db
+          .from('venta_credito_abonos')
+          .select()
+          .gte('fecha', inicio.toIso8601String())
+          .lte('fecha', finInclusive.toIso8601String());
+      return filas.map((d) => AbonoModel.fromMap(d['id'] as String, d)).toList();
+    });
   }
 }

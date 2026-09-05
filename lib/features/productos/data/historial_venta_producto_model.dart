@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 /// Un registro histórico de venta de un producto: precio unitario con ISV al
 /// que se vendió (ya con el descuento de línea aplicado), en el orden en que
 /// se fueron registrando las ventas.
@@ -33,14 +31,14 @@ class HistorialVentaProductoModel {
   factory HistorialVentaProductoModel.fromMap(String id, Map<String, dynamic> data) {
     return HistorialVentaProductoModel(
       id: id,
-      idVenta: data['idVenta'] ?? '',
-      precioVenta: (data['precioVenta'] ?? 0).toDouble(),
-      precioUnitario: (data['precioUnitario'] ?? 0).toDouble(),
-      descuentoPorcentaje: (data['descuentoPorcentaje'] ?? 0).toDouble(),
+      idVenta: data['id_venta'] ?? '',
+      precioVenta: (data['precio_venta'] ?? 0).toDouble(),
+      precioUnitario: (data['precio_unitario'] ?? 0).toDouble(),
+      descuentoPorcentaje: (data['descuento_porcentaje'] ?? 0).toDouble(),
       cantidad: (data['cantidad'] ?? 0).toDouble(),
-      fecha: (data['fecha'] as Timestamp?)?.toDate(),
-      tipoDocumento: data['tipoDocumento'] ?? '',
-      numeroDocumento: data['numeroDocumento'] ?? '',
+      fecha: data['fecha'] == null ? null : DateTime.parse(data['fecha'] as String),
+      tipoDocumento: data['tipo_documento'] ?? '',
+      numeroDocumento: data['numero_documento'] ?? '',
       cliente: data['cliente'] ?? '',
       usuario: data['usuario'] ?? '',
     );

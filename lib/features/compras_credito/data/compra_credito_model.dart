@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class CompraCreditoModel {
   final String id;
   final String idProveedor;
@@ -32,17 +30,18 @@ class CompraCreditoModel {
   bool get vencida => !liquidada && fechaVencimiento != null && DateTime.now().isAfter(fechaVencimiento!);
 
   factory CompraCreditoModel.fromMap(String id, Map<String, dynamic> data) {
+    DateTime? fecha(String? iso) => iso == null ? null : DateTime.parse(iso);
     return CompraCreditoModel(
       id: id,
-      idProveedor: data['idProveedor'] ?? '',
-      documentoProveedor: data['documentoProveedor'] ?? '',
-      nombreProveedor: data['nombreProveedor'] ?? '',
-      numeroDocumento: data['numeroDocumento'] ?? '',
-      noFactura: data['noFactura'] ?? '',
-      montoTotal: (data['montoTotal'] ?? 0).toDouble(),
-      saldoPendiente: (data['saldoPendiente'] ?? 0).toDouble(),
-      fechaRegistro: (data['fechaRegistro'] as Timestamp?)?.toDate(),
-      fechaVencimiento: (data['fechaVencimiento'] as Timestamp?)?.toDate(),
+      idProveedor: data['id_proveedor'] ?? '',
+      documentoProveedor: data['documento_proveedor'] ?? '',
+      nombreProveedor: data['nombre_proveedor'] ?? '',
+      numeroDocumento: data['numero_documento'] ?? '',
+      noFactura: data['no_factura'] ?? '',
+      montoTotal: (data['monto_total'] ?? 0).toDouble(),
+      saldoPendiente: (data['saldo_pendiente'] ?? 0).toDouble(),
+      fechaRegistro: fecha(data['fecha_registro'] as String?),
+      fechaVencimiento: fecha(data['fecha_vencimiento'] as String?),
       manual: data['manual'] ?? true,
     );
   }

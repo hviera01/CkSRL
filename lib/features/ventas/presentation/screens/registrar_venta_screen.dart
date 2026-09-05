@@ -8,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/escaneo_remoto_repository.dart';
 import '../../data/item_venta_model.dart';
 import '../../data/venta_en_espera_model.dart';
@@ -267,8 +266,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
   final _escaneoRemoto = EscaneoRemotoRepository();
   String? _codigoEscaneoRemoto;
   bool _escaneoRemotoConectado = false;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
-  _suscripcionEscaneoRemoto;
+  StreamSubscription<String>? _suscripcionEscaneoRemoto;
   StreamSubscription<bool>? _suscripcionConectadoEscaneo;
 
   // Controladores para la edición inline (cantidad / precio / descuento) de
@@ -1533,16 +1531,8 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
     await _escaneoRemoto.crearSesion(codigo);
     _codigoEscaneoRemoto = codigo;
     _escaneoRemotoConectado = false;
-    _suscripcionEscaneoRemoto = _escaneoRemoto.escucharEventos(codigo).listen((
-      snap,
-    ) {
-      for (final cambio in snap.docChanges) {
-        if (cambio.type != DocumentChangeType.added) continue;
-        final codigoEscaneado = cambio.doc.data()?['codigo'] as String?;
-        if (codigoEscaneado != null && codigoEscaneado.isNotEmpty) {
-          _procesarCodigoEscaneado(codigoEscaneado);
-        }
-      }
+    _suscripcionEscaneoRemoto = _escaneoRemoto.escucharCodigosNuevos(codigo).listen((codigoEscaneado) {
+      if (codigoEscaneado.isNotEmpty) _procesarCodigoEscaneado(codigoEscaneado);
     });
     // El celular marca "conectado" apenas llega a la cámara (ver
     // EscaneoRemotoScreen): con esto la pantalla sabe en vivo si ya hay

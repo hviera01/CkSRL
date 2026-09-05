@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class HistorialStockModel {
   final String id;
   final double stockAnterior;
@@ -20,9 +18,9 @@ class HistorialStockModel {
   factory HistorialStockModel.fromMap(String id, Map<String, dynamic> data) {
     return HistorialStockModel(
       id: id,
-      stockAnterior: (data['stockAnterior'] ?? 0).toDouble(),
-      stockNuevo: (data['stockNuevo'] ?? 0).toDouble(),
-      fecha: (data['fecha'] as Timestamp?)?.toDate(),
+      stockAnterior: (data['stock_anterior'] ?? 0).toDouble(),
+      stockNuevo: (data['stock_nuevo'] ?? 0).toDouble(),
+      fecha: data['fecha'] == null ? null : DateTime.parse(data['fecha'] as String),
       usuario: data['usuario'] ?? '',
       motivo: data['motivo'] ?? '',
     );

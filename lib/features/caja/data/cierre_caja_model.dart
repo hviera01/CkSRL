@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class CierreCajaModel {
   final String id;
   final DateTime fechaInicio;
@@ -41,44 +39,44 @@ class CierreCajaModel {
 
   Map<String, dynamic> toMap() {
     return {
-      'fechaInicio': Timestamp.fromDate(fechaInicio),
-      'fechaFin': Timestamp.fromDate(fechaFin),
-      'montoInicial': montoInicial,
-      'ingresosEfectivo': ingresosEfectivo,
-      'ingresosTarjeta': ingresosTarjeta,
-      'ingresosTransferencia': ingresosTransferencia,
-      'egresosEfectivo': egresosEfectivo,
-      'egresosTransferencia': egresosTransferencia,
-      'totalCalculadoEfectivo': totalCalculadoEfectivo,
-      'totalTransferencia': totalTransferencia,
-      'granTotal': granTotal,
-      'totalReal': totalReal,
+      'fecha_inicio': fechaInicio.toIso8601String(),
+      'fecha_fin': fechaFin.toIso8601String(),
+      'monto_inicial': montoInicial,
+      'ingresos_efectivo': ingresosEfectivo,
+      'ingresos_tarjeta': ingresosTarjeta,
+      'ingresos_transferencia': ingresosTransferencia,
+      'egresos_efectivo': egresosEfectivo,
+      'egresos_transferencia': egresosTransferencia,
+      'total_calculado_efectivo': totalCalculadoEfectivo,
+      'total_transferencia': totalTransferencia,
+      'gran_total': granTotal,
+      'total_real': totalReal,
       'diferencia': diferencia,
-      'usuarioResponsable': usuarioResponsable,
+      'usuario_responsable': usuarioResponsable,
       'observaciones': observaciones,
-      'fechaRegistro': FieldValue.serverTimestamp(),
     };
   }
 
   factory CierreCajaModel.fromMap(String id, Map<String, dynamic> data) {
+    DateTime? fecha(String? iso) => iso == null ? null : DateTime.parse(iso);
     return CierreCajaModel(
       id: id,
-      fechaInicio: (data['fechaInicio'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      fechaFin: (data['fechaFin'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      montoInicial: (data['montoInicial'] ?? 0).toDouble(),
-      ingresosEfectivo: (data['ingresosEfectivo'] ?? 0).toDouble(),
-      ingresosTarjeta: (data['ingresosTarjeta'] ?? 0).toDouble(),
-      ingresosTransferencia: (data['ingresosTransferencia'] ?? 0).toDouble(),
-      egresosEfectivo: (data['egresosEfectivo'] ?? 0).toDouble(),
-      egresosTransferencia: (data['egresosTransferencia'] ?? 0).toDouble(),
-      totalCalculadoEfectivo: (data['totalCalculadoEfectivo'] ?? 0).toDouble(),
-      totalTransferencia: (data['totalTransferencia'] ?? 0).toDouble(),
-      granTotal: (data['granTotal'] ?? 0).toDouble(),
-      totalReal: (data['totalReal'] ?? 0).toDouble(),
+      fechaInicio: fecha(data['fecha_inicio'] as String?) ?? DateTime.now(),
+      fechaFin: fecha(data['fecha_fin'] as String?) ?? DateTime.now(),
+      montoInicial: (data['monto_inicial'] ?? 0).toDouble(),
+      ingresosEfectivo: (data['ingresos_efectivo'] ?? 0).toDouble(),
+      ingresosTarjeta: (data['ingresos_tarjeta'] ?? 0).toDouble(),
+      ingresosTransferencia: (data['ingresos_transferencia'] ?? 0).toDouble(),
+      egresosEfectivo: (data['egresos_efectivo'] ?? 0).toDouble(),
+      egresosTransferencia: (data['egresos_transferencia'] ?? 0).toDouble(),
+      totalCalculadoEfectivo: (data['total_calculado_efectivo'] ?? 0).toDouble(),
+      totalTransferencia: (data['total_transferencia'] ?? 0).toDouble(),
+      granTotal: (data['gran_total'] ?? 0).toDouble(),
+      totalReal: (data['total_real'] ?? 0).toDouble(),
       diferencia: (data['diferencia'] ?? 0).toDouble(),
-      usuarioResponsable: data['usuarioResponsable'] ?? '',
+      usuarioResponsable: data['usuario_responsable'] ?? '',
       observaciones: data['observaciones'] ?? '',
-      fechaRegistro: (data['fechaRegistro'] as Timestamp?)?.toDate(),
+      fechaRegistro: fecha(data['fecha_registro'] as String?),
     );
   }
 }

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../ventas/data/pago_detalle_model.dart';
 
 class ReporteVentaModel {
@@ -31,9 +30,10 @@ class ReporteVentaModel {
   // para repartir el ingreso entre efectivo/tarjeta/transferencia en el
   // libro financiero (EgresoRepository.obtenerLibroFinanciero).
   final List<PagoDetalle> pagosMixtos;
-  // 'firestore' (sistema actual) o 'historico' (sistema anterior, vía D1/Worker
-  // — ver HistoricoVentaService). Nunca se mezclan por numeroDocumento porque
-  // los rangos de numeración de ambos sistemas se traslapan.
+  // 'actual' (Supabase, sistema vigente) o 'historico' (sistema anterior, vía
+  // D1/Worker — ver HistoricoVentaService). Nunca se mezclan por
+  // numeroDocumento porque los rangos de numeración de ambos sistemas se
+  // traslapan.
   final String origen;
 
   bool get esHistorica => origen == 'historico';
@@ -57,32 +57,39 @@ class ReporteVentaModel {
     this.pendienteImpresion = false,
     this.creadoEn,
     this.pagosMixtos = const [],
-    this.origen = 'firestore',
+    this.origen = 'actual',
   });
 
   bool get esActiva => estado == 'Activa';
   bool get esCotizacion => tipoDocumento == 'Cotizacion';
 
+  /// Lee una fila de la tabla `ventas` (columnas snake_case) tal como la
+  /// devuelve Supabase -mismo criterio que VentaModel.fromMap-. No trae
+  /// `creado_en` -no existe como columna propia en Postgres (`created_at`
+  /// implícito no se expone acá)-, así que se cae directo a fechaRegistro
+  /// como clave de orden real (ver ReporteRepository.obtenerReporteVentas).
   factory ReporteVentaModel.fromMap(String id, Map<String, dynamic> data) {
+    DateTime? fecha(String? iso) => iso == null ? null : DateTime.parse(iso);
     return ReporteVentaModel(
       id: id,
-      fechaRegistro: (data['fechaRegistro'] as Timestamp?)?.toDate(),
-      tipoDocumento: data['tipoDocumento'] ?? 'Factura',
-      numeroDocumento: data['numeroDocumento'] ?? '',
-      totalAPagar: (data['totalAPagar'] ?? 0).toDouble(),
-      cantidadProductos: (data['cantidadProductos'] ?? 0).toInt(),
-      metodoPago: data['metodoPago'] ?? '',
-      usuarioRegistro: data['usuarioRegistro'] ?? '',
-      documentoCliente: data['documentoCliente'] ?? '',
-      nombreCliente: data['nombreCliente'] ?? '',
-      idCliente: data['idCliente'] as String?,
+      fechaRegistro: fecha(data['fecha_registro'] as String?),
+      tipoDocumento: data['tipo_documento'] ?? 'Factura',
+      numeroDocumento: data['numero_documento'] ?? '',
+      totalAPagar: (data['total_a_pagar'] ?? 0).toDouble(),
+      cantidadProductos: (data['cantidad_productos'] ?? 0).toInt(),
+      metodoPago: data['metodo_pago'] ?? '',
+      usuarioRegistro: data['usuario_registro'] ?? '',
+      documentoCliente: data['documento_cliente'] ?? '',
+      nombreCliente: data['nombre_cliente'] ?? '',
+      idCliente: data['id_cliente'] as String?,
       impuesto: (data['impuesto'] ?? 0).toDouble(),
       condicion: data['condicion'] ?? '',
-      fechaVencimiento: (data['fechaVencimiento'] as Timestamp?)?.toDate(),
+      fechaVencimiento: fecha(data['fecha_vencimiento'] as String?),
       estado: data['estado'] ?? 'Activa',
-      pendienteImpresion: data['pendienteImpresion'] ?? false,
-      creadoEn: (data['creadoEn'] as Timestamp?)?.toDate(),
-      pagosMixtos: PagoDetalle.listaFromMaps(data['pagosMixtos'] as List<dynamic>?),
+      pendienteImpresion: data['pendiente_impresion'] ?? false,
+      pagosMixtos: PagoDetalle.listaFromMaps(
+        data['pagos_mixtos'] as List<dynamic>?,
+      ),
     );
   }
 
@@ -111,5 +118,6 @@ class ReporteVentaModel {
     );
   }
 
-  String get textoBusqueda => '$numeroDocumento $nombreCliente $documentoCliente $metodoPago $tipoDocumento $condicion $usuarioRegistro';
+  String get textoBusqueda =>
+      '$numeroDocumento $nombreCliente $documentoCliente $metodoPago $tipoDocumento $condicion $usuarioRegistro';
 }

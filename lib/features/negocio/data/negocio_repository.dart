@@ -1,18 +1,17 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/data/base_repository.dart';
 import 'negocio_model.dart';
 
-class NegocioRepository {
-  final _doc = FirebaseFirestore.instance
-      .collection('configuracion')
-      .doc('negocio');
+class NegocioRepository with ConRedMixin {
+  final _db = Supabase.instance.client;
 
   // Cache en memoria de la última lectura exitosa de `obtenerNegocioActual`.
   // Antes cada acción puntual (pedir clave especial, abrir ajuste de stock,
-  // generar el código de barras, etc.) esperaba una ida y vuelta nueva a
-  // Firestore, y en la primera vez de la sesión esa ida y vuelta podía tardar
+  // generar el código de barras, etc.) esperaba una ida y vuelta nueva al
+  // servidor, y en la primera vez de la sesión esa ida y vuelta podía tardar
   // varios segundos sin que la pantalla mostrara nada mientras tanto — daba
   // la sensación de que el toque no había hecho nada. Con este cache, una
   // vez que se obtiene la configuración una vez (por ejemplo, justo después
@@ -22,7 +21,7 @@ class NegocioRepository {
   static DateTime? _cacheFecha;
   // 10 minutos: no hay riesgo de quedar con datos viejos porque
   // `_invalidarCache()` se llama apenas se guarda un cambio real; este plazo
-  // solo evita repetir la ida y vuelta a Firestore en acciones puntuales
+  // solo evita repetir la ida y vuelta al servidor en acciones puntuales
   // (editar producto, ajustar stock, etc.) que antes volvían a pedirla cada
   // 30 segundos aunque nada hubiera cambiado.
   static const _vigenciaCache = Duration(minutes: 10);
@@ -32,17 +31,19 @@ class NegocioRepository {
   }
 
   Stream<NegocioModel> obtenerNegocio() {
-    return _doc.snapshots().map((snap) => NegocioModel.fromMap(snap.data()));
+    return conRedStream(() => _db
+        .from('negocio_config')
+        .stream(primaryKey: ['id'])
+        .map((filas) => NegocioModel.fromMap(filas.isEmpty ? null : filas.first)));
   }
 
   /// Lectura única (no suscripción en vivo) de la configuración del negocio.
   /// Se usa antes de acciones puntuales (registrar venta, imprimir, pedir
   /// clave especial) en vez de `negocioStreamProvider.future`: ese depende
   /// de que el listener en vivo llegue a emitir su primer valor, lo cual en
-  /// algunas redes (sobre todo en la versión web) puede tardar mucho o no
-  /// llegar nunca y dejaba la acción "cargando" para siempre. Acá, si no
-  /// responde rápido, se sigue con la configuración por defecto en vez de
-  /// trabar la acción.
+  /// algunas redes puede tardar mucho o no llegar nunca y dejaba la acción
+  /// "cargando" para siempre. Acá, si no responde rápido, se sigue con la
+  /// configuración por defecto en vez de trabar la acción.
   Future<NegocioModel> obtenerNegocioActual() async {
     final cache = _cache;
     final cacheFecha = _cacheFecha;
@@ -52,8 +53,8 @@ class NegocioRepository {
       return cache;
     }
     try {
-      final snap = await _doc.get().timeout(const Duration(seconds: 8));
-      final negocio = NegocioModel.fromMap(snap.data());
+      final filas = await _db.from('negocio_config').select().limit(1).timeout(const Duration(seconds: 8));
+      final negocio = NegocioModel.fromMap(filas.isEmpty ? null : filas.first);
       _cache = negocio;
       _cacheFecha = DateTime.now();
       return negocio;
@@ -71,6 +72,13 @@ class NegocioRepository {
     _cacheFecha = null;
   }
 
+  Future<void> _guardar(Map<String, dynamic> datos) {
+    return conRed(() async {
+      await _db.from('negocio_config').upsert({'id': 1, ...datos});
+      _invalidarCache();
+    });
+  }
+
   Future<void> actualizarDatosGenerales({
     required String nombre,
     required String correo,
@@ -83,8 +91,8 @@ class NegocioRepository {
     required String rangoDesde,
     required String rangoHasta,
     required DateTime? fechaLimiteEmision,
-  }) async {
-    await _doc.set({
+  }) {
+    return _guardar({
       'nombre': nombre,
       'correo': correo,
       'rtn': rtn,
@@ -92,102 +100,70 @@ class NegocioRepository {
       'direccion': direccion,
       'telefono': telefono,
       'eslogan': eslogan,
-      'rangoPrefijo': rangoPrefijo,
-      'rangoDesde': rangoDesde,
-      'rangoHasta': rangoHasta,
-      'fechaLimiteEmision': fechaLimiteEmision != null
-          ? Timestamp.fromDate(fechaLimiteEmision)
-          : null,
-    }, SetOptions(merge: true));
-    _invalidarCache();
+      'rango_prefijo': rangoPrefijo,
+      'rango_desde': rangoDesde,
+      'rango_hasta': rangoHasta,
+      'fecha_limite_emision': fechaLimiteEmision?.toIso8601String(),
+    });
   }
 
-  Future<void> guardarLogoColor(Uint8List bytes) async {
-    await _doc.set({
-      'logoColorBase64': base64Encode(bytes),
-    }, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> guardarLogoColor(Uint8List bytes) {
+    return _guardar({'logo_color_base64': base64Encode(bytes)});
   }
 
-  Future<void> guardarLogoBn(Uint8List bytes) async {
-    await _doc.set({
-      'logoBnBase64': base64Encode(bytes),
-    }, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> guardarLogoBn(Uint8List bytes) {
+    return _guardar({'logo_bn_base64': base64Encode(bytes)});
   }
 
-  Future<void> actualizarPermisos(Map<String, bool> permisos) async {
-    await _doc.set({'permisos': permisos}, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> actualizarPermisos(Map<String, bool> permisos) {
+    return _guardar({'permisos': permisos});
   }
 
-  Future<void> establecerClave(String clave) async {
-    await _doc.set({
-      'claveEspecialHash': hashClave(clave),
-    }, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> establecerClave(String clave) {
+    return _guardar({'clave_especial_hash': hashClave(clave)});
   }
 
-  Future<void> quitarClave() async {
-    await _doc.set({'claveEspecialHash': ''}, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> quitarClave() {
+    return _guardar({'clave_especial_hash': ''});
   }
 
-  Future<void> actualizarImpresoraTermica(String url, String nombre) async {
-    await _doc.set({
-      'impresoraTermicaUrl': url,
-      'impresoraTermicaNombre': nombre,
-    }, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> actualizarImpresoraTermica(String url, String nombre) {
+    return _guardar({'impresora_termica_url': url, 'impresora_termica_nombre': nombre});
   }
 
-  Future<void> actualizarImpresoraEtiquetas(String url, String nombre) async {
-    await _doc.set({
-      'impresoraEtiquetasUrl': url,
-      'impresoraEtiquetasNombre': nombre,
-    }, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> actualizarImpresoraEtiquetas(String url, String nombre) {
+    return _guardar({'impresora_etiquetas_url': url, 'impresora_etiquetas_nombre': nombre});
   }
 
-  Future<void> establecerFacturaImprimirCopia(bool valor) async {
-    await _doc.set({'facturaImprimirCopia': valor}, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> establecerFacturaImprimirCopia(bool valor) {
+    return _guardar({'factura_imprimir_copia': valor});
   }
 
-  Future<void> establecerFacturaPreciosConIsv(bool valor) async {
-    await _doc.set({'facturaPreciosConIsv': valor}, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> establecerFacturaPreciosConIsv(bool valor) {
+    return _guardar({'factura_precios_con_isv': valor});
   }
 
-  Future<void> establecerTecladoCompactoTablet(bool valor) async {
-    await _doc.set({'tecladoCompactoTablet': valor}, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> establecerTecladoCompactoTablet(bool valor) {
+    return _guardar({'teclado_compacto_tablet': valor});
   }
 
-  Future<void> establecerModoImpresion(String modo) async {
-    await _doc.set({'modoImpresion': modo}, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> establecerModoImpresion(String modo) {
+    return _guardar({'modo_impresion': modo});
   }
 
   /// Interruptor maestro de impresión (ver NegocioModel.imprimirFacturas):
   /// si [valor] es false, al confirmar una venta no se intenta imprimir nada.
-  Future<void> establecerImprimirFacturas(bool valor) async {
-    await _doc.set({'imprimirFacturas': valor}, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> establecerImprimirFacturas(bool valor) {
+    return _guardar({'imprimir_facturas': valor});
   }
 
-  Future<void> actualizarImpresoraRed(String ip, int puerto) async {
-    await _doc.set({
-      'impresoraRedIp': ip,
-      'impresoraRedPuerto': puerto,
-    }, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> actualizarImpresoraRed(String ip, int puerto) {
+    return _guardar({'impresora_red_ip': ip, 'impresora_red_puerto': puerto});
   }
 
   /// [hostname] vacío vuelve al comportamiento de siempre (cualquier
   /// escritorio actúa como PC principal) -ver NegocioModel.pcPrincipalHostname-.
-  Future<void> establecerPcPrincipalHostname(String hostname) async {
-    await _doc.set({'pcPrincipalHostname': hostname}, SetOptions(merge: true));
-    _invalidarCache();
+  Future<void> establecerPcPrincipalHostname(String hostname) {
+    return _guardar({'pc_principal_hostname': hostname});
   }
 }

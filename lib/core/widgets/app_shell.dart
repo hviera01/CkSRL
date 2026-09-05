@@ -10,6 +10,7 @@ import '../models/tab_item.dart';
 import '../services/actualizacion_service.dart';
 import '../version_app.dart';
 import '../widgets/actualizacion_dialog.dart';
+import '../widgets/banner_sin_conexion.dart';
 import '../widgets/side_menu.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/dispositivos/providers/dispositivos_provider.dart';
@@ -256,6 +257,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         children: [
           Column(
             children: [
+              const BannerSinConexion(),
               _barraSuperior(usuario),
               _barraPestanas(tabsState),
               Expanded(

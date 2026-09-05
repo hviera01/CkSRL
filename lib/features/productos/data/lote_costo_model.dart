@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 /// Un lote de costo: la cantidad de un producto que entró de una sola vez
 /// (una compra o un ajuste manual de stock) a un costo unitario propio. El
 /// costeo FIFO consume primero el lote más viejo con cantidadRestante > 0,
@@ -35,24 +33,24 @@ class LoteCostoModel {
   factory LoteCostoModel.fromMap(String id, Map<String, dynamic> data) {
     return LoteCostoModel(
       id: id,
-      cantidadOriginal: (data['cantidadOriginal'] ?? 0).toDouble(),
-      cantidadRestante: (data['cantidadRestante'] ?? 0).toDouble(),
-      costoUnitario: (data['costoUnitario'] ?? 0).toDouble(),
-      fecha: (data['fecha'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      cantidadOriginal: (data['cantidad_original'] ?? 0).toDouble(),
+      cantidadRestante: (data['cantidad_restante'] ?? 0).toDouble(),
+      costoUnitario: (data['costo_unitario'] ?? 0).toDouble(),
+      fecha: data['fecha'] == null ? DateTime.now() : DateTime.parse(data['fecha'] as String),
       origen: data['origen'] ?? 'compra',
-      idCompra: data['idCompra'],
+      idCompra: data['id_compra'],
       prioridad: (data['prioridad'] as num?)?.toInt(),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'cantidadOriginal': cantidadOriginal,
-      'cantidadRestante': cantidadRestante,
-      'costoUnitario': costoUnitario,
-      'fecha': Timestamp.fromDate(fecha),
+      'cantidad_original': cantidadOriginal,
+      'cantidad_restante': cantidadRestante,
+      'costo_unitario': costoUnitario,
+      'fecha': fecha.toIso8601String(),
       'origen': origen,
-      'idCompra': idCompra,
+      'id_compra': idCompra,
       'prioridad': prioridad,
     };
   }

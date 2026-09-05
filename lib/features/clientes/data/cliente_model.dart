@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class ClienteModel {
   final String id;
   final String dni;
@@ -40,13 +38,13 @@ class ClienteModel {
     return ClienteModel(
       id: id,
       dni: data['dni'] ?? '',
-      nombreCompleto: data['nombreCompleto'] ?? '',
+      nombreCompleto: data['nombre_completo'] ?? '',
       direccion: data['direccion'] ?? '',
       telefono: data['telefono'] ?? '',
       estado: data['estado'] ?? true,
-      fechaUltimaCompra: (data['fechaUltimaCompra'] as Timestamp?)?.toDate(),
-      idReferidor: data['idReferidor'] as String?,
-      esReferidor: data['esReferidor'] ?? false,
+      fechaUltimaCompra: data['fecha_ultima_compra'] == null ? null : DateTime.parse(data['fecha_ultima_compra'] as String),
+      idReferidor: data['id_referidor'] as String?,
+      esReferidor: data['es_referidor'] ?? false,
     );
   }
 
@@ -58,13 +56,13 @@ class ClienteModel {
   Map<String, dynamic> toMap() {
     return {
       'dni': dni,
-      'nombreCompleto': nombreCompleto,
+      'nombre_completo': nombreCompleto,
       'direccion': direccion,
       'telefono': telefono,
       'estado': estado,
-      'fechaUltimaCompra': fechaUltimaCompra != null ? Timestamp.fromDate(fechaUltimaCompra!) : null,
-      'idReferidor': idReferidor,
-      'esReferidor': esReferidor,
+      'fecha_ultima_compra': fechaUltimaCompra?.toIso8601String(),
+      'id_referidor': idReferidor,
+      'es_referidor': esReferidor,
     };
   }
 

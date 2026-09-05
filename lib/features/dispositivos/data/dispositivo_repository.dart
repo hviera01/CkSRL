@@ -1,32 +1,34 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/data/base_repository.dart';
 import '../../../core/utils/device_id.dart';
 import 'dispositivo_model.dart';
 
-class DispositivoRepository {
-  final _col = FirebaseFirestore.instance.collection('dispositivos');
+class DispositivoRepository with ConRedMixin {
+  final _db = Supabase.instance.client;
 
-  /// Se llama al iniciar sesión (ver AppShell.initState): actualiza (o crea,
-  /// la primera vez) el registro de este equipo con la versión instalada y
-  /// quién inició sesión ahora. No bloquea el arranque de la app si falla
-  /// -es solo informativo para el módulo de Dispositivos, nunca debe impedir
-  /// que alguien pueda seguir usando la app-.
+  /// Se llama al iniciar sesión: actualiza (o crea, la primera vez) el
+  /// registro de este equipo con la versión instalada y quién inició sesión
+  /// ahora. No bloquea el arranque si falla -es solo informativo-.
   Future<void> reportar({required int versionApp, required String usuario}) async {
     try {
       final id = await obtenerIdDispositivo();
-      await _col.doc(id).set({
+      await _db.from('dispositivos').upsert({
+        'id': id,
         'plataforma': obtenerPlataforma(),
-        'versionApp': versionApp,
+        'version_app': versionApp,
         'usuario': usuario,
-        'ultimaConexion': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+        'ultima_conexion': DateTime.now().toIso8601String(),
+      });
     } catch (_) {
       // Silencioso a propósito: ver comentario arriba.
     }
   }
 
   Stream<List<DispositivoModel>> obtenerDispositivos() {
-    return _col.orderBy('ultimaConexion', descending: true).snapshots().map((snap) {
-      return snap.docs.map((d) => DispositivoModel.fromMap(d.id, d.data())).toList();
-    });
+    return conRedStream(() => _db
+        .from('dispositivos')
+        .stream(primaryKey: ['id'])
+        .order('ultima_conexion', ascending: false)
+        .map((filas) => filas.map((d) => DispositivoModel.fromMap(d['id'] as String, d)).toList()));
   }
 }

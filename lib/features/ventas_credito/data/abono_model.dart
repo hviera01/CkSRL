@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class AbonoModel {
   final String id;
   final DateTime? fecha;
@@ -26,13 +24,13 @@ class AbonoModel {
   factory AbonoModel.fromMap(String id, Map<String, dynamic> data) {
     return AbonoModel(
       id: id,
-      fecha: (data['fecha'] as Timestamp?)?.toDate(),
-      montoAbonado: (data['montoAbonado'] ?? 0).toDouble(),
-      saldoAnterior: (data['saldoAnterior'] ?? 0).toDouble(),
+      fecha: data['fecha'] == null ? null : DateTime.parse(data['fecha'] as String),
+      montoAbonado: (data['monto_abonado'] ?? 0).toDouble(),
+      saldoAnterior: (data['saldo_anterior'] ?? 0).toDouble(),
       interes: (data['interes'] ?? 0).toDouble(),
-      saldoPendiente: (data['saldoPendiente'] ?? 0).toDouble(),
-      metodoPago: data['metodoPago'] ?? '',
-      numeroRecibo: data['numeroRecibo'] ?? '',
+      saldoPendiente: (data['saldo_pendiente'] ?? 0).toDouble(),
+      metodoPago: data['metodo_pago'] ?? '',
+      numeroRecibo: data['numero_recibo'] ?? '',
       usuario: data['usuario'] ?? '',
     );
   }

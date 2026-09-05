@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 /// Rastrea una línea de venta marcada "pendiente de compra" (venta
 /// anticipada): se vendió un producto sin saber todavía cuál compra exacta
 /// lo va a reponer -por ejemplo, pintura preparada antes de comprar el
@@ -46,18 +44,18 @@ class PendienteReposicionModel {
   factory PendienteReposicionModel.fromMap(String id, Map<String, dynamic> data) {
     return PendienteReposicionModel(
       id: id,
-      idVenta: data['idVenta'] ?? '',
-      numeroDocumentoVenta: data['numeroDocumentoVenta'] ?? '',
-      idItemDetalle: data['idItemDetalle'] ?? '',
-      idProducto: data['idProducto'] ?? '',
-      nombreProducto: data['nombreProducto'] ?? '',
-      idCategoria: data['idCategoria'] ?? '',
-      cantidadOriginal: ((data['cantidadOriginal'] ?? 0) as num).toDouble(),
-      cantidadPendiente: ((data['cantidadPendiente'] ?? 0) as num).toDouble(),
-      costoRegistrado: ((data['costoRegistrado'] ?? 0) as num).toDouble(),
-      fechaRegistro: (data['fechaRegistro'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      idVenta: data['id_venta'] ?? '',
+      numeroDocumentoVenta: data['numero_documento_venta'] ?? '',
+      idItemDetalle: data['id_item_detalle'] ?? '',
+      idProducto: data['id_producto'] ?? '',
+      nombreProducto: data['nombre_producto'] ?? '',
+      idCategoria: data['id_categoria'] ?? '',
+      cantidadOriginal: ((data['cantidad_original'] ?? 0) as num).toDouble(),
+      cantidadPendiente: ((data['cantidad_pendiente'] ?? 0) as num).toDouble(),
+      costoRegistrado: ((data['costo_registrado'] ?? 0) as num).toDouble(),
+      fechaRegistro: data['fecha_registro'] == null ? DateTime.now() : DateTime.parse(data['fecha_registro'] as String),
       estado: data['estado'] ?? 'Pendiente',
-      fechaCompletado: (data['fechaCompletado'] as Timestamp?)?.toDate(),
+      fechaCompletado: data['fecha_completado'] == null ? null : DateTime.parse(data['fecha_completado'] as String),
       usuario: data['usuario'] ?? '',
     );
   }

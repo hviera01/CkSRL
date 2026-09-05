@@ -19,7 +19,7 @@ class UsuarioModel {
     return UsuarioModel(
       id: id,
       documento: data['documento'] ?? '',
-      nombreCompleto: data['nombreCompleto'] ?? '',
+      nombreCompleto: data['nombre_completo'] ?? '',
       correo: data['correo'] ?? '',
       rol: data['rol'] ?? '',
       estado: data['estado'] ?? true,

@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 /// Un registro histórico del costo de un producto, calculado cada vez que se
 /// registra una compra que lo incluye: precio unitario ingresado, menos el
 /// descuento de línea (importe gravado), más el ISV de la compra — ese
@@ -36,15 +34,15 @@ class HistorialPrecioCompraModel {
   factory HistorialPrecioCompraModel.fromMap(String id, Map<String, dynamic> data) {
     return HistorialPrecioCompraModel(
       id: id,
-      idCompra: data['idCompra'] ?? '',
-      precioCompra: (data['precioCompra'] ?? 0).toDouble(),
-      precioUnitario: (data['precioUnitario'] ?? 0).toDouble(),
-      descuentoPorcentaje: (data['descuentoPorcentaje'] ?? 0).toDouble(),
-      isvPorcentaje: (data['isvPorcentaje'] ?? 0).toDouble(),
+      idCompra: data['id_compra'] ?? '',
+      precioCompra: (data['precio_compra'] ?? 0).toDouble(),
+      precioUnitario: (data['precio_unitario'] ?? 0).toDouble(),
+      descuentoPorcentaje: (data['descuento_porcentaje'] ?? 0).toDouble(),
+      isvPorcentaje: (data['isv_porcentaje'] ?? 0).toDouble(),
       cantidad: (data['cantidad'] ?? 0).toDouble(),
-      fecha: (data['fecha'] as Timestamp?)?.toDate(),
-      numeroDocumento: data['numeroDocumento'] ?? '',
-      noFactura: data['noFactura'] ?? '',
+      fecha: data['fecha'] == null ? null : DateTime.parse(data['fecha'] as String),
+      numeroDocumento: data['numero_documento'] ?? '',
+      noFactura: data['no_factura'] ?? '',
       proveedor: data['proveedor'] ?? '',
       usuario: data['usuario'] ?? '',
     );

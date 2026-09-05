@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class FacturaOrigenModel {
   final String id;
   final String numeroDocumento;
@@ -92,24 +90,25 @@ class VentaCreditoModel {
   bool get esFusion => facturasOrigen.isNotEmpty;
 
   factory VentaCreditoModel.fromMap(String id, Map<String, dynamic> data) {
+    DateTime? fecha(String? iso) => iso == null ? null : DateTime.parse(iso);
     return VentaCreditoModel(
       id: id,
-      documentoCliente: data['documentoCliente'] ?? '',
-      nombreCliente: data['nombreCliente'] ?? '',
-      idCliente: data['idCliente'] as String?,
-      numeroDocumento: data['numeroDocumento'] ?? '',
-      montoTotal: (data['montoTotal'] ?? 0).toDouble(),
-      saldoPendiente: (data['saldoPendiente'] ?? 0).toDouble(),
-      fechaRegistro: (data['fechaRegistro'] as Timestamp?)?.toDate(),
-      fechaVencimiento: (data['fechaVencimiento'] as Timestamp?)?.toDate(),
+      documentoCliente: data['documento_cliente'] ?? '',
+      nombreCliente: data['nombre_cliente'] ?? '',
+      idCliente: data['id_cliente'] as String?,
+      numeroDocumento: data['numero_documento'] ?? '',
+      montoTotal: (data['monto_total'] ?? 0).toDouble(),
+      saldoPendiente: (data['saldo_pendiente'] ?? 0).toDouble(),
+      fechaRegistro: fecha(data['fecha_registro'] as String?),
+      fechaVencimiento: fecha(data['fecha_vencimiento'] as String?),
       fusionada: data['fusionada'] ?? false,
-      sinVentaOrigen: data['sinVentaOrigen'] ?? false,
-      facturasOrigen: ((data['facturasOrigen'] as List<dynamic>?) ?? [])
+      sinVentaOrigen: data['sin_venta_origen'] ?? false,
+      facturasOrigen: ((data['facturas_origen'] as List<dynamic>?) ?? [])
           .map((f) => FacturaOrigenModel.fromMap(Map<String, dynamic>.from(f as Map)))
           .toList(),
       telefono: data['telefono'] ?? '',
-      solicitudAvisoWhatsApp: data['solicitudAvisoWhatsApp'] ?? false,
-      errorAvisoWhatsApp: data['errorAvisoWhatsApp'] as String?,
+      solicitudAvisoWhatsApp: data['solicitud_aviso_whatsapp'] ?? false,
+      errorAvisoWhatsApp: data['error_aviso_whatsapp'] as String?,
     );
   }
 
