@@ -61,3 +61,18 @@ app.*.map.json
 # Secretos de Supabase (token de acceso, password de DB, claves) — nunca al repo.
 .env
 .secrets/
+
+# Dependencias de Node de los tools (tool/*/node_modules) — se reinstalan con
+# npm install, nunca deben subirse al repo.
+node_modules/
+
+# Sesión de WhatsApp Web (tool/reporte_whatsapp/auth_info) — son credenciales
+# reales (creds.json, pre-keys) que dejan usar esa cuenta de WhatsApp; un
+# commit viejo (abbd720) las subió sin querer junto con node_modules vía
+# `git add -A` sin revisar `git status` primero. Ya se hizo `git rm --cached`
+# para sacarlas de los commits nuevos, pero siguen recuperables en el
+# historial viejo hasta que se reescriba con git filter-repo/BFG + force-push
+# -avisado en el reporte de la tarea; mientras tanto, conviene cerrar sesión
+# de esa cuenta de WhatsApp en el celular vinculado y volver a vincular
+# cuando haga falta usar el tool de nuevo-.
+tool/reporte_whatsapp/auth_info/
