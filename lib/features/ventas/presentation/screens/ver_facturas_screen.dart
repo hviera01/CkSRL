@@ -8,7 +8,6 @@ import '../../../../core/utils/texto_utils.dart';
 import '../../../../core/utils/formato_moneda.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
-import '../../../reportes/data/historico_venta_service.dart';
 import 'detalle_venta_screen.dart';
 
 /// "Ver Facturas" -pedido explícito del dueño: reemplaza al viejo botón
@@ -87,97 +86,10 @@ class _VerFacturasScreenState extends ConsumerState<VerFacturasScreen> {
   }
 
   void _verDetalle(ReporteVentaModel venta) {
-    if (venta.esHistorica) {
-      _verDetalleHistorico(venta);
-      return;
-    }
     Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (context) => DetalleVentaScreen(ventaIdInicial: venta.id),
-      ),
-    );
-  }
-
-  /// Las ventas del sistema anterior no existen como documento de Firestore
-  /// (viven en D1, ver HistoricoVentaService), así que no se puede abrir
-  /// DetalleVentaScreen para ellas — solo consulta, sin reimpresión/anular.
-  void _verDetalleHistorico(ReporteVentaModel venta) {
-    showDialog(
-      useRootNavigator: false,
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Venta ${venta.numeroDocumento}'),
-        content: SizedBox(
-          width: 420,
-          child: FutureBuilder(
-            future: HistoricoVentaService().obtenerDetalleDeVenta(venta.id),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-              final items = snapshot.data!;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${venta.nombreCliente} · ${venta.condicion}',
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Total: ${formatearMoneda(venta.totalAPagar)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const Divider(height: 20),
-                  if (items.isEmpty)
-                    const Text(
-                      'Esta venta del sistema anterior no tiene el detalle de productos guardado.',
-                    )
-                  else
-                    ...items.map(
-                      (i) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 3),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                '${i.cantidad.toStringAsFixed(0)}x ${i.nombreProducto}',
-                              ),
-                            ),
-                            Text(
-                              formatearMoneda(
-                                redondearMoneda(i.subtotal * 1.15),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Venta del sistema anterior — solo consulta.',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade600,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cerrar'),
-          ),
-        ],
       ),
     );
   }

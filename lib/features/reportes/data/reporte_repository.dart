@@ -2,39 +2,25 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/data/base_repository.dart';
 import 'reporte_venta_model.dart';
 import 'reporte_compra_model.dart';
-import 'historico_venta_service.dart';
 
 class ReporteRepository with ConRedMixin {
   final _db = Supabase.instance.client;
-  final _historicoService = HistoricoVentaService();
 
   Future<List<ReporteVentaModel>> obtenerReporteVentas(
     DateTime inicio,
     DateTime finInclusive,
   ) {
     return conRed(() async {
-      // En paralelo se pide el tramo histórico (sistema anterior, vía D1/Worker)
-      // por si el rango toca fechas de antes del 2026-07-17 — ver
-      // HistoricoVentaService. Nunca se dispara si el rango es todo posterior
-      // al corte, así que el día a día no paga ningún costo extra.
-      final filasFuture = _db
+      final filas = await _db
           .from('ventas')
           .select()
           .gte('fecha_registro', inicio.toIso8601String())
           .lte('fecha_registro', finInclusive.toIso8601String())
           .order('fecha_registro', ascending: false);
-      final historicoFuture = _historicoService.obtenerVentas(
-        inicio,
-        finInclusive,
-      );
 
-      final filas = await filasFuture;
-      final historico = await historicoFuture;
-
-      final lista = [
-        ...filas.map((d) => ReporteVentaModel.fromMap(d['id'] as String, d)),
-        ...historico,
-      ];
+      final lista = filas
+          .map((d) => ReporteVentaModel.fromMap(d['id'] as String, d))
+          .toList();
       // No hay 'creadoEn' propio en Postgres (ver ReporteVentaModel.fromMap):
       // se ordena directo por fechaRegistro descendente.
       lista.sort((a, b) {

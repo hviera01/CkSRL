@@ -4,7 +4,6 @@ import 'reporte_repository.dart';
 import 'reporte_financiero_model.dart';
 import 'reporte_venta_model.dart';
 import 'reporte_compra_model.dart';
-import 'historico_venta_service.dart';
 import '../../ventas/data/item_venta_model.dart';
 import '../../compras/data/item_compra_model.dart';
 import '../../productos/data/producto_model.dart';
@@ -41,7 +40,6 @@ class ReporteFinancieroRepository with ConRedMixin {
   final _compraCreditoRepository = CompraCreditoRepository();
   final _ventaCreditoRepository = VentaCreditoRepository();
   final _cierreCajaRepository = CierreCajaRepository();
-  final _historicoService = HistoricoVentaService();
 
   // La serie mensual y el efectivo estimado no dependen del rango que el
   // usuario elija en el reporte (son "últimos 6 meses" y "desde el último
@@ -202,10 +200,6 @@ class ReporteFinancieroRepository with ConRedMixin {
         inicio,
         finInclusive,
       );
-      final detalleHistoricoFuture = _historicoService.obtenerDetallePorRango(
-        inicio,
-        finInclusive,
-      );
       final egresosPeriodoFuture = _egresoRepository.obtenerEgresosPorRango(
         inicio,
         finInclusive,
@@ -251,7 +245,6 @@ class ReporteFinancieroRepository with ConRedMixin {
 
       final ventasHeaders = await ventasHeadersFuture;
       final comprasHeaders = await comprasHeadersFuture;
-      final detalleHistorico = await detalleHistoricoFuture;
       final egresosPeriodo = await egresosPeriodoFuture;
       final abonosVenta = await abonosVentaFuture;
       final abonosCompra = await abonosCompraFuture;
@@ -268,17 +261,9 @@ class ReporteFinancieroRepository with ConRedMixin {
           .toList();
       final comprasValidas = comprasHeaders.where((c) => c.esActiva).toList();
 
-      final idsVentaActuales = ventasValidas
-          .where((v) => !v.esHistorica)
-          .map((v) => v.id)
-          .toList();
-      final detalleVentaActualPorId = await _detalleVentasPorIds(
-        idsVentaActuales,
+      final detalleVentaPorId = await _detalleVentasPorIds(
+        ventasValidas.map((v) => v.id).toList(),
       );
-      final detalleVentaPorId = <String, List<ItemVentaModel>>{
-        ...detalleVentaActualPorId,
-        ...detalleHistorico,
-      };
       final detalleCompraPorId = await _detalleComprasPorIds(
         comprasValidas.map((c) => c.id).toList(),
       );

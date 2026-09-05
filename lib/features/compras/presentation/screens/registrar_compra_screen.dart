@@ -25,7 +25,6 @@ import '../../../../core/widgets/exito_transaccion_overlay.dart';
 import '../../../ventas/presentation/widgets/teclado_numerico_dialog.dart';
 import '../widgets/buscar_producto_compra_dialog.dart';
 import '../widgets/compras_en_espera_dialog.dart';
-import '../widgets/escanear_factura_dialog.dart';
 import 'detalle_compra_screen.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
@@ -322,69 +321,6 @@ class _RegistrarCompraScreenState extends ConsumerState<RegistrarCompraScreen> {
       );
       if (producto == null || !mounted) return;
       ref.read(carritoCompraProvider.notifier).agregarProductoDirecto(producto);
-    } finally {
-      _pausarLectorFisico = false;
-    }
-  }
-
-  // Solo web móvil (ver _esWebMovil): abre la pantalla de escanear factura
-  // con IA (ver EscanearFacturaDialog). Esa pantalla no toca el carrito
-  // ella misma -queda fuera del ProviderScope que aísla el carrito de esta
-  // pestaña, ver el comentario grande en su _confirmarTodo-, así que acá es
-  // donde se aplican los datos que devuelve, con el `ref` correcto.
-  Future<void> _escanearFactura() async {
-    _pausarLectorFisico = true;
-    try {
-      final resultado = await Navigator.of(context)
-          .push<DatosFacturaConfirmados>(
-            MaterialPageRoute(
-              fullscreenDialog: true,
-              builder: (context) => const EscanearFacturaDialog(),
-            ),
-          );
-      if (resultado == null || !mounted) return;
-
-      final notifier = ref.read(carritoCompraProvider.notifier);
-      if (resultado.idProveedor != null &&
-          resultado.documentoProveedor != null &&
-          resultado.razonSocialProveedor != null) {
-        notifier.establecerProveedor(
-          idProveedor: resultado.idProveedor!,
-          documentoProveedor: resultado.documentoProveedor!,
-          razonSocial: resultado.razonSocialProveedor!,
-        );
-      }
-      // A diferencia de proveedor/fecha/condición (que la UI pinta leyendo
-      // directo de carrito.xxx en cada build), "No. Factura" se muestra con
-      // su propio TextEditingController -_noFacturaController-, que no se
-      // entera solo si el estado del carrito cambia desde otro lado que no
-      // sea el propio onChanged de ese campo. Sin este segundo asignamiento
-      // el número quedaba guardado en el carrito pero invisible en la
-      // pantalla (justo lo que se vio al escanear la factura de Lanco).
-      if (resultado.noFactura.isNotEmpty) {
-        _noFacturaController.text = resultado.noFactura;
-        notifier.establecerNoFactura(resultado.noFactura);
-      }
-      notifier.establecerFecha(resultado.fecha);
-      notifier.establecerCondicion(resultado.condicion);
-      if (resultado.condicion == 'Credito' &&
-          resultado.fechaVencimiento != null)
-        notifier.establecerFechaVencimiento(resultado.fechaVencimiento!);
-      for (final item in resultado.items) {
-        notifier.agregarItemEscaneado(
-          producto: item.producto,
-          cantidad: item.cantidad,
-          precioCompra: item.precioCompra,
-          descuentoPorcentaje: item.descuentoPorcentaje,
-        );
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Se agregaron ${resultado.items.length} producto(s). Revisá la tabla antes de registrar la compra.',
-          ),
-        ),
-      );
     } finally {
       _pausarLectorFisico = false;
     }
@@ -1564,34 +1500,6 @@ class _RegistrarCompraScreenState extends ConsumerState<RegistrarCompraScreen> {
                         ],
                       ],
                     ),
-                    if (_esWebMovil) ...[
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _escanearFactura,
-                          icon: const Icon(
-                            Icons.document_scanner_outlined,
-                            size: 17,
-                          ),
-                          label: Text(
-                            'Escanear Factura (con foto)',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF0F1B3D),
-                            side: const BorderSide(color: Color(0xFF0F1B3D)),
-                            padding: const EdgeInsets.symmetric(vertical: 13),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 )
               : Row(
