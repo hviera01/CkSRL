@@ -1,0 +1,201 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // NOTA DE SEGURIDAD: esta app no usa Firebase Authentication (login propio
+    // vía Firestore), por lo que request.auth siempre es null. Estas reglas son
+    // permisivas a propósito para que la app funcione.
+
+    match /usuarios/{idUsuario} {
+      allow read, write: if true;
+    }
+
+    match /dispositivos/{idDispositivo} {
+      allow read, write: if true;
+    }
+
+    match /categorias/{idCategoria} {
+      allow read, write: if true;
+    }
+
+    match /productos/{idProducto} {
+      allow read, write: if true;
+
+      match /historial/{idHistorial} {
+        allow read, write: if true;
+      }
+
+      match /historialPreciosCompra/{idHistorial} {
+        allow read, write: if true;
+      }
+
+      match /historialVentas/{idHistorial} {
+        allow read, write: if true;
+      }
+
+      match /lotes/{idLote} {
+        allow read, write: if true;
+      }
+    }
+
+    match /configuracion/{idDocumento} {
+      allow read, write: if true;
+    }
+
+    match /colores/{idColor} {
+      allow read, write: if true;
+    }
+
+    match /clientes/{idCliente} {
+      allow read, write: if true;
+    }
+
+    match /proveedores/{idProveedor} {
+      allow read, write: if true;
+    }
+
+    match /ventasCredito/{idCredito} {
+      allow read, write: if true;
+
+      match /abonos/{idAbono} {
+        allow read, write: if true;
+      }
+    }
+
+    match /comprasCredito/{idCompra} {
+      allow read, write: if true;
+
+      match /abonosCompra/{idAbono} {
+        allow read, write: if true;
+      }
+    }
+
+    match /compras/{idCompra} {
+      allow read, write: if true;
+
+      match /detalle/{idItem} {
+        allow read, write: if true;
+      }
+    }
+
+    match /comprasEnEspera/{idSesion} {
+      allow read, write: if true;
+    }
+
+    match /ventas/{idVenta} {
+      allow read, write: if true;
+
+      match /detalle/{idItem} {
+        allow read, write: if true;
+      }
+    }
+
+    match /ventasEnEspera/{idSesion} {
+      allow read, write: if true;
+    }
+
+    // Sesiones cortas de escaneo remoto: la PC crea el código, el celular
+    // (sin necesidad de iniciar sesión) manda ahí los códigos que escanea.
+    match /escaneosRemotos/{idSesion} {
+      allow read, write: if true;
+
+      match /eventos/{idEvento} {
+        allow read, write: if true;
+      }
+    }
+
+    match /contadores/{idContador} {
+      allow read, write: if true;
+    }
+
+    match /pendientesReposicion/{idPendiente} {
+      allow read, write: if true;
+    }
+
+    match /cajaEstado/{idDocumento} {
+      allow read, write: if true;
+    }
+
+    // Latido de presencia de la PC principal (ver
+    // PresenciaImpresionRepository): la PC escribe acá cada 25s mientras
+    // está abierta, y el celular lo lee antes de pedir impresión en vivo.
+    match /presenciaImpresion/{idDocumento} {
+      allow read, write: if true;
+    }
+
+    // Latido de presencia de tool/aviso_creditos_whatsapp/escuchar.js (ver
+    // PresenciaAvisoWhatsappRepository): mismo patrón que presenciaImpresion
+    // de arriba, pero para saber si ese proceso Node está corriendo antes de
+    // avisar en VentasCreditoScreen que "Enviar estado de cuenta por
+    // WhatsApp" se va a mandar de verdad.
+    match /presenciaAvisoWhatsapp/{idDocumento} {
+      allow read, write: if true;
+    }
+
+    match /cierresCaja/{idCierre} {
+      allow read, write: if true;
+    }
+
+    match /egresos/{idEgreso} {
+      allow read, write: if true;
+    }
+
+    match /promociones/{idPromocion} {
+      allow read, write: if true;
+    }
+
+    // Las reglas anidadas de arriba (ventasCredito/{id}/abonos y
+    // comprasCredito/{id}/abonosCompra) solo cubren lecturas bajo un padre
+    // conocido. Las consultas collectionGroup (usadas para sumar abonos por
+    // rango de fecha en Cierre de Caja / Libro Financiero) necesitan además
+    // un match recursivo a nivel raíz para el grupo de colección.
+    match /{path=**}/abonos/{idAbono} {
+      allow read, write: if true;
+    }
+
+    match /{path=**}/abonosCompra/{idAbono} {
+      allow read, write: if true;
+    }
+
+    match /{path=**}/detalle/{idItem} {
+      allow read, write: if true;
+    }
+
+    // --- Sitio público Súper Color (supercolor_web) + panel admin (supercolor_admin) ---
+    // A diferencia del resto de esta app, el panel admin SÍ usa Firebase
+    // Authentication real, restringido a un único correo (el dueño). Lectura
+    // pública sin login (el sitio de marketing no tiene "iniciar sesión"),
+    // escritura solo desde una sesión autenticada con ese correo exacto.
+    function esDuenioSitio() {
+      return request.auth != null
+        && request.auth.token.email == 'henryviera2003@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    match /configuracionSitio/{idDocumento} {
+      allow read: if true;
+      allow write: if esDuenioSitio();
+    }
+
+    match /sucursales/{idSucursal} {
+      allow read: if true;
+      allow write: if esDuenioSitio();
+    }
+
+    match /productosDestacados/{idProducto} {
+      allow read: if true;
+      allow write: if esDuenioSitio();
+    }
+
+    match /servicios/{idServicio} {
+      allow read: if true;
+      allow write: if esDuenioSitio();
+    }
+
+    match /promocionesSitio/{idPromocion} {
+      allow read: if true;
+      allow write: if esDuenioSitio();
+    }
+  }
+}

@@ -1,0 +1,509 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../data/cliente_model.dart';
+import '../../providers/clientes_provider.dart';
+import '../../../../core/utils/mayusculas_input_formatter.dart';
+import '../../../../core/widgets/campo_teclado_compacto.dart';
+
+class ClienteFormDialog extends ConsumerStatefulWidget {
+  final ClienteModel? cliente;
+  // Precarga el nombre al crear uno nuevo (no aplica si [cliente] ya viene
+  // con uno propio): usado desde BuscarClienteDialog cuando el cajero busca
+  // un nombre que no existe todavía y toca "Crear cliente nuevo" -pedido
+  // explícito del dueño, para no tener que retipear lo que ya había
+  // escrito en el buscador-.
+  final String? nombreInicial;
+
+  const ClienteFormDialog({super.key, this.cliente, this.nombreInicial});
+
+  @override
+  ConsumerState<ClienteFormDialog> createState() => _ClienteFormDialogState();
+}
+
+class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
+  final _dniController = TextEditingController();
+  final _nombreController = TextEditingController();
+  final _direccionController = TextEditingController();
+  final _telefonoController = TextEditingController();
+  bool _activo = true;
+  bool _guardando = false;
+  String? _error;
+  // Quién refirió a este cliente (otro cliente marcado como esReferidor).
+  // null = "Ninguno" -no todos los clientes tienen uno-.
+  String? _idReferidor;
+  // true cuando este mismo registro es, además, un referidor (pintor/
+  // contratista que trae otros clientes) -ver ClienteModel.esReferidor.
+  bool _esReferidor = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final c = widget.cliente;
+    if (c != null) {
+      _dniController.text = c.dni;
+      _nombreController.text = c.nombreCompleto;
+      _direccionController.text = c.direccion;
+      _telefonoController.text = c.telefono;
+      _activo = c.estado;
+      _idReferidor = c.idReferidor;
+      _esReferidor = c.esReferidor;
+    } else if (widget.nombreInicial != null &&
+        widget.nombreInicial!.trim().isNotEmpty) {
+      _nombreController.text = widget.nombreInicial!.trim();
+    }
+  }
+
+  @override
+  void dispose() {
+    _dniController.dispose();
+    _nombreController.dispose();
+    _direccionController.dispose();
+    _telefonoController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    final nombre = _nombreController.text.trim();
+    if (nombre.isEmpty) {
+      setState(() => _error = 'El nombre completo es obligatorio');
+      return;
+    }
+    setState(() {
+      _guardando = true;
+      _error = null;
+    });
+    try {
+      final repo = ref.read(clienteRepositoryProvider);
+      if (widget.cliente == null) {
+        final creado = await repo.crear(
+          dni: _dniController.text.trim(),
+          nombreCompleto: nombre,
+          direccion: _direccionController.text.trim(),
+          telefono: _telefonoController.text.trim(),
+          estado: _activo,
+          idReferidor: _idReferidor,
+          esReferidor: _esReferidor,
+        );
+        // Al crear (a diferencia de editar) se devuelve el cliente nuevo:
+        // BuscarClienteDialog lo necesita para vincularlo a la venta en
+        // curso apenas se guarda, con el mismo contrato que elegir uno ya
+        // existente (Navigator.pop(context, cliente)) -ver "Crear cliente
+        // nuevo", item 5 del pedido del dueño. Quien abrió este formulario
+        // sin que le importe el resultado (editar desde Clientes, o
+        // "Completar datos" desde la venta) simplemente ignora el valor.
+        if (mounted) Navigator.pop(context, creado);
+      } else {
+        await repo.actualizar(
+          id: widget.cliente!.id,
+          dni: _dniController.text.trim(),
+          nombreCompleto: nombre,
+          direccion: _direccionController.text.trim(),
+          telefono: _telefonoController.text.trim(),
+          estado: _activo,
+          idReferidor: _idReferidor,
+          esReferidor: _esReferidor,
+        );
+        if (mounted) Navigator.pop(context);
+      }
+    } catch (e) {
+      setState(() {
+        _error = e.toString().replaceAll('Exception: ', '');
+        _guardando = false;
+      });
+    }
+  }
+
+  Future<void> _eliminar() async {
+    final confirmar = await showDialog<bool>(
+      useRootNavigator: false,
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Eliminar cliente',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          '¿Seguro que querés eliminar este cliente?',
+          style: GoogleFonts.poppins(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancelar', style: GoogleFonts.poppins()),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFC62828),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Eliminar', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+    setState(() => _guardando = true);
+    try {
+      await ref.read(clienteRepositoryProvider).eliminar(widget.cliente!.id);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      setState(() {
+        _error = e.toString().replaceAll('Exception: ', '');
+        _guardando = false;
+      });
+    }
+  }
+
+  InputDecoration _decoracion(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: GoogleFonts.poppins(fontSize: 13),
+      filled: true,
+      fillColor: const Color(0xFFE8EAF0),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+    );
+  }
+
+  /// "¿Quién lo refirió?": lista chica de clientes marcados como referidor
+  /// (esReferidor == true) -antes salía de un módulo/colección aparte
+  /// (referidores), ahora un referidor es simplemente otro registro de
+  /// 'clientes' con ese flag, así que esta lista se arma filtrando el mismo
+  /// clientesStreamProvider que usa toda la pantalla de Clientes. "Ninguno"
+  /// deja/limpia sin referidor. Un DropdownButtonFormField simple alcanza
+  /// acá -a diferencia de BuscarClienteDialog- porque esta lista es chica,
+  /// no hace falta un diálogo de búsqueda aparte.
+  Widget _selectorReferidor() {
+    final clientesAsync = ref.watch(clientesStreamProvider);
+    return clientesAsync.when(
+      data: (clientes) {
+        // Un cliente no puede ser su propio referidor.
+        final idPropio = widget.cliente?.id;
+        final activos = clientes
+            .where((c) => c.esReferidor && c.estado && c.id != idPropio)
+            .toList();
+        // Si el cliente ya tenía un referidor que ahora está inactivo, ya no
+        // está marcado esReferidor, o ya no existe, igual se muestra en la
+        // lista para no perder de vista a quién estaba asignado -si no, el
+        // dropdown reventaría al no encontrar el value actual entre sus
+        // items-.
+        final idActual = _idReferidor;
+        if (idActual != null && !activos.any((c) => c.id == idActual)) {
+          final referidorActual = clientes
+              .where((c) => c.id == idActual)
+              .toList();
+          if (referidorActual.isNotEmpty) activos.add(referidorActual.first);
+        }
+        return DropdownButtonFormField<String?>(
+          initialValue: _idReferidor,
+          isExpanded: true,
+          decoration: _decoracion('¿Quién lo refirió? (opcional)'),
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            color: const Color(0xFF1A1A1A),
+          ),
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Ninguno'),
+            ),
+            for (final c in activos)
+              DropdownMenuItem<String?>(
+                value: c.id,
+                child: Text(c.nombreCompleto, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: (v) => setState(() => _idReferidor = v),
+        );
+      },
+      loading: () => const SizedBox(height: 56),
+      error: (e, st) => Text(
+        'No se pudo cargar la lista de referidores',
+        style: GoogleFonts.poppins(fontSize: 11.5, color: Colors.red.shade600),
+      ),
+    );
+  }
+
+  /// "Es referidor": marca este mismo registro de cliente como alguien que
+  /// también trae otros clientes (pintor/contratista) -pedido explícito del
+  /// dueño para que no exista una sección separada, un referidor es
+  /// simplemente un cliente con este flag.
+  Widget _toggleEsReferidor() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8EAF0),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Es referidor (pintor/contratista que trae clientes)',
+              style: GoogleFonts.poppins(
+                fontSize: 12.5,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+          Switch(
+            value: _esReferidor,
+            activeThumbColor: const Color(0xFF14B8A6),
+            onChanged: (v) => setState(() => _esReferidor = v),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final editando = widget.cliente != null;
+    final tamano = MediaQuery.of(context).size;
+    final esMovil = tamano.width < 480;
+    final anchoDialog = esMovil ? tamano.width - 48 : 420.0;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(20),
+      child: Container(
+        width: anchoDialog,
+        constraints: const BoxConstraints(maxHeight: 640),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 24, 20, 0),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFC62828).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.groups_outlined,
+                      color: Color(0xFFC62828),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      editando ? 'Editar Cliente' : 'Nuevo Cliente',
+                      style: GoogleFonts.poppins(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1A1A1A),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(28, 20, 28, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CampoTecladoCompacto(
+                      controller: _dniController,
+                      numerico: false,
+                      child: TextField(
+                        inputFormatters: [mayusculasInputFormatter],
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        controller: _dniController,
+                        autofocus: true,
+                        style: GoogleFonts.poppins(fontSize: 14),
+                        decoration: _decoracion('DNI (opcional)'),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    CampoTecladoCompacto(
+                      controller: _nombreController,
+                      numerico: false,
+                      child: TextField(
+                        inputFormatters: [mayusculasInputFormatter],
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        controller: _nombreController,
+                        style: GoogleFonts.poppins(fontSize: 14),
+                        decoration: _decoracion('Nombre completo'),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    CampoTecladoCompacto(
+                      controller: _direccionController,
+                      numerico: false,
+                      child: TextField(
+                        inputFormatters: [mayusculasInputFormatter],
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        controller: _direccionController,
+                        style: GoogleFonts.poppins(fontSize: 14),
+                        decoration: _decoracion('Dirección (opcional)'),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    CampoTecladoCompacto(
+                      controller: _telefonoController,
+                      numerico: false,
+                      child: TextField(
+                        inputFormatters: [mayusculasInputFormatter],
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        controller: _telefonoController,
+                        style: GoogleFonts.poppins(fontSize: 14),
+                        decoration: _decoracion('Teléfono (opcional)'),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _toggleEsReferidor(),
+                    const SizedBox(height: 14),
+                    _selectorReferidor(),
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8EAF0),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            'Estado',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            _activo ? 'Activo' : 'Inactivo',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _activo
+                                  ? const Color(0xFF16A34A)
+                                  : Colors.grey.shade500,
+                            ),
+                          ),
+                          Switch(
+                            value: _activo,
+                            activeThumbColor: const Color(0xFF16A34A),
+                            onChanged: (v) => setState(() => _activo = v),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Text(
+                          _error!,
+                          style: GoogleFonts.poppins(
+                            color: Colors.red.shade700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 16, 28, 24),
+              child: Row(
+                children: [
+                  if (editando)
+                    IconButton(
+                      onPressed: _guardando ? null : _eliminar,
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Color(0xFFC62828),
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(
+                          0xFFC62828,
+                        ).withOpacity(0.08),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: _guardando ? null : () => Navigator.pop(context),
+                    child: Text(
+                      'Cancelar',
+                      style: GoogleFonts.poppins(color: Colors.grey.shade700),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  FilledButton(
+                    onPressed: _guardando ? null : _guardar,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFC62828),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _guardando
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.2,
+                            ),
+                          )
+                        : Text(
+                            'Guardar',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

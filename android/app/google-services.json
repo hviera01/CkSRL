@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "593847407002",
+    "project_id": "supercolor-25505",
+    "storage_bucket": "supercolor-25505.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:593847407002:android:83e8d55370a9dad5ef6a23",
+        "android_client_info": {
+          "package_name": "com.supercolor.sistema_ventas"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZfwfPmjOb7ynSDL66BaI2mHnLtbTizbc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

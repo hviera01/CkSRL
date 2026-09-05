@@ -1,0 +1,209 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../widgets/placeholder_screen.dart';
+import '../../features/categorias/presentation/screens/categorias_screen.dart';
+import '../../features/productos/presentation/screens/inventario_screen.dart';
+import '../../features/productos/presentation/screens/auditoria_inventario_screen.dart';
+import '../../features/productos/presentation/screens/pendientes_reposicion_screen.dart';
+import '../../features/usuarios/presentation/screens/usuarios_screen.dart';
+import '../../features/negocio/presentation/screens/negocio_screen.dart';
+import '../../features/colores/presentation/screens/colores_screen.dart';
+import '../../features/clientes/presentation/screens/clientes_screen.dart';
+import '../../features/proveedores/presentation/screens/proveedores_screen.dart';
+import '../../features/ventas_credito/presentation/screens/ventas_credito_screen.dart';
+import '../../features/compras_credito/presentation/screens/compras_credito_screen.dart';
+import '../../features/reportes/presentation/screens/reporte_ventas_screen.dart';
+import '../../features/reportes/presentation/screens/reporte_compras_screen.dart';
+import '../../features/reportes/presentation/screens/reporte_financiero_screen.dart';
+import '../../features/ventas/presentation/screens/registrar_venta_screen.dart';
+import '../../features/ventas/presentation/screens/detalle_venta_screen.dart';
+import '../../features/ventas/providers/carrito_provider.dart';
+import '../../features/ventas/providers/usuario_venta_provider.dart';
+import '../../features/compras/presentation/screens/registrar_compra_screen.dart';
+import '../../features/compras/presentation/screens/detalle_compra_screen.dart';
+import '../../features/compras/presentation/screens/hacer_pedido_screen.dart';
+import '../../features/compras/providers/carrito_compra_provider.dart';
+import '../../features/caja/presentation/screens/cierre_caja_screen.dart';
+import '../../features/egresos/presentation/screens/ingresos_egresos_screen.dart';
+import '../../features/dispositivos/presentation/screens/dispositivos_screen.dart';
+import '../../features/promociones/presentation/screens/promociones_screen.dart';
+import '../../features/productos/providers/productos_provider.dart';
+import '../../features/categorias/providers/categorias_provider.dart';
+import '../../features/colores/providers/colores_provider.dart';
+import '../../features/clientes/providers/clientes_provider.dart';
+import '../../features/proveedores/providers/proveedores_provider.dart';
+import '../../features/ventas_credito/providers/ventas_credito_provider.dart';
+import '../../features/compras_credito/providers/compras_credito_provider.dart';
+import '../../features/promociones/providers/promociones_provider.dart';
+import '../../features/usuarios/providers/usuarios_provider.dart';
+
+/// Encierra el contenido de una pestaña en su propio Navigator -pedido
+/// explícito del dueño: "ninguna ventana sea independiente sola... siempre
+/// dentro de la pestaña", para poder abrir Buscar Producto (o Ver Detalle de
+/// Venta, o lo que sea) en una pestaña y seguir trabajando en otra sin que
+/// nada tape toda la pantalla-. Todo `showDialog`/`Navigator.push` que se
+/// dispare desde dentro de esta pestaña, mientras use el context normal de
+/// esa pantalla, cae solo en ESTE Navigator (el más cercano) en vez del de
+/// toda la app: showDialog necesita el parámetro `useRootNavigator: false`
+/// a mano (su default es `true`, ver cada llamado en el resto del código);
+/// Navigator.push ya usa el más cercano por su cuenta, así que esos no
+/// hicieron falta tocarlos uno por uno.
+///
+/// Instancia única por pestaña (este widget se crea UNA vez, al abrir la
+/// pestaña, y ese mismo Widget/Navigator queda guardado en TabItem.contenido
+/// -ver TabsNotifier.abrirTab- mientras la pestaña siga abierta; el
+/// IndexedStack de AppShell nunca lo reconstruye de cero al cambiar de
+/// pestaña), así que la pila de rutas de cada pestaña -y lo que el usuario
+/// tenga escrito en un buscador abierto ahí- se mantiene intacta al ir y
+/// volver, exactamente igual que el resto del estado de la pestaña.
+class _NavegadorDePestana extends StatelessWidget {
+  final Widget contenido;
+
+  const _NavegadorDePestana({required this.contenido});
+
+  @override
+  Widget build(BuildContext context) {
+    return Navigator(
+      onGenerateRoute: (settings) =>
+          MaterialPageRoute(builder: (_) => contenido),
+    );
+  }
+}
+
+Widget construirPantalla(
+  String moduleKey,
+  String titulo,
+  IconData icono,
+  String tabId,
+) {
+  return _NavegadorDePestana(
+    contenido: _construirContenidoPantalla(moduleKey, titulo, icono, tabId),
+  );
+}
+
+Widget _construirContenidoPantalla(
+  String moduleKey,
+  String titulo,
+  IconData icono,
+  String tabId,
+) {
+  switch (moduleKey) {
+    case 'ventas_registrar':
+      // Cada pestaña de "Registrar Venta" necesita su propio carrito
+      // independiente (el usuario puede tener varias ventas abiertas a la
+      // vez); se logra dándole a esta subárbol su propia instancia del
+      // provider en vez de compartir la global. [tabId] es lo que le
+      // permite a la pantalla saber si es la pestaña que está activa ahora
+      // mismo, para que los atajos de teclado (F10/F12) solo respondan ahí
+      // y no en las demás pestañas de venta/compra que sigan abiertas de
+      // fondo. usuarioVentaOverrideProvider recibe el mismo aislamiento por
+      // pestaña: permite que "cambiar usuario de esta venta" (ver
+      // registrar_venta_screen) solo afecte a la pestaña donde se tocó el
+      // botón, sin tocar la sesión principal ni las demás pestañas.
+      return ProviderScope(
+        overrides: [
+          carritoVentaProvider.overrideWith(() => CarritoVentaNotifier()),
+          usuarioVentaOverrideProvider,
+        ],
+        child: RegistrarVentaScreen(tabId: tabId),
+      );
+    case 'ventas_buscar_producto':
+      // Igual que 'ventas_registrar', pero con el diálogo de búsqueda
+      // abierto de entrada (ver HomeScreen: atajo "Buscar Producto", solo
+      // web móvil).
+      return ProviderScope(
+        overrides: [
+          carritoVentaProvider.overrideWith(() => CarritoVentaNotifier()),
+          usuarioVentaOverrideProvider,
+        ],
+        child: RegistrarVentaScreen(tabId: tabId, autoAbrirBusqueda: true),
+      );
+    case 'ventas_detalle':
+      return const DetalleVentaScreen(esDialogo: false);
+    case 'compras_registrar':
+      // Mismo aislamiento por pestaña que 'ventas_registrar': cada pestaña
+      // de "Registrar Compra" tiene su propio carrito independiente.
+      return ProviderScope(
+        overrides: [
+          carritoCompraProvider.overrideWith(() => CarritoCompraNotifier()),
+        ],
+        child: RegistrarCompraScreen(tabId: tabId),
+      );
+    case 'compras_detalle':
+      return const DetalleCompraScreen(esDialogo: false);
+    case 'compras_pedido':
+      return const HacerPedidoScreen();
+    case 'categorias':
+      // Búsqueda propia por pestaña -si el usuario abre una segunda pestaña
+      // de este módulo (ver abrir_submodulo.dart), no debe compartir lo que
+      // se escribió en el buscador de la primera-. El resto de providers de
+      // este módulo (datos reales de Firestore) siguen compartidos.
+      return ProviderScope(
+        overrides: [categoriaBusquedaProvider],
+        child: const CategoriasScreen(),
+      );
+    case 'inventario':
+      return ProviderScope(
+        overrides: [inventarioBusquedaProvider, inventarioVistaProvider],
+        child: const InventarioScreen(),
+      );
+    case 'auditoria_inventario':
+      return const AuditoriaInventarioScreen();
+    case 'pendientes_reposicion':
+      return const PendientesReposicionScreen();
+    case 'usuarios':
+      return ProviderScope(
+        overrides: [usuarioBusquedaProvider],
+        child: const UsuariosScreen(),
+      );
+    case 'negocio':
+      return const NegocioScreen();
+    case 'colores':
+      return ProviderScope(
+        overrides: [coloresBusquedaProvider, coloresVistaProvider],
+        child: const ColoresScreen(),
+      );
+    case 'clientes':
+      return ProviderScope(
+        overrides: [clientesBusquedaProvider, clientesVistaProvider],
+        child: const ClientesScreen(),
+      );
+    case 'proveedores':
+      return ProviderScope(
+        overrides: [proveedoresBusquedaProvider, proveedoresVistaProvider],
+        child: const ProveedoresScreen(),
+      );
+    case 'ventas_credito':
+      return ProviderScope(
+        overrides: [ventasCreditoBusquedaProvider, ventasCreditoVistaProvider],
+        child: const VentasCreditoScreen(),
+      );
+    case 'compras_credito':
+      return ProviderScope(
+        overrides: [
+          comprasCreditoBusquedaProvider,
+          comprasCreditoVistaProvider,
+        ],
+        child: const ComprasCreditoScreen(),
+      );
+    case 'reporte_ventas':
+      return const ReporteVentasScreen();
+    case 'reporte_compras':
+      return const ReporteComprasScreen();
+    case 'reporte_financiero':
+      return const ReporteFinancieroScreen();
+    case 'cierre_caja':
+      return const CierreCajaScreen();
+    case 'ingresos_egresos':
+      return const IngresosEgresosScreen();
+    case 'dispositivos':
+      return const DispositivosScreen();
+    case 'promociones':
+      return ProviderScope(
+        overrides: [promocionesBusquedaProvider],
+        child: const PromocionesScreen(),
+      );
+    default:
+      return PlaceholderScreen(titulo: titulo, icono: icono);
+  }
+}

@@ -1,0 +1,1210 @@
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../productos/data/producto_model.dart';
+import '../../../productos/providers/productos_provider.dart';
+import '../../../productos/presentation/widgets/producto_form_dialog.dart';
+import '../../../productos/presentation/widgets/detalle_producto_dialog.dart';
+import '../../../categorias/providers/categorias_provider.dart';
+import '../../../promociones/data/promocion_model.dart';
+import '../../../promociones/providers/promociones_provider.dart';
+import '../../../../core/utils/texto_utils.dart';
+import '../../../../core/utils/formato_moneda.dart';
+import '../../../../core/utils/codigo_barras_utils.dart';
+import '../../../../core/widgets/barcode_scanner_screen.dart';
+import '../../../../core/widgets/imagen_zoom_dialog.dart';
+import '../../../../core/utils/mayusculas_input_formatter.dart';
+import '../../../../core/widgets/campo_teclado_compacto.dart';
+
+/// Resultado de elegir un producto (y el nivel de precio con el que se va a
+/// vender) desde el buscador.
+class ProductoConPrecio {
+  final ProductoModel producto;
+  final double precio;
+  final int nivelPrecio;
+
+  ProductoConPrecio({
+    required this.producto,
+    required this.precio,
+    required this.nivelPrecio,
+  });
+}
+
+class BuscarProductoDialog extends ConsumerStatefulWidget {
+  // Condición de la venta en curso ('Contado' | 'Credito'), para saber qué
+  // promociones son aplicables al armar el badge de cada producto (ver
+  // PromocionModel.aplicaCondicion). Con 'Contado' por defecto para no
+  // romper otros lugares que todavía no pasan este parámetro.
+  final String condicion;
+
+  // Método de pago ya elegido en la venta en curso ('Efectivo' | 'Tarjeta' |
+  // 'Transferencia' | 'Mixto'), filtro independiente de [condicion] (ver
+  // PromocionModel.aplicaMetodoPago). Con 'Efectivo' por defecto, el mismo
+  // valor por defecto que trae CarritoVentaState.metodoPago.
+  final String metodoPago;
+
+  const BuscarProductoDialog({
+    super.key,
+    this.condicion = 'Contado',
+    this.metodoPago = 'Efectivo',
+  });
+
+  @override
+  ConsumerState<BuscarProductoDialog> createState() =>
+      _BuscarProductoDialogState();
+}
+
+class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
+  final _busquedaController = TextEditingController();
+  final _focusNodeLista = FocusNode();
+  // Sin `autofocus`: en Windows, pedir el foco durante el primer build (que
+  // es lo que hace `autofocus`) compite con la animación de apertura de
+  // esta pantalla y se pierde la primera tecla que se escribe. Pidiéndolo a
+  // mano después del primer frame (mismo mecanismo que ya usa
+  // registrar_venta_screen para este mismo problema) el foco queda firme
+  // antes de que llegue cualquier tecla.
+  final _focusBusqueda = FocusNode();
+  String _busquedaAplicada = '';
+  // Cuando la búsqueda viene de escanear un código de barras se filtra por
+  // coincidencia exacta de código, no con el buscador difuso (que con
+  // códigos largos puede "acercarse" a varios productos distintos).
+  bool _busquedaExacta = false;
+  List<ProductoModel> _listaActual = [];
+  String? _filaSeleccionada;
+  int _nivelActivo = 1;
+  // Orden de la lista de resultados (solo la columna "Existencia" por
+  // ahora, ver _encabezadoOrdenable). null = sin ordenar, en el orden que
+  // ya trae el stream.
+  String? _columnaOrden;
+  bool _ordenAscendente = true;
+  // Sección "Combos" separada de "Productos" (ver _selectorSeccion): un
+  // combo no tiene existencia propia real, así que se filtran y se listan
+  // aparte para no mezclarlos con el catálogo normal.
+  bool _verCombos = false;
+
+  // Cachea el resultado del filtro/orden: sin esto, cada setState (por
+  // ejemplo, solo resaltar una fila al hacer clic o mover la selección con
+  // las flechas) volvía a recorrer todo el catálogo con coincideFuzzy dentro
+  // de build(), aunque nada de lo que afecta al filtro hubiera cambiado. Eso
+  // era lo que se sentía "pesado y lento" al seleccionar.
+  List<ProductoModel>? _productosCacheados;
+  String? _busquedaFiltroCacheada;
+  bool? _exactaFiltroCacheada;
+  String? _columnaOrdenCacheada;
+  bool? _ordenAscendenteCacheado;
+  bool? _verCombosCacheado;
+
+  // Una GlobalKey por fila visible (indexada por posición en _listaActual)
+  // para poder pedirle a la lista que haga scroll hasta la fila resaltada al
+  // navegar con las flechas del teclado, aunque haya quedado fuera de la
+  // vista.
+  final Map<int, GlobalKey> _clavesFila = {};
+
+  // defaultTargetPlatform (a diferencia de un ancho de pantalla angosto,
+  // que también puede pasar en un navegador de escritorio con la ventana
+  // chica) detecta el sistema operativo real del equipo.
+  bool get _esPlataformaMovil =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
+  // Específicamente el navegador de un celular (no la PC, no la app de
+  // escritorio): ver el comentario en initState sobre por qué solo ahí se
+  // ordena por existencia de entrada.
+  bool get _esWebMovil => kIsWeb && _esPlataformaMovil;
+
+  @override
+  void initState() {
+    super.initState();
+    // En web móvil se muestra primero el producto con más existencia por
+    // defecto: ayuda a elegir rápido en la pantalla chica, donde ni se ve
+    // la columna "Existencia" (ver _encabezadoTabla, solo en la tabla de
+    // escritorio) ni hay forma de tocarla para ordenar a mano. En
+    // escritorio se deja tal cual estaba: sin ordenar, en el orden que ya
+    // trae el stream (el cajero puede ordenar a mano tocando la columna).
+    if (_esWebMovil) {
+      _columnaOrden = 'existencia';
+      _ordenAscendente = false;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusBusqueda.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _busquedaController.dispose();
+    _focusNodeLista.dispose();
+    _focusBusqueda.dispose();
+    super.dispose();
+  }
+
+  List<ProductoModel> _filtrar(
+    List<ProductoModel> productos,
+    Map<String, ProductoModel> mapaProductos,
+  ) {
+    if (identical(productos, _productosCacheados) &&
+        _busquedaFiltroCacheada == _busquedaAplicada &&
+        _exactaFiltroCacheada == _busquedaExacta &&
+        _columnaOrdenCacheada == _columnaOrden &&
+        _ordenAscendenteCacheado == _ordenAscendente &&
+        _verCombosCacheado == _verCombos) {
+      return _listaActual;
+    }
+    _productosCacheados = productos;
+    _busquedaFiltroCacheada = _busquedaAplicada;
+    _exactaFiltroCacheada = _busquedaExacta;
+    _columnaOrdenCacheada = _columnaOrden;
+    _ordenAscendenteCacheado = _ordenAscendente;
+    _verCombosCacheado = _verCombos;
+    final lista = productos
+        .where(
+          (p) =>
+              p.estado &&
+              p.esCombo == _verCombos &&
+              _coincide(p, _busquedaAplicada),
+        )
+        .toList();
+    if (_columnaOrden == 'existencia') {
+      double existencia(ProductoModel p) =>
+          _verCombos ? p.stockDisponibleCombo(mapaProductos) : p.stock;
+      lista.sort(
+        (a, b) => _ordenAscendente
+            ? existencia(a).compareTo(existencia(b))
+            : existencia(b).compareTo(existencia(a)),
+      );
+    }
+    return lista;
+  }
+
+  void _moverSeleccion(int delta) {
+    if (_listaActual.isEmpty) return;
+    final indiceActual = _filaSeleccionada == null
+        ? -1
+        : _listaActual.indexWhere((p) => p.id == _filaSeleccionada);
+    var nuevoIndice = indiceActual + delta;
+    if (nuevoIndice < 0) nuevoIndice = 0;
+    if (nuevoIndice >= _listaActual.length)
+      nuevoIndice = _listaActual.length - 1;
+    setState(() => _filaSeleccionada = _listaActual[nuevoIndice].id);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final contexto = _clavesFila[nuevoIndice]?.currentContext;
+      if (contexto != null)
+        Scrollable.ensureVisible(
+          contexto,
+          duration: const Duration(milliseconds: 120),
+          alignment: 0.5,
+        );
+    });
+  }
+
+  KeyEventResult _manejarTeclado(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        _moverSeleccion(1);
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        _moverSeleccion(-1);
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.enter ||
+          event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+        _seleccionarAlPresionarEnter();
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _tomarFocoLista() {
+    if (!_focusNodeLista.hasFocus) _focusNodeLista.requestFocus();
+  }
+
+  // Mismo arreglo que Inventario (ver InventarioScreen._tocarFila): antes
+  // esta fila tenía `onTap` Y `onDoubleTap` juntos en el mismo InkWell, y
+  // Flutter tiene que esperar la ventana de doble-tap (~300ms) antes de
+  // disparar el toque simple para poder distinguirlo de un doble toque -acá
+  // se detecta a mano (dos toques al mismo producto dentro de 300ms) usando
+  // solo `onTap`, para que seleccionar un producto responda de inmediato.
+  static const _ventanaDobleTap = Duration(milliseconds: 300);
+  DateTime? _ultimoTapProductoEn;
+  String? _ultimoTapProductoId;
+
+  void _tocarFilaProducto(ProductoModel p) {
+    final ahora = DateTime.now();
+    final esDobleTap =
+        _ultimoTapProductoId == p.id &&
+        _ultimoTapProductoEn != null &&
+        ahora.difference(_ultimoTapProductoEn!) < _ventanaDobleTap;
+    _ultimoTapProductoEn = esDobleTap
+        ? null
+        : ahora; // no encadenar un tercer toque como otro "doble"
+    _ultimoTapProductoId = p.id;
+
+    _tomarFocoLista();
+    setState(() => _filaSeleccionada = p.id);
+    if (esDobleTap) _confirmarSeleccion(p);
+  }
+
+  double? _precioNivel(ProductoModel p, int nivel) {
+    final valor = switch (nivel) {
+      2 => p.precioVenta2,
+      3 => p.precioVenta3,
+      _ => p.precioVenta,
+    };
+    return valor > 0 ? valor : null;
+  }
+
+  /// Precio con el que se agrega el producto: el nivel activo elegido en el
+  /// selector de arriba, o el primero disponible si ese nivel no está
+  /// configurado para este producto en particular.
+  ({double precio, int nivel})? _precioActivo(ProductoModel p) {
+    final directo = _precioNivel(p, _nivelActivo);
+    if (directo != null) return (precio: directo, nivel: _nivelActivo);
+    for (final nivel in [1, 2, 3]) {
+      final precio = _precioNivel(p, nivel);
+      if (precio != null) return (precio: precio, nivel: nivel);
+    }
+    return null;
+  }
+
+  void _confirmarSeleccion(ProductoModel producto) {
+    final precio = _precioActivo(producto);
+    if (precio == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Este producto no tiene un precio configurado'),
+        ),
+      );
+      return;
+    }
+    Navigator.pop(
+      context,
+      ProductoConPrecio(
+        producto: producto,
+        precio: precio.precio,
+        nivelPrecio: precio.nivel,
+      ),
+    );
+  }
+
+  void _seleccionarAlPresionarEnter() {
+    if (_listaActual.isEmpty) return;
+    final resaltado = _listaActual
+        .where((p) => p.id == _filaSeleccionada)
+        .toList();
+    _confirmarSeleccion(
+      resaltado.isNotEmpty ? resaltado.first : _listaActual.first,
+    );
+  }
+
+  /// La búsqueda no filtra en vivo: solo se aplica al presionar Enter o
+  /// tocar el botón de buscar. Si el texto tiene una sola coincidencia (por
+  /// ejemplo, un código exacto leído con lector de código de barras) se
+  /// agrega directo, sin necesidad de un segundo Enter para confirmar.
+  bool _coincideExacto(ProductoModel p, String texto) =>
+      p.codigoBarras.trim() == texto || p.codigo.trim() == texto;
+
+  void _buscar({bool exacta = false}) {
+    var texto = _busquedaController.text.trim();
+    final productos = ref.read(productosStreamProvider).value ?? [];
+    // Si la búsqueda viene de un código escaneado y no matchea a nada, se
+    // prueban otras variantes válidas del mismo código (ver
+    // variantesCodigoBarras): corrige tanto el código leído al revés
+    // (algunos celulares) como el "0" que iPhone agrega al principio de los
+    // códigos UPC-A (Android no lo agrega).
+    if (exacta &&
+        texto.isNotEmpty &&
+        !productos.any((p) => p.estado && _coincideExacto(p, texto))) {
+      for (final variante in variantesCodigoBarras(texto)) {
+        if (productos.any((p) => p.estado && _coincideExacto(p, variante))) {
+          texto = variante;
+          break;
+        }
+      }
+    }
+    setState(() {
+      _busquedaAplicada = texto;
+      _filaSeleccionada = null;
+      _busquedaExacta = exacta;
+      _clavesFila.clear();
+    });
+    if (texto.isEmpty) return;
+    final coincidencias = productos
+        .where((p) => p.estado && _coincide(p, texto))
+        .toList();
+    // Un código escaneado (exacta) con un solo resultado se agrega directo
+    // en cualquier plataforma, para que escanear siga siendo instantáneo.
+    // Una búsqueda por escrito con un solo resultado también se agregaba
+    // directo en celular/tablet -pedido explícito del dueño: quitar eso,
+    // que cargue en la lista igual que en PC, para poder ver el producto
+    // antes de decidir en vez de que se agregue solo-.
+    if (coincidencias.length == 1 && exacta) {
+      _confirmarSeleccion(coincidencias.first);
+    }
+  }
+
+  bool _coincide(ProductoModel p, String texto) {
+    if (_busquedaExacta) return _coincideExacto(p, texto);
+    return coincideFuzzy(p.textoBusqueda, texto);
+  }
+
+  Future<void> _crearProductoNuevo() async {
+    final nuevo = await showDialog<ProductoModel>(
+      useRootNavigator: false,
+      context: context,
+      builder: (context) => const ProductoFormDialog(),
+    );
+    if (nuevo == null || !mounted) return;
+    _confirmarSeleccion(nuevo);
+  }
+
+  // Editar un producto (por ejemplo, corregir un precio) sin salir de este
+  // buscador ni tener que ir hasta Inventario: útil en medio de una venta,
+  // cuando el cliente hace notar que un precio quedó mal cargado. No agrega
+  // el producto a la venta al guardar -eso lo sigue haciendo la fila misma,
+  // con doble clic o Enter-, el stream de productos ya refresca solo la
+  // lista con los datos nuevos.
+  Future<void> _editarProducto(ProductoModel p) async {
+    await showDialog<ProductoModel>(
+      useRootNavigator: false,
+      context: context,
+      builder: (context) => ProductoFormDialog(producto: p),
+    );
+  }
+
+  void _verFoto(ProductoModel p) {
+    showDialog(
+      useRootNavigator: false,
+      context: context,
+      builder: (context) => ImagenZoomDialog(url: p.imagenUrl),
+    );
+  }
+
+  void _verComponentes(
+    ProductoModel p,
+    Map<String, String> mapaCategorias,
+    Map<String, ProductoModel> mapaProductos,
+  ) {
+    showDialog(
+      useRootNavigator: false,
+      context: context,
+      builder: (context) => DetalleProductoDialog(
+        producto: p,
+        categoria: mapaCategorias[p.idCategoria] ?? '-',
+        mapaProductos: mapaProductos,
+      ),
+    );
+  }
+
+  Future<void> _escanear() async {
+    final codigo = await escanearCodigoBarras(context);
+    if (codigo == null || codigo.isEmpty || !mounted) return;
+    _busquedaController.text = codigo;
+    // Por si el stream de productos todavía no trajo el primer valor (poco
+    // común, pero puede pasar si se escanea apenas se abre la pantalla con
+    // internet lento): espera a que haya datos antes de buscar, para no
+    // buscar contra una lista vacía y fallar en silencio.
+    if (ref.read(productosStreamProvider).value == null) {
+      try {
+        await ref.read(productosStreamProvider.future);
+      } catch (_) {}
+      if (!mounted) return;
+    }
+    _buscar(exacta: true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final productosAsync = ref.watch(productosStreamProvider);
+    final categoriasAsync = ref.watch(categoriasStreamProvider);
+    final categoriasLista = categoriasAsync.value ?? <dynamic>[];
+    final mapaCategorias = {
+      for (final c in categoriasLista) c.id as String: c.descripcion as String,
+    };
+    final promociones =
+        ref.watch(promocionesStreamProvider).value ?? const <PromocionModel>[];
+
+    final tamano = MediaQuery.of(context).size;
+    final esMovil = tamano.width < 720;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F3F7),
+      body: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(esMovil ? 14 : 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Buscar Producto',
+                      style: GoogleFonts.poppins(
+                        fontSize: esMovil ? 18 : 21,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Padding(
+                padding: EdgeInsets.only(left: esMovil ? 0 : 54),
+                child: Text(
+                  'Enter en el buscador busca · doble clic o Enter en la lista agrega el producto resaltado',
+                  style: GoogleFonts.poppins(
+                    fontSize: esMovil ? 11.5 : 12.5,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: esMovil ? double.infinity : 400,
+                    child: Container(
+                      height: 50,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFB6BCC7)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.search,
+                            size: 20,
+                            color: Colors.grey.shade400,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: CampoTecladoCompacto(
+                              controller: _busquedaController,
+                              numerico: false,
+                              onSubmitted: (_) => _buscar(),
+                              titulo: 'Escribí y presioná Enter para buscar...',
+                              child: TextField(
+                                inputFormatters: [mayusculasInputFormatter],
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                controller: _busquedaController,
+                                focusNode: _focusBusqueda,
+                                style: GoogleFonts.poppins(fontSize: 14),
+                                decoration: InputDecoration(
+                                  hintText:
+                                      'Escribí y presioná Enter para buscar...',
+                                  hintStyle: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                ),
+                                onSubmitted: (_) => _buscar(),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Buscar',
+                            icon: const Icon(Icons.arrow_forward, size: 18),
+                            onPressed: _buscar,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  _selectorSeccion(),
+                  _selectorNivelPrecio(),
+                  // Escanear con la cámara solo tiene sentido en el celular
+                  // (APK o navegador móvil): en escritorio no hay cámara
+                  // para esto, ahí el escaneo es "Escanear con celular" (QR,
+                  // desde Registrar Venta) o un lector físico.
+                  if (defaultTargetPlatform == TargetPlatform.android ||
+                      defaultTargetPlatform == TargetPlatform.iOS)
+                    OutlinedButton.icon(
+                      onPressed: _escanear,
+                      icon: const Icon(Icons.qr_code_scanner, size: 18),
+                      label: Text(
+                        'Escanear',
+                        style: GoogleFonts.poppins(fontSize: 13),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF1A1A1A),
+                        side: const BorderSide(color: Color(0xFFB6BCC7)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: _crearProductoNuevo,
+                    icon: const Icon(Icons.add_circle_outline, size: 18),
+                    label: Text(
+                      'Producto Nuevo',
+                      style: GoogleFonts.poppins(fontSize: 13),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFC62828),
+                      side: const BorderSide(color: Color(0xFFC62828)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFC7CBD3)),
+                  ),
+                  child: Focus(
+                    focusNode: _focusNodeLista,
+                    onKeyEvent: _manejarTeclado,
+                    child: productosAsync.when(
+                      data: (productos) {
+                        final mapaProductos = {
+                          for (final p in productos) p.id: p,
+                        };
+                        if (_busquedaAplicada.isEmpty && !_verCombos) {
+                          _listaActual = [];
+                          return Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.search,
+                                  size: 48,
+                                  color: Colors.grey.shade300,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Escribí algo y presioná Enter para buscar',
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        final lista = _filtrar(productos, mapaProductos);
+                        _listaActual = lista;
+                        if (lista.isEmpty) {
+                          return Center(
+                            child: Text(
+                              _verCombos
+                                  ? 'No hay combos que coincidan'
+                                  : 'No se encontraron productos',
+                              style: GoogleFonts.poppins(
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          );
+                        }
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (!esMovil) ...[
+                              _encabezadoTabla(),
+                              const SizedBox(height: 10),
+                              Divider(height: 1, color: Colors.grey.shade300),
+                            ],
+                            Expanded(
+                              child: ListView.separated(
+                                itemCount: lista.length,
+                                separatorBuilder: (context, i) => Divider(
+                                  height: 1,
+                                  color: Colors.grey.shade200,
+                                ),
+                                itemBuilder: (context, i) {
+                                  final p = lista[i];
+                                  return esMovil
+                                      ? _tarjetaMovil(
+                                          i,
+                                          p,
+                                          mapaCategorias,
+                                          promociones,
+                                          mapaProductos,
+                                        )
+                                      : _filaTabla(
+                                          i,
+                                          p,
+                                          mapaCategorias,
+                                          promociones,
+                                          mapaProductos,
+                                        );
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                      loading: () => const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFFC62828),
+                        ),
+                      ),
+                      error: (e, st) => Center(
+                        child: Text(
+                          'Error: $e',
+                          style: GoogleFonts.poppins(color: Colors.red),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _selectorSeccion() {
+    Widget opcion(String texto, bool combos) {
+      final activo = _verCombos == combos;
+      return InkWell(
+        onTap: () {
+          if (_verCombos == combos) return;
+          setState(() {
+            _verCombos = combos;
+            _filaSeleccionada = null;
+            _clavesFila.clear();
+          });
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            color: activo ? const Color(0xFFC62828) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            texto,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: activo ? Colors.white : const Color(0xFF666A72),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      height: 50,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFB6BCC7)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [opcion('Productos', false), opcion('Combos', true)],
+      ),
+    );
+  }
+
+  Widget _selectorNivelPrecio() {
+    Widget opcion(String texto, int nivel) {
+      final activo = _nivelActivo == nivel;
+      return InkWell(
+        onTap: () => setState(() => _nivelActivo = nivel),
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            color: activo ? const Color(0xFFC62828) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            texto,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: activo ? Colors.white : const Color(0xFF666A72),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      height: 50,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFB6BCC7)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          opcion('Precio 1', 1),
+          opcion('Precio 2', 2),
+          opcion('Precio 3', 3),
+        ],
+      ),
+    );
+  }
+
+  Widget _encabezadoTabla() {
+    final estilo = GoogleFonts.poppins(
+      fontSize: 12,
+      fontWeight: FontWeight.w700,
+      color: Colors.grey.shade600,
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(flex: 2, child: Text('Código', style: estilo)),
+        Expanded(flex: 6, child: Text('Descripción', style: estilo)),
+        Expanded(flex: 3, child: Text('Categoría', style: estilo)),
+        Expanded(
+          flex: 3,
+          child: Text('Precio', textAlign: TextAlign.right, style: estilo),
+        ),
+        Expanded(
+          flex: 2,
+          child: _encabezadoOrdenable('Existencia', 'existencia', estilo),
+        ),
+        const SizedBox(width: 80),
+      ],
+    );
+  }
+
+  // Tocar el nombre de la columna ordena por esa columna (ascendente); si
+  // ya estaba ordenando por esa misma columna, invierte a descendente.
+  Widget _encabezadoOrdenable(String texto, String clave, TextStyle estilo) {
+    final activo = _columnaOrden == clave;
+    return InkWell(
+      onTap: () => setState(() {
+        if (activo) {
+          _ordenAscendente = !_ordenAscendente;
+        } else {
+          _columnaOrden = clave;
+          _ordenAscendente = true;
+        }
+        _clavesFila.clear();
+      }),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            texto,
+            style: activo
+                ? estilo.copyWith(color: const Color(0xFFC62828))
+                : estilo,
+          ),
+          const SizedBox(width: 3),
+          Icon(
+            activo
+                ? (_ordenAscendente ? Icons.arrow_upward : Icons.arrow_downward)
+                : Icons.unfold_more,
+            size: 14,
+            color: activo ? const Color(0xFFC62828) : Colors.grey.shade400,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget? _badgePromo(ProductoModel p, List<PromocionModel> promociones) {
+    final promo = promoParaBadge(
+      promociones: promociones,
+      idProducto: p.id,
+      condicion: widget.condicion,
+      metodoPago: widget.metodoPago,
+    );
+    if (promo == null) return null;
+    return Tooltip(
+      message: promo.nombre,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: const Color(0xFFC62828),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.local_offer, size: 11, color: Colors.white),
+            const SizedBox(width: 3),
+            Text(
+              promo.etiquetaCorta,
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _celdaPrecio(ProductoModel p) {
+    final precio = _precioActivo(p);
+    if (precio == null) {
+      return Text(
+        '—',
+        style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey.shade400),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          formatearMoneda(precio.precio),
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF2B6CB0),
+          ),
+        ),
+        if (precio.nivel != _nivelActivo)
+          Text(
+            'Nivel ${precio.nivel}',
+            style: GoogleFonts.poppins(
+              fontSize: 10.5,
+              color: Colors.grey.shade500,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _filaTabla(
+    int indice,
+    ProductoModel p,
+    Map<String, String> mapaCategorias,
+    List<PromocionModel> promociones,
+    Map<String, ProductoModel> mapaProductos,
+  ) {
+    final existencia = p.esCombo
+        ? p.stockDisponibleCombo(mapaProductos)
+        : p.stock;
+    final bajoStock = existencia <= 0;
+    final seleccionada = _filaSeleccionada == p.id;
+    return Material(
+      key: _clavesFila.putIfAbsent(indice, () => GlobalKey()),
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _tocarFilaProducto(p),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+          decoration: BoxDecoration(
+            color: seleccionada ? const Color(0xFFFBEAEA) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: seleccionada
+                ? Border.all(color: const Color(0xFFC62828), width: 1.4)
+                : Border.all(color: Colors.transparent, width: 1.4),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                flex: 2,
+                child: Text(
+                  p.codigo,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 6,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          p.nombre,
+                          softWrap: true,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (_badgePromo(p, promociones) case final badge?) ...[
+                        const SizedBox(width: 8),
+                        badge,
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 3,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Text(
+                    mapaCategorias[p.idCategoria] ?? '-',
+                    softWrap: true,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 3,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: _celdaPrecio(p),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bajoStock
+                          ? const Color(0xFFFCE4E4)
+                          : const Color(0xFFF0FBF4),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      existencia.toStringAsFixed(
+                        existencia == existencia.roundToDouble() ? 0 : 2,
+                      ),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: bajoStock
+                            ? const Color(0xFFC62828)
+                            : const Color(0xFF1E9E5A),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (p.esCombo)
+                SizedBox(
+                  width: 40,
+                  child: IconButton(
+                    tooltip: 'Ver qué incluye',
+                    icon: const Icon(
+                      Icons.list_alt_outlined,
+                      size: 18,
+                      color: Color(0xFF6A1B9A),
+                    ),
+                    onPressed: () =>
+                        _verComponentes(p, mapaCategorias, mapaProductos),
+                  ),
+                ),
+              SizedBox(
+                width: 40,
+                child: IconButton(
+                  tooltip: 'Editar producto',
+                  icon: Icon(
+                    Icons.edit_outlined,
+                    size: 18,
+                    color: Colors.grey.shade500,
+                  ),
+                  onPressed: () => _editarProducto(p),
+                ),
+              ),
+              SizedBox(
+                width: 40,
+                child: p.imagenUrl.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Ver foto',
+                        icon: const Icon(
+                          Icons.photo_outlined,
+                          size: 18,
+                          color: Color(0xFFC62828),
+                        ),
+                        onPressed: () => _verFoto(p),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _tarjetaMovil(
+    int indice,
+    ProductoModel p,
+    Map<String, String> mapaCategorias,
+    List<PromocionModel> promociones,
+    Map<String, ProductoModel> mapaProductos,
+  ) {
+    final existencia = p.esCombo
+        ? p.stockDisponibleCombo(mapaProductos)
+        : p.stock;
+    final bajoStock = existencia <= 0;
+    final seleccionada = _filaSeleccionada == p.id;
+    return Material(
+      key: _clavesFila.putIfAbsent(indice, () => GlobalKey()),
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _tocarFilaProducto(p),
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: seleccionada ? const Color(0xFFFBEAEA) : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            border: seleccionada
+                ? Border.all(color: const Color(0xFFC62828), width: 1.4)
+                : Border.all(color: Colors.transparent, width: 1.4),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                p.nombre,
+                                softWrap: true,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            if (_badgePromo(p, promociones)
+                                case final badge?) ...[
+                              const SizedBox(width: 8),
+                              badge,
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${p.codigo} · ${mapaCategorias[p.idCategoria] ?? '-'}',
+                          softWrap: true,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bajoStock
+                          ? const Color(0xFFFCE4E4)
+                          : const Color(0xFFF0FBF4),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Existencia: ${existencia.toStringAsFixed(existencia == existencia.roundToDouble() ? 0 : 2)}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: bajoStock
+                            ? const Color(0xFFC62828)
+                            : const Color(0xFF1E9E5A),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _celdaPrecio(p)),
+                  if (p.imagenUrl.isNotEmpty)
+                    IconButton(
+                      tooltip: 'Ver foto',
+                      icon: const Icon(
+                        Icons.photo_outlined,
+                        size: 18,
+                        color: Color(0xFFC62828),
+                      ),
+                      onPressed: () => _verFoto(p),
+                    ),
+                  if (p.esCombo)
+                    IconButton(
+                      tooltip: 'Ver qué incluye',
+                      icon: const Icon(
+                        Icons.list_alt_outlined,
+                        size: 18,
+                        color: Color(0xFF6A1B9A),
+                      ),
+                      onPressed: () =>
+                          _verComponentes(p, mapaCategorias, mapaProductos),
+                    ),
+                  IconButton(
+                    tooltip: 'Editar producto',
+                    icon: Icon(
+                      Icons.edit_outlined,
+                      size: 18,
+                      color: Colors.grey.shade500,
+                    ),
+                    onPressed: () => _editarProducto(p),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
