@@ -6,6 +6,7 @@ import '../providers/actualizacion_provider.dart';
 import '../services/actualizacion_service.dart';
 import '../utils/abrir_submodulo.dart';
 import '../widgets/actualizacion_dialog.dart';
+import '../widgets/actualizacion_respaldo_dialog.dart';
 import '../../features/auth/providers/auth_provider.dart';
 
 class SideMenu extends ConsumerWidget {
@@ -24,7 +25,23 @@ class SideMenu extends ConsumerWidget {
         duration: Duration(seconds: 2),
       ),
     );
-    final actualizacion = await ActualizacionService.buscarActualizacion();
+    ActualizacionDisponible? actualizacion;
+    try {
+      actualizacion = await ActualizacionService.buscarActualizacion();
+    } catch (e) {
+      if (!context.mounted) return;
+      // Distinto del caso "ya estás al día": acá el chequeo ni siquiera se
+      // pudo completar (sin internet, GitHub no responde, un problema de
+      // certificado SSL específico de ese equipo, etc.) — antes esto se
+      // confundía con "ya tenés la última versión", lo que hacía parecer que
+      // nunca había actualizaciones nuevas aunque sí las hubiera. Como
+      // respaldo práctico para cuando el chequeo automático nunca logra
+      // conectarse en un equipo puntual: un diálogo con un botón
+      // "Actualizar" que abre DIRECTO la descarga del instalador más nuevo,
+      // sin depender del mismo mecanismo que está fallando acá.
+      await mostrarDialogoActualizacionRespaldo(context, e.toString());
+      return;
+    }
     if (!context.mounted) return;
     if (actualizacion == null) {
       mensajero.showSnackBar(
