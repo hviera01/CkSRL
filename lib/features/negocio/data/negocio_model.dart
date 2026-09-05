@@ -97,6 +97,12 @@ class NegocioModel {
   // preguntarle de verdad a Firestore si la de verdad está encendida antes
   // de pedirle que imprima ella (ver RegistrarVentaScreen._manejarImpresion).
   final String pcPrincipalHostname;
+  // Interruptor MAESTRO de impresión: si es false, al confirmar una venta
+  // facturable no se intenta imprimir nada (ni diálogo de vista previa ni
+  // impresión directa) sin importar modoImpresion/facturaImprimirCopia. Para
+  // negocios que todavía no tienen impresora física conectada. Default true
+  // (comportamiento de siempre: sí se imprime).
+  final bool imprimirFacturas;
 
   const NegocioModel({
     this.nombre = '',
@@ -125,6 +131,7 @@ class NegocioModel {
     this.impresoraRedPuerto = 9100,
     this.tecladoCompactoTablet = false,
     this.pcPrincipalHostname = '',
+    this.imprimirFacturas = true,
   });
 
   bool get tieneClaveEspecial => claveEspecialHash.isNotEmpty;
@@ -160,6 +167,7 @@ class NegocioModel {
       impresoraRedPuerto: ((data['impresoraRedPuerto'] ?? 9100) as num).toInt(),
       tecladoCompactoTablet: data['tecladoCompactoTablet'] ?? false,
       pcPrincipalHostname: data['pcPrincipalHostname'] ?? '',
+      imprimirFacturas: data['imprimirFacturas'] ?? true,
     );
   }
 
@@ -193,6 +201,7 @@ class NegocioModel {
       'impresoraRedPuerto': impresoraRedPuerto,
       'tecladoCompactoTablet': tecladoCompactoTablet,
       'pcPrincipalHostname': pcPrincipalHostname,
+      'imprimirFacturas': imprimirFacturas,
     };
   }
 
@@ -223,6 +232,7 @@ class NegocioModel {
     int? impresoraRedPuerto,
     bool? tecladoCompactoTablet,
     String? pcPrincipalHostname,
+    bool? imprimirFacturas,
   }) {
     return NegocioModel(
       nombre: nombre ?? this.nombre,
@@ -255,6 +265,7 @@ class NegocioModel {
       tecladoCompactoTablet:
           tecladoCompactoTablet ?? this.tecladoCompactoTablet,
       pcPrincipalHostname: pcPrincipalHostname ?? this.pcPrincipalHostname,
+      imprimirFacturas: imprimirFacturas ?? this.imprimirFacturas,
     );
   }
 }

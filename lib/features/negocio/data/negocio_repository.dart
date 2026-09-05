@@ -169,6 +169,13 @@ class NegocioRepository {
     _invalidarCache();
   }
 
+  /// Interruptor maestro de impresión (ver NegocioModel.imprimirFacturas):
+  /// si [valor] es false, al confirmar una venta no se intenta imprimir nada.
+  Future<void> establecerImprimirFacturas(bool valor) async {
+    await _doc.set({'imprimirFacturas': valor}, SetOptions(merge: true));
+    _invalidarCache();
+  }
+
   Future<void> actualizarImpresoraRed(String ip, int puerto) async {
     await _doc.set({
       'impresoraRedIp': ip,

@@ -1398,6 +1398,16 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
           ),
           const SizedBox(height: 14),
           _filaSwitchFactura(
+            titulo: 'Imprimir facturas automáticamente',
+            descripcion:
+                'Interruptor general: si lo apagás, al confirmar una venta facturable no se intenta imprimir nada (ni el diálogo de vista previa ni la impresión directa), sin importar la configuración de impresión de abajo. Usalo si todavía no tenés impresora física conectada.',
+            valor: widget.modelo.imprimirFacturas,
+            onChanged: (v) => ref
+                .read(negocioRepositoryProvider)
+                .establecerImprimirFacturas(v),
+          ),
+          Divider(color: Colors.grey.shade200, height: 28),
+          _filaSwitchFactura(
             titulo: 'Imprimir copia además del original',
             descripcion:
                 'Si lo apagás, cada venta solo imprime la hoja "ORIGINAL" (se ahorra el papel de la "COPIA").',
