@@ -132,11 +132,11 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
   }
 
   Future<void> _eliminar(VentaCreditoModel credito) async {
-    final autorizado = await verificarAccesoEspecial(
+    final autorizado = (await verificarAccesoEspecial(
       context,
       ref,
       PermisosEspeciales.ventasCreditoEliminar,
-    );
+    )).autorizado;
     if (!autorizado || !mounted) return;
     final confirmar = await showDialog<bool>(
       useRootNavigator: false,

@@ -1091,11 +1091,11 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
         'Advertencia: "${producto.nombre}" no tiene existencia disponible, pero se agregará a la cotización.',
       );
     } else if (sinExistencia) {
-      final autorizado = await verificarAccesoEspecial(
+      final autorizado = (await verificarAccesoEspecial(
         context,
         ref,
         PermisosEspeciales.ventasVenderSinStock,
-      );
+      )).autorizado;
       if (!mounted) return;
       if (!autorizado) return;
       // Autorizado: se ignora la falta de existencia y se agrega igual
@@ -1732,11 +1732,11 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
         : 0.0;
 
     if (stockDisponible < nuevaCantidad && !carrito.esCotizacion) {
-      final autorizado = await verificarAccesoEspecial(
+      final autorizado = (await verificarAccesoEspecial(
         context,
         ref,
         PermisosEspeciales.ventasVenderSinStock,
-      );
+      )).autorizado;
       if (!mounted) return;
       if (!autorizado) {
         _revertirCantidad(index);
@@ -1765,11 +1765,11 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
       _mostrarMensaje('Precio inválido');
       return;
     }
-    final autorizado = await verificarAccesoEspecial(
+    final autorizado = (await verificarAccesoEspecial(
       context,
       ref,
       PermisosEspeciales.ventasCambiarPrecio,
-    );
+    )).autorizado;
     if (!mounted) return;
     if (!autorizado) {
       // Revierte el campo al precio actual (en la unidad que se esté
@@ -6524,11 +6524,11 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
           .obtenerNegocioActual();
       if (negocio.tienePermiso(PermisosEspeciales.ventasEditarDescripcion)) {
         if (!mounted) return;
-        final permitido = await verificarAccesoEspecial(
+        final permitido = (await verificarAccesoEspecial(
           context,
           ref,
           PermisosEspeciales.ventasEditarDescripcion,
-        );
+        )).autorizado;
         if (!permitido) {
           ctrl.text = nombreActual;
           return;

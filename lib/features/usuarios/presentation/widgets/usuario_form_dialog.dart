@@ -4,8 +4,10 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../data/usuario_model.dart';
 import '../../providers/usuarios_provider.dart';
 import '../../../../core/constants/roles.dart';
+import '../../../../core/data/modulos_menu.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
+import '../../../negocio/data/negocio_model.dart';
 
 class UsuarioFormDialog extends ConsumerStatefulWidget {
   final UsuarioModel? usuario;
@@ -25,10 +27,15 @@ class _UsuarioFormDialogState extends ConsumerState<UsuarioFormDialog> {
   bool _activo = true;
   bool _guardando = false;
   String? _error;
+  // Solo se muestran/editan cuando _rol == Roles.encargado (ver build()).
+  late Map<String, bool> _pantallasPermitidas;
+  late Map<String, bool> _accionesPermitidas;
 
   @override
   void initState() {
     super.initState();
+    _pantallasPermitidas = Map<String, bool>.from(widget.usuario?.pantallasPermitidas ?? {});
+    _accionesPermitidas = Map<String, bool>.from(widget.usuario?.accionesPermitidas ?? {});
     if (widget.usuario != null) {
       _documentoController.text = widget.usuario!.documento;
       _nombreController.text = widget.usuario!.nombreCompleto;
@@ -71,7 +78,7 @@ class _UsuarioFormDialogState extends ConsumerState<UsuarioFormDialog> {
     try {
       final repo = ref.read(usuarioRepositoryProvider);
       if (!editando) {
-        await repo.crear(documento, nombre, correo, clave, _rol, _activo);
+        await repo.crear(documento, nombre, correo, clave, _rol, _activo, _pantallasPermitidas, _accionesPermitidas);
       } else {
         await repo.actualizar(
           widget.usuario!.id,
@@ -81,6 +88,8 @@ class _UsuarioFormDialogState extends ConsumerState<UsuarioFormDialog> {
           _rol,
           _activo,
           clave.isEmpty ? null : clave,
+          _pantallasPermitidas,
+          _accionesPermitidas,
         );
       }
       if (mounted) Navigator.pop(context);
@@ -252,7 +261,7 @@ class _UsuarioFormDialogState extends ConsumerState<UsuarioFormDialog> {
               DropdownButtonFormField<String>(
                 initialValue: _rol,
                 decoration: _decoracion('Rol'),
-                items: [Roles.administrador, Roles.empleado]
+                items: Roles.todos
                     .map(
                       (r) => DropdownMenuItem(
                         value: r,
@@ -265,6 +274,12 @@ class _UsuarioFormDialogState extends ConsumerState<UsuarioFormDialog> {
                     .toList(),
                 onChanged: (v) => setState(() => _rol = v ?? Roles.empleado),
               ),
+              if (_rol == Roles.encargado) ...[
+                const SizedBox(height: 18),
+                _seccionPantallasPermitidas(),
+                const SizedBox(height: 18),
+                _seccionAccionesPermitidas(),
+              ],
               const SizedBox(height: 18),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -386,6 +401,114 @@ class _UsuarioFormDialogState extends ConsumerState<UsuarioFormDialog> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // ---------- Permisos del rol Encargado ----------
+  // Solo se renderizan (y solo se guardan) cuando _rol == Roles.encargado.
+  // Reusa visualmente el patrón "fila con switch" de negocio_screen.dart,
+  // aquí con Checkbox por ser una lista más larga de tildes.
+
+  Widget _seccionPermisos({required String titulo, required String subtitulo, required Widget contenido}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8EAF0),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(titulo, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1A1A1A))),
+          const SizedBox(height: 2),
+          Text(subtitulo, style: GoogleFonts.poppins(fontSize: 11.5, color: Colors.grey.shade600)),
+          const SizedBox(height: 8),
+          contenido,
+        ],
+      ),
+    );
+  }
+
+  Widget _seccionPantallasPermitidas() {
+    return _seccionPermisos(
+      titulo: 'Pantallas permitidas',
+      subtitulo: 'Qué va a poder ver este usuario en el menú lateral.',
+      contenido: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: obtenerModulos().map((modulo) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(modulo.titulo, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF0F1B3D))),
+                ...modulo.subModulos.map((sub) => _filaCheck(
+                      valor: _pantallasPermitidas[sub.moduleKey] == true,
+                      titulo: sub.titulo,
+                      onChanged: (v) => setState(() => _pantallasPermitidas[sub.moduleKey] = v),
+                    )),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _seccionAccionesPermitidas() {
+    return _seccionPermisos(
+      titulo: 'Acciones permitidas',
+      subtitulo: 'Qué botones de crear/editar/eliminar (y acciones sensibles) va a poder usar.',
+      contenido: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: PermisosEspeciales.etiquetas.entries.map((entrada) {
+          return _filaCheck(
+            valor: _accionesPermitidas[entrada.key] == true,
+            titulo: entrada.value,
+            descripcion: PermisosEspeciales.descripciones[entrada.key],
+            onChanged: (v) => setState(() => _accionesPermitidas[entrada.key] = v),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _filaCheck({required bool valor, required String titulo, String? descripcion, required void Function(bool) onChanged}) {
+    return InkWell(
+      onTap: () => onChanged(!valor),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                value: valor,
+                onChanged: (v) => onChanged(v ?? false),
+                activeColor: const Color(0xFF0F1B3D),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(titulo, style: GoogleFonts.poppins(fontSize: 12.5, color: const Color(0xFF1A1A1A))),
+                    if (descripcion != null && descripcion.isNotEmpty)
+                      Text(descripcion, style: GoogleFonts.poppins(fontSize: 10.5, color: Colors.grey.shade500)),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

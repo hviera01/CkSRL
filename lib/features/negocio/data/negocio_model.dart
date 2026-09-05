@@ -6,6 +6,21 @@ class PermisosEspeciales {
   static const ventasEditarDescripcion = 'ventas_editar_descripcion';
   static const ventasVenderSinStock = 'ventas_vender_sin_stock';
 
+  // Claves nuevas para el rol Encargado: a diferencia de las de arriba,
+  // estas no gatillan el diálogo de clave especial compartida, sino que se
+  // usan como `accionKey` de `puedeRealizarAccion` (ver
+  // core/utils/permisos_usuario.dart) para ocultar botones de crear/editar/
+  // eliminar según lo que el Administrador marcó para ese usuario puntual.
+  static const comprasCrear = 'compras_crear';
+  static const comprasEditar = 'compras_editar';
+  static const comprasEliminar = 'compras_eliminar';
+  static const inventarioCrearProducto = 'inventario_crear_producto';
+  static const inventarioEliminarProducto = 'inventario_eliminar_producto';
+  static const clientesCrear = 'clientes_crear';
+  static const clientesEditar = 'clientes_editar';
+  static const clientesEliminar = 'clientes_eliminar';
+  static const ventasEliminar = 'ventas_eliminar';
+
   static const Map<String, String> etiquetas = {
     inventarioEditarProducto: 'Editar productos en Inventario',
     inventarioAjustarStock: 'Cambiar existencias en Inventario',
@@ -13,6 +28,15 @@ class PermisosEspeciales {
     ventasCambiarPrecio: 'Cambiar precio de un producto en Ventas',
     ventasEditarDescripcion: 'Editar descripción de un producto en Ventas',
     ventasVenderSinStock: 'Agregar a una venta un producto sin existencia',
+    comprasCrear: 'Registrar compras',
+    comprasEditar: 'Editar compras',
+    comprasEliminar: 'Anular compras',
+    inventarioCrearProducto: 'Crear productos en Inventario',
+    inventarioEliminarProducto: 'Eliminar productos en Inventario',
+    clientesCrear: 'Crear clientes',
+    clientesEditar: 'Editar clientes',
+    clientesEliminar: 'Eliminar clientes',
+    ventasEliminar: 'Anular ventas',
   };
 
   static const Map<String, String> descripciones = {
@@ -28,6 +52,15 @@ class PermisosEspeciales {
         'Pide la clave especial antes de cambiar la descripción de un producto dentro de una venta.',
     ventasVenderSinStock:
         'Pide la clave especial antes de agregar a una venta (o aumentar la cantidad de) un producto sin existencia disponible, en categorías que sí controlan stock. Si se cancela, se ofrece igual la opción de reembasado.',
+    comprasCrear: 'Permite registrar una nueva compra.',
+    comprasEditar: 'Permite editar una compra ya registrada.',
+    comprasEliminar: 'Permite anular una compra ya registrada.',
+    inventarioCrearProducto: 'Permite dar de alta un producto nuevo en Inventario.',
+    inventarioEliminarProducto: 'Permite eliminar un producto de Inventario.',
+    clientesCrear: 'Permite dar de alta un cliente nuevo.',
+    clientesEditar: 'Permite editar los datos de un cliente existente.',
+    clientesEliminar: 'Permite eliminar un cliente.',
+    ventasEliminar: 'Permite anular una venta ya registrada.',
   };
 }
 

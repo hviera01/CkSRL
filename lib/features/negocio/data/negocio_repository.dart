@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/data/base_repository.dart';
+import '../../../core/utils/reintentos.dart';
 import 'negocio_model.dart';
 
 class NegocioRepository with ConRedMixin {
@@ -61,6 +62,33 @@ class NegocioRepository with ConRedMixin {
     } catch (_) {
       return cache ?? const NegocioModel();
     }
+  }
+
+  /// Como [obtenerNegocioActual], pero pensada para gates de seguridad
+  /// (`verificarAccesoEspecial`): ahí una falla de red NUNCA debe
+  /// interpretarse como "no hay clave especial configurada", porque eso
+  /// deja pasar la acción protegida sin pedir nada. A diferencia de
+  /// [obtenerNegocioActual], si no hay cache vigente y la lectura falla o
+  /// tarda más de la cuenta (típico justo al abrir la app, con la conexión
+  /// todavía estableciéndose), esto reintenta unas veces (ver
+  /// [conReintentos]) antes de relanzar la excepción, para que una demora
+  /// pasajera de conexión se resuelva sola en vez de bloquear al cajero a
+  /// la primera.
+  Future<NegocioModel> obtenerNegocioParaSeguridad() async {
+    final cache = _cache;
+    final cacheFecha = _cacheFecha;
+    if (cache != null &&
+        cacheFecha != null &&
+        DateTime.now().difference(cacheFecha) < _vigenciaCache) {
+      return cache;
+    }
+    return conReintentos(() async {
+      final filas = await _db.from('negocio_config').select().limit(1).timeout(const Duration(seconds: 8));
+      final negocio = NegocioModel.fromMap(filas.isEmpty ? null : filas.first);
+      _cache = negocio;
+      _cacheFecha = DateTime.now();
+      return negocio;
+    });
   }
 
   /// Invalida el cache de [obtenerNegocioActual]: se llama luego de guardar

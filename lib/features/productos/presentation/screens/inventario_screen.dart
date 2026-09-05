@@ -274,11 +274,11 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
 
   Future<void> _abrirFormulario([ProductoModel? producto]) async {
     if (producto != null) {
-      final autorizado = await verificarAccesoEspecial(
+      final autorizado = (await verificarAccesoEspecial(
         context,
         ref,
         PermisosEspeciales.inventarioEditarProducto,
-      );
+      )).autorizado;
       if (!autorizado || !mounted) return;
     }
     if (!mounted) return;
@@ -290,11 +290,11 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
   }
 
   Future<void> _abrirAjusteStock(ProductoModel producto) async {
-    final autorizado = await verificarAccesoEspecial(
+    final autorizado = (await verificarAccesoEspecial(
       context,
       ref,
       PermisosEspeciales.inventarioAjustarStock,
-    );
+    )).autorizado;
     if (!autorizado || !mounted) return;
     showDialog(
       useRootNavigator: false,

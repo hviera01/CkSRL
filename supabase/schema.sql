@@ -2013,3 +2013,11 @@ begin
     alter publication supabase_realtime add table escaneo_remoto_eventos;
   end if;
 end $$;
+
+-- Permisos ad-hoc por usuario del rol Encargado (roles.dart, usuario_model.dart,
+-- acceso_especial.dart): qué pantallas (SubModulo.moduleKey) y qué acciones
+-- (PermisosEspeciales.*) tiene habilitadas ESE usuario en particular. Solo se
+-- guardan (no vacíos) cuando rol == 'Encargado'; para cualquier otro rol quedan
+-- en '{}'. Estructura libre, no se consulta por SQL -jsonb-.
+alter table usuarios add column if not exists pantallas_permitidas jsonb not null default '{}'::jsonb;
+alter table usuarios add column if not exists acciones_permitidas jsonb not null default '{}'::jsonb;
