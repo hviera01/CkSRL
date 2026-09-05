@@ -2492,6 +2492,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
   // no se bloquea nada: la venta ya quedó guardada. En móvil además se
   // marca `pendienteImpresion` para poder reimprimirla después.
   Future<void> _manejarImpresion(VentaModel venta, NegocioModel negocio) async {
+    if (!negocio.imprimirFacturas) return;
     if (!kIsWeb && Platform.isAndroid) {
       await _manejarImpresionAndroid(venta, negocio);
       return;
