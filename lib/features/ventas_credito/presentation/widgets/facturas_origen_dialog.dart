@@ -47,6 +47,15 @@ class _FacturasOrigenDialogState extends ConsumerState<FacturasOrigenDialog> {
     _cargarDetalle();
   }
 
+  // NOTA: este diálogo ("Unir Facturas") reserva el número de la venta
+  // consolidada de la MISMA secuencia oficial que una Factura/Boleta (ver
+  // VentaRepository.reservarProximoNumeroFactura, que siempre formatea como
+  // Factura) y siempre arma el documento sintético como 'Factura' -no se
+  // adaptó a VentaSinFacturar en esta pasada porque cambiar eso también
+  // implicaría resolver qué numeración/formato le corresponde a una "Venta"
+  // consolidada, y esta pantalla no estaba en el alcance pedido-. Si este
+  // negocio empieza a unir créditos que no sean Factura/Boleta, revisar esto.
+
   // Misma conversión que usa DetalleVentaScreen: precioVenta/subtotal se
   // guardan sin ISV, así que hay que aplicar el 15% para mostrarlos como en
   // la factura real.

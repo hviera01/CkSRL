@@ -53,7 +53,6 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
   String? _filaSeleccionada;
   String? _columnaOrden;
   bool _ordenAscendente = false;
-  bool _precioConIsv = true;
   // Vista elegida en el rango "tablet" -pedido explícito del dueño-: 'tabla'
   // por defecto, 'tarjetas' si el usuario la cambia con
   // _selectorVistaTabletChico. No aplica en celular (siempre tarjetas) ni en
@@ -101,7 +100,6 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
   String? _cacheCampoFiltroUsado;
 
   List<ProductoModel>? _cacheValoresProductosOrigen;
-  bool? _cacheValoresPrecioConIsv;
   double _cacheValorCompra = 0;
   double _cacheValorVenta = 0;
 
@@ -130,10 +128,9 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     return coincideFuzzy(texto, busqueda);
   }
 
-  /// Precio de venta a mostrar según la vista elegida (con o sin ISV). El
-  /// precio guardado en el producto siempre incluye ISV.
-  double _precioMostrado(ProductoModel p) =>
-      _precioConIsv ? p.precioVenta : redondearMoneda(p.precioVenta / 1.15);
+  // Este negocio no cobra ISV: el precio guardado en el producto es el
+  // precio real, sin ningún ajuste (ver carrito_provider.agregarProductoDirecto).
+  double _precioMostrado(ProductoModel p) => p.precioVenta;
 
   /// Filtra (vista/estado/búsqueda) y ordena la lista de productos, con
   /// cache -ver comentario junto a los campos `_cache*` arriba-. Devuelve
@@ -839,7 +836,6 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                         alignment: WrapAlignment.end,
                         children: [
                           if (esTablet) _selectorVistaTabletChico(),
-                          _selectorPrecioIsvChico(),
                           _selectorEstadoChico(),
                         ],
                       ),
@@ -1151,9 +1147,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                     columnaOrdenKey: 'existencia',
                   ),
                   _celdaHeader(
-                    texto: _precioConIsv
-                        ? 'P. VENTA (C/ISV)'
-                        : 'P. VENTA (S/ISV)',
+                    texto: 'P. VENTA',
                     flex: 14,
                     columnaOrdenKey: 'precioVenta',
                   ),
@@ -1670,27 +1664,13 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                               ),
                             ),
                             const SizedBox(height: 2),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Text(
-                                  formatearMoneda(_precioMostrado(p)),
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    color: const Color(0xFFC62828),
-                                  ),
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  _precioConIsv ? 'c/ISV' : 's/ISV',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 9.5,
-                                    color: Colors.grey.shade500,
-                                  ),
-                                ),
-                              ],
+                            Text(
+                              formatearMoneda(_precioMostrado(p)),
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFFC62828),
+                              ),
                             ),
                           ],
                         ),
@@ -2122,8 +2102,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
             // filtrada) — sin esto se repetían en cada build(), incluida
             // una selección de fila que no cambia nada de esto (ver
             // comentario junto a los campos `_cache*`).
-            if (!identical(_cacheValoresProductosOrigen, productos) ||
-                _cacheValoresPrecioConIsv != _precioConIsv) {
+            if (!identical(_cacheValoresProductosOrigen, productos)) {
               _cacheValorCompra = productos.fold<double>(
                 0,
                 (s, p) => s + (p.stock * p.precioCompra),
@@ -2133,7 +2112,6 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                 (s, p) => s + (p.stock * _precioMostrado(p)),
               );
               _cacheValoresProductosOrigen = productos;
-              _cacheValoresPrecioConIsv = _precioConIsv;
             }
             final valorCompra = _cacheValorCompra;
             final valorVenta = _cacheValorVenta;
@@ -2150,7 +2128,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                   const Color(0xFF3B82F6),
                 ),
                 _badgeInfo(
-                  'Valor venta (${_precioConIsv ? 'con' : 'sin'} ISV) ${formatearMoneda(valorVenta)}',
+                  'Valor venta ${formatearMoneda(valorVenta)}',
                   const Color(0xFF16A34A),
                 ),
               ],
@@ -2210,15 +2188,6 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
             ),
         ],
       ),
-    );
-  }
-
-  Widget _selectorPrecioIsvChico() {
-    return _pildoraChica<bool>(
-      _precioConIsv,
-      _precioConIsv,
-      (v) => setState(() => _precioConIsv = v),
-      const [('Con ISV', true), ('Sin ISV', false)],
     );
   }
 

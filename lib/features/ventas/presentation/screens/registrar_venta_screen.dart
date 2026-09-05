@@ -1192,7 +1192,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
         } else {
           ref
               .read(carritoVentaProvider.notifier)
-              .actualizarLinea(indiceNuevo, precioConIsv: promoPrecio.valor);
+              .actualizarLinea(indiceNuevo, precioNuevo: promoPrecio.valor);
         }
         _mostrarMensaje('Promoción "${promoPrecio.nombre}" aplicada.');
         // No se ofrece combo/regalo además en la misma unidad: solo se
@@ -1245,9 +1245,12 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
     );
     if (yaEstabaCompleto) return;
 
-    // Precio normal (con ISV) de la "canasta" del combo: 1 unidad de cada
-    // producto, al precio con el que ya está esa línea en el carrito (o el
-    // precio recién elegido para el producto que se acaba de agregar).
+    // Precio normal de la "canasta" del combo: 1 unidad de cada producto, al
+    // precio con el que ya está esa línea en el carrito (o el precio recién
+    // elegido para el producto que se acaba de agregar). Sin ningún ajuste
+    // de ISV: precioVenta ya es el precio real (ver carrito_provider.
+    // agregarProductoDirecto), y promo.precioCombo se compara directo contra
+    // esto sin importar si esta venta termina siendo Factura o no.
     final precioNormalCombo = promoComboMulti.idsProductosCombo.fold<double>(
       0,
       (s, id) {
@@ -1256,7 +1259,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
           (i) => i.idProducto == id,
         );
         if (itemExistente.isEmpty) return s;
-        return s + redondearMoneda(itemExistente.first.precioVenta * 1.15);
+        return s + redondearMoneda(itemExistente.first.precioVenta);
       },
     );
     await _ofrecerComboORegalo(
@@ -1319,7 +1322,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
     );
     if (promoCombo == null || cantidadAntes >= promoCombo.cantidadRequerida)
       return;
-    final precioUnit = redondearMoneda(carrito.items[index].precioVenta * 1.15);
+    final precioUnit = carrito.items[index].precioVenta;
     await _ofrecerComboORegalo(promoCombo, precioUnitarioBase: precioUnit);
   }
 
@@ -1348,18 +1351,18 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
         0,
         (s, i) => s + carrito.items[i].cantidad,
       );
-      final totalNormalConIsv = indices.fold<double>(0, (s, i) {
+      final totalNormal = indices.fold<double>(0, (s, i) {
         final item = carrito.items[i];
-        return s + redondearMoneda(item.precioVenta * 1.15) * item.cantidad;
+        return s + redondearMoneda(item.precioVenta) * item.cantidad;
       });
-      if (totalNormalConIsv <= 0) return;
+      if (totalNormal <= 0) return;
       final extra = (cantidadTotal - promo.cantidadRequerida).clamp(
         0,
         double.infinity,
       );
-      final precioPromedioNormal = totalNormalConIsv / cantidadTotal;
+      final precioPromedioNormal = totalNormal / cantidadTotal;
       final objetivo = promo.precioCombo + extra * precioPromedioNormal;
-      final descuentoPct = ((1 - objetivo / totalNormalConIsv) * 100)
+      final descuentoPct = ((1 - objetivo / totalNormal) * 100)
           .clamp(0, 100)
           .toDouble();
       for (final i in indices) {
@@ -1380,11 +1383,11 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
           .toSet();
       if (!promo.idsProductosCombo.every(idsPresentes.contains)) return;
 
-      final totalNormalConIsv = indices.fold<double>(0, (s, i) {
+      final totalNormal = indices.fold<double>(0, (s, i) {
         final item = carrito.items[i];
-        return s + redondearMoneda(item.precioVenta * 1.15) * item.cantidad;
+        return s + redondearMoneda(item.precioVenta) * item.cantidad;
       });
-      if (totalNormalConIsv <= 0) return;
+      if (totalNormal <= 0) return;
 
       // Unidades "extra" de cada producto del combo (más allá de la 1 que
       // exige el paquete) se dejan fuera del precio de combo, al precio
@@ -1401,7 +1404,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
         );
         final normalProd = indicesProd.fold<double>(0, (s, i) {
           final item = carrito.items[i];
-          return s + redondearMoneda(item.precioVenta * 1.15) * item.cantidad;
+          return s + redondearMoneda(item.precioVenta) * item.cantidad;
         });
         final extraCantidad = (cantidadProd - 1).clamp(0, double.infinity);
         if (cantidadProd > 0)
@@ -1409,7 +1412,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
       }
 
       final objetivo = promo.precioCombo + extraNormalValue;
-      final descuentoPct = ((1 - objetivo / totalNormalConIsv) * 100)
+      final descuentoPct = ((1 - objetivo / totalNormal) * 100)
           .clamp(0, 100)
           .toDouble();
       for (final i in indices) {
@@ -1424,7 +1427,11 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
             ? promo.nombresProductosRegalo[i]
             : '';
         final coincidencias = productos.where((p) => p.id == idRegalo).toList();
-        final precioRegaloConIsv = coincidencias.isNotEmpty
+        // Precio real del producto regalado, sin ningún ajuste de ISV -ver
+        // carrito_provider.agregarProductoDirecto-: se guarda tal cual para
+        // que el toggle Con/Sin ISV de la tabla lo trate igual que cualquier
+        // otra línea, aunque acá quede en 0 por el 100% de descuento.
+        final precioRegalo = coincidencias.isNotEmpty
             ? coincidencias.first.precioVenta
             : 0.0;
         final nombreRegalo = coincidencias.isNotEmpty
@@ -1437,7 +1444,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                 ? coincidencias.first.idCategoria
                 : '',
             nombreProducto: '$nombreRegalo (regalo · ${promo.nombre})',
-            precioVenta: precioRegaloConIsv > 0 ? precioRegaloConIsv / 1.15 : 0,
+            precioVenta: precioRegalo,
             cantidad: promo.cantidadRegalo.toDouble(),
             subtotal: 0,
             precioCompraUsado: coincidencias.isNotEmpty
@@ -1789,9 +1796,18 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
       }
       return;
     }
+    // El toggle "Precio (c/ISV)/(s/ISV)" es solo una vista informativa de
+    // cuánto sería el precio con un +15% agregado, sin relación con si esta
+    // venta realmente cobra ISV (eso lo decide tipoDocumento, ver
+    // CarritoVentaState._aplicaIsv): el precio real que se guarda en la
+    // línea (item.precioVenta) nunca lleva el ISV metido, así que si el
+    // cajero editó el precio viendo esta vista, hay que quitarle el +15%
+    // antes de guardarlo. Sin redondear a centavos acá: mismo motivo que en
+    // agregarProductoDirecto, se redondea una sola vez recién al mostrar o
+    // calcular un total.
     ref
         .read(carritoVentaProvider.notifier)
-        .actualizarLinea(index, precioConIsv: nuevoPrecioConIsv);
+        .actualizarLinea(index, precioNuevo: nuevoPrecioConIsv / 1.15);
   }
 
   Future<void> _actualizarPrecioSinIsv(int index, double nuevoPrecioSinIsv) {
@@ -2403,9 +2419,17 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
         unawaited(_imprimirGuiaEnvio(venta, grande: formatoGuiaGrande));
       }
 
-      if (esFacturable) {
+      // Se imprime automático para cualquier venta concretada, no solo
+      // Factura/Boleta -el tipo "Venta" (VentaSinFacturar) es el que de
+      // verdad usa este negocio a diario-. Solo una Cotización (que no es
+      // una venta concretada) no dispara impresión. esFacturable sigue
+      // gateando únicamente el aviso de rango de facturación (CAI/rangos
+      // autorizados), que solo aplica a Factura/Boleta.
+      if (!esCotizacion) {
         unawaited(_imprimirEnSegundoPlano(venta));
-        if (negocio != null) _avisarSiRangoSuperado(negocio, venta);
+        if (esFacturable && negocio != null) {
+          _avisarSiRangoSuperado(negocio, venta);
+        }
       } else {
         _mostrarMensaje(
           '${tiposDocumento[venta.tipoDocumento]} generada: ${venta.numeroDocumento}',

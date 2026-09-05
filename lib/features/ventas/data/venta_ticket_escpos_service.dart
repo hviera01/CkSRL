@@ -309,12 +309,18 @@ class VentaTicketEscPosService {
     final formatoFecha = DateFormat('dd/MM/yyyy hh:mm a');
     final formatoDia = DateFormat('dd/MM/yyyy');
 
-    // Mismo cálculo que en el PDF (ver VentaExportService): el total y el
-    // desglose de ISV siempre reflejan el monto real de la venta, esto solo
-    // cambia cómo se ve el precio unitario/importe de cada línea.
-    double precioMostrado(dynamic item) => negocio.facturaPreciosConIsv ? redondearMoneda((item.precioVenta as double) * 1.15) : item.precioVenta as double;
+    // Este negocio no cobra ISV en su venta normal (VentaSinFacturar): solo
+    // se aplica el 15% si esta venta es Factura o Boleta formal (ver
+    // CarritoVentaState._aplicaIsv). El desglose "Gravado 15%:"/"ISV 15%:"
+    // de abajo, y el toggle facturaPreciosConIsv (que decide si el precio
+    // unitario/importe de cada línea se ve con o sin el 15% cargado), solo
+    // tienen sentido cuando de verdad hay ISV de por medio -si no, el
+    // precio que se ve YA es el precio final, sin ningún ajuste-.
+    final esFacturable = venta.tipoDocumento == 'Factura' || venta.tipoDocumento == 'Boleta';
+    final mostrarConIsv = esFacturable && negocio.facturaPreciosConIsv;
+    double precioMostrado(dynamic item) => mostrarConIsv ? redondearMoneda((item.precioVenta as double) * 1.15) : item.precioVenta as double;
     double importeMostrado(dynamic item) {
-      if (!negocio.facturaPreciosConIsv) return item.subtotal as double;
+      if (!mostrarConIsv) return item.subtotal as double;
       final precio = precioMostrado(item);
       return redondearMoneda(precio * (item.cantidad as double) * (1 - (item.descuentoPorcentaje as double) / 100));
     }
@@ -392,9 +398,11 @@ class VentaTicketEscPosService {
     if (descuentosYRebajas > 0) bytes += _filaTotal(generador, 'Descuentos y rebajas:', descuentosYRebajas);
     bytes += _filaTotal(generador, 'Importe Exento:', 0);
     bytes += _filaTotal(generador, 'Importe Exonerado:', 0);
-    bytes += _filaTotal(generador, 'Gravado 15%:', venta.subtotal);
-    bytes += _filaTotal(generador, 'Gravado 18%:', 0);
-    bytes += _filaTotal(generador, 'ISV 15%:', venta.impuesto);
+    if (esFacturable) {
+      bytes += _filaTotal(generador, 'Gravado 15%:', venta.subtotal);
+      bytes += _filaTotal(generador, 'Gravado 18%:', 0);
+      bytes += _filaTotal(generador, 'ISV 15%:', venta.impuesto);
+    }
     bytes += _filaTotal(generador, 'TOTAL A PAGAR:', venta.totalAPagar, negrita: true);
     bytes += generador.emptyLines(1);
     bytes += generador.hr();

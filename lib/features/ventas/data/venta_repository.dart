@@ -457,9 +457,13 @@ class VentaRepository {
       // Historial de precio de venta por producto: no aplica a cotizaciones,
       // que todavía no son una venta concretada.
       if (tipoDocumento != 'Cotizacion') {
+        // Este negocio no cobra ISV en su venta normal: solo se aplica el
+        // 15% si esta venta es Factura o Boleta formal (ver
+        // CarritoVentaState._aplicaIsv).
+        final aplicaIsv = tipoDocumento == 'Factura' || tipoDocumento == 'Boleta';
         for (final item in items) {
           final ref = _db.collection('productos').doc(item.idProducto);
-          final precioConIsv = redondearMoneda(item.precioVenta * (1 - item.descuentoPorcentaje / 100) * 1.15);
+          final precioConIsv = redondearMoneda(item.precioVenta * (1 - item.descuentoPorcentaje / 100) * (aplicaIsv ? 1.15 : 1));
           final historialVentaRef = ref.collection('historialVentas').doc();
           transaction.set(historialVentaRef, {
             'idVenta': ventaRef.id,

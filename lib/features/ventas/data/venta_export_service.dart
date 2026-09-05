@@ -196,15 +196,21 @@ class VentaExportService {
   pw.Widget _tablaItemsFormal(VentaModel venta, bool conIsv) {
     final estiloEncabezado = pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.white);
     final estiloCelda = const pw.TextStyle(fontSize: 9);
-    double precioMostrado(dynamic item) => conIsv ? redondearMoneda((item.precioVenta as double) * 1.15) : item.precioVenta as double;
+    // Este negocio no cobra ISV en su venta normal: el toggle de "ver
+    // precios con/sin ISV" solo tiene efecto real cuando la venta de verdad
+    // lo cobra (Factura/Boleta formal, ver CarritoVentaState._aplicaIsv) —
+    // si no, el precio que se ve YA es el precio final, sin ajuste.
+    final esFacturable = venta.tipoDocumento == 'Factura' || venta.tipoDocumento == 'Boleta';
+    final mostrarConIsv = esFacturable && conIsv;
+    double precioMostrado(dynamic item) => mostrarConIsv ? redondearMoneda((item.precioVenta as double) * 1.15) : item.precioVenta as double;
     double importeMostrado(dynamic item) {
-      if (!conIsv) return item.subtotal as double;
+      if (!mostrarConIsv) return item.subtotal as double;
       final precio = precioMostrado(item);
       return redondearMoneda(precio * (item.cantidad as double) * (1 - (item.descuentoPorcentaje as double) / 100));
     }
 
     return pw.TableHelper.fromTextArray(
-      headers: ['Cant.', 'Descripción', conIsv ? 'P. Unitario (c/ISV)' : 'P. Unitario (s/ISV)', 'Desc. %', 'Importe'],
+      headers: ['Cant.', 'Descripción', mostrarConIsv ? 'P. Unitario (c/ISV)' : 'P. Unitario (s/ISV)', 'Desc. %', 'Importe'],
       data: venta.detalle.map((item) {
         return [
           _formatoCantidad(item.cantidad),
@@ -273,6 +279,12 @@ class VentaExportService {
 
   pw.Widget _bloqueTotales(VentaModel venta) {
     final descuentosYRebajas = venta.descuentosYRebajas;
+    // Este negocio no cobra ISV en su venta normal (VentaSinFacturar): el
+    // desglose "Gravado 15%"/"ISV (15%)" solo se imprime si esta venta es
+    // Factura o Boleta formal (ver CarritoVentaState._aplicaIsv). El resto
+    // (Subtotal, Descuentos, Importe exento/exonerado, TOTAL) se imprime
+    // siempre igual.
+    final esFacturable = venta.tipoDocumento == 'Factura' || venta.tipoDocumento == 'Boleta';
 
     return pw.Container(
       width: 210,
@@ -286,9 +298,11 @@ class VentaExportService {
           if (descuentosYRebajas > 0) _filaTotalFormal('Descuentos y rebajas', formatearMoneda(descuentosYRebajas)),
           _filaTotalFormal('Importe exento', formatearMoneda(0)),
           _filaTotalFormal('Importe exonerado', formatearMoneda(0)),
-          _filaTotalFormal('Gravado 15%', formatearMoneda(venta.subtotal)),
-          _filaTotalFormal('Gravado 18%', formatearMoneda(0)),
-          _filaTotalFormal('ISV (15%)', formatearMoneda(venta.impuesto)),
+          if (esFacturable) ...[
+            _filaTotalFormal('Gravado 15%', formatearMoneda(venta.subtotal)),
+            _filaTotalFormal('Gravado 18%', formatearMoneda(0)),
+            _filaTotalFormal('ISV (15%)', formatearMoneda(venta.impuesto)),
+          ],
           pw.Divider(color: _colorBorde, height: 10),
           _filaTotalFormal('TOTAL', formatearMoneda(venta.totalAPagar), destacado: true),
         ],
@@ -415,13 +429,17 @@ class VentaExportService {
     const fNormal = 8.0;
     final alturaMm = _estimarAlturaTicketMm(venta, negocio, tieneLogo: logo != null, anchoMm: anchoMm);
 
-    // El total y el desglose de ISV siempre reflejan el monto real de la
-    // venta; esto solo cambia cómo se ve el precio unitario y el importe de
-    // cada línea (con o sin ISV incluido), según la configuración del
-    // negocio.
-    double precioMostrado(dynamic item) => negocio.facturaPreciosConIsv ? redondearMoneda((item.precioVenta as double) * 1.15) : item.precioVenta as double;
+    // Este negocio no cobra ISV en su venta normal (VentaSinFacturar): solo
+    // se aplica el 15% si esta venta es Factura o Boleta formal (ver
+    // CarritoVentaState._aplicaIsv). El total y el desglose de ISV siempre
+    // reflejan el monto real de la venta; esto solo cambia cómo se ve el
+    // precio unitario y el importe de cada línea (con o sin ISV incluido),
+    // según la configuración del negocio -y solo cuando de verdad aplica-.
+    final esFacturable = venta.tipoDocumento == 'Factura' || venta.tipoDocumento == 'Boleta';
+    final mostrarConIsv = esFacturable && negocio.facturaPreciosConIsv;
+    double precioMostrado(dynamic item) => mostrarConIsv ? redondearMoneda((item.precioVenta as double) * 1.15) : item.precioVenta as double;
     double importeMostrado(dynamic item) {
-      if (!negocio.facturaPreciosConIsv) return item.subtotal as double;
+      if (!mostrarConIsv) return item.subtotal as double;
       final precio = precioMostrado(item);
       return redondearMoneda(precio * (item.cantidad as double) * (1 - (item.descuentoPorcentaje as double) / 100));
     }
@@ -546,9 +564,11 @@ class VentaExportService {
             if (descuentosYRebajas > 0) _filaTotal('Descuentos y rebajas:', descuentosYRebajas),
             _filaTotal('Importe Exento:', 0),
             _filaTotal('Importe Exonerado:', 0),
-            _filaTotal('Gravado 15%:', venta.subtotal),
-            _filaTotal('Gravado 18%:', 0),
-            _filaTotal('ISV 15%:', venta.impuesto),
+            if (esFacturable) ...[
+              _filaTotal('Gravado 15%:', venta.subtotal),
+              _filaTotal('Gravado 18%:', 0),
+              _filaTotal('ISV 15%:', venta.impuesto),
+            ],
             _filaTotal('TOTAL A PAGAR:', venta.totalAPagar, negrita: true),
             pw.SizedBox(height: 6),
             _separador(),

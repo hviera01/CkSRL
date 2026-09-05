@@ -1092,7 +1092,14 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
               ),
             ),
             const Spacer(),
-            _selectorPrecioIsv(),
+            // Este negocio no cobra ISV en su venta normal (VentaSinFacturar):
+            // el selector solo tiene sentido cuando la venta de verdad lo
+            // cobra (Factura/Boleta formal, ver
+            // CarritoVentaState._aplicaIsv) -si no, el precio que se ve YA es
+            // el precio final, sin ajuste, así que no hay nada que alternar-.
+            if (venta.tipoDocumento == 'Factura' ||
+                venta.tipoDocumento == 'Boleta')
+              _selectorPrecioIsv(),
           ],
         ),
         const SizedBox(height: 10),
@@ -1465,9 +1472,17 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
     );
   }
 
-  double _precioMostrado(dynamic item) => _precioConIsv
-      ? redondearMoneda((item.precioVenta as double) * 1.15)
-      : item.precioVenta as double;
+  // Este negocio no cobra ISV en su venta normal (VentaSinFacturar): el
+  // toggle Con/Sin ISV solo tiene efecto real si esta venta es Factura o
+  // Boleta formal (ver CarritoVentaState._aplicaIsv) -si no, el precio que
+  // se ve YA es el precio final, sin ajuste-.
+  double _precioMostrado(dynamic item) {
+    final esFacturable =
+        _venta?.tipoDocumento == 'Factura' || _venta?.tipoDocumento == 'Boleta';
+    return (_precioConIsv && esFacturable)
+        ? redondearMoneda((item.precioVenta as double) * 1.15)
+        : item.precioVenta as double;
+  }
 
   double _importeMostrado(dynamic item) {
     final precio = _precioMostrado(item);
@@ -1484,6 +1499,8 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
       fontWeight: FontWeight.w700,
       color: Colors.grey.shade600,
     );
+    final esFacturable =
+        venta.tipoDocumento == 'Factura' || venta.tipoDocumento == 'Boleta';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1501,7 +1518,9 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
             Expanded(
               flex: 2,
               child: Text(
-                _precioConIsv ? 'Precio (c/ISV)' : 'Precio (s/ISV)',
+                (_precioConIsv && esFacturable)
+                    ? 'Precio (c/ISV)'
+                    : 'Precio (s/ISV)',
                 textAlign: TextAlign.right,
                 style: estiloEncabezado,
               ),
@@ -1670,7 +1689,7 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
                   'Descuentos y rebajas',
                   venta.descuentosYRebajas,
                 ),
-              _filaTotalTexto('ISV (15%)', venta.impuesto),
+              if (venta.impuesto > 0) _filaTotalTexto('ISV (15%)', venta.impuesto),
               if (venta.descuentoGlobal > 0)
                 _filaTotalTextoPorcentaje(
                   'Descuento global',

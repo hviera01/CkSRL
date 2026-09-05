@@ -30,9 +30,15 @@ class TicketEscPosPreview extends StatelessWidget {
     final formatoFecha = DateFormat('dd/MM/yyyy hh:mm a');
     final formatoDia = DateFormat('dd/MM/yyyy');
 
-    double precioMostrado(item) => negocio.facturaPreciosConIsv ? redondearMoneda((item.precioVenta as double) * 1.15) : item.precioVenta as double;
+    // Este negocio no cobra ISV en su venta normal (VentaSinFacturar): solo
+    // se aplica el 15% si esta venta es Factura o Boleta formal (ver
+    // CarritoVentaState._aplicaIsv), igual que en VentaTicketEscPosService
+    // (esta vista tiene que mostrar exactamente lo mismo que va a imprimirse).
+    final esFacturable = venta.tipoDocumento == 'Factura' || venta.tipoDocumento == 'Boleta';
+    final mostrarConIsv = esFacturable && negocio.facturaPreciosConIsv;
+    double precioMostrado(item) => mostrarConIsv ? redondearMoneda((item.precioVenta as double) * 1.15) : item.precioVenta as double;
     double importeMostrado(item) {
-      if (!negocio.facturaPreciosConIsv) return item.subtotal as double;
+      if (!mostrarConIsv) return item.subtotal as double;
       final precio = precioMostrado(item);
       return redondearMoneda(precio * (item.cantidad as double) * (1 - (item.descuentoPorcentaje as double) / 100));
     }
@@ -151,9 +157,11 @@ class TicketEscPosPreview extends StatelessWidget {
           if (descuentosYRebajas > 0) fila('Descuentos y rebajas:', formatearMoneda(descuentosYRebajas)),
           fila('Importe Exento:', formatearMoneda(0)),
           fila('Importe Exonerado:', formatearMoneda(0)),
-          fila('Gravado 15%:', formatearMoneda(venta.subtotal)),
-          fila('Gravado 18%:', formatearMoneda(0)),
-          fila('ISV 15%:', formatearMoneda(venta.impuesto)),
+          if (esFacturable) ...[
+            fila('Gravado 15%:', formatearMoneda(venta.subtotal)),
+            fila('Gravado 18%:', formatearMoneda(0)),
+            fila('ISV 15%:', formatearMoneda(venta.impuesto)),
+          ],
           fila('TOTAL A PAGAR:', formatearMoneda(venta.totalAPagar), negrita: true),
           const SizedBox(height: 6),
           separador(),

@@ -89,23 +89,26 @@ class VentaEnEsperaModel {
   /// precio final que de verdad paga el cliente.
   double get total => items.fold<double>(0, (s, i) => s + i.subtotal);
 
-  /// Precio final (con ISV y descuento global aplicados) -mismo cálculo
-  /// EXACTO que CarritoVentaState.totalAPagar (ver carrito_provider.dart):
-  /// cada línea se calcula con su precio CON ISV (precioVenta*1.15) y su
-  /// propio descuento, se suman, se aplica el descuento global, y se
-  /// redondea al lempira más cercano (resto >= .90 sube, si no baja).
-  /// Pedido explícito del dueño: "los montos en Ver Perdidas o Ver en
+  /// Precio final (con ISV si aplica, y descuento global aplicados) -mismo
+  /// cálculo EXACTO que CarritoVentaState.totalAPagar (ver
+  /// carrito_provider.dart): cada línea se calcula con su precio (con ISV
+  /// solo si esta venta es Factura o Boleta formal, ver
+  /// CarritoVentaState._aplicaIsv -este negocio no cobra ISV en su venta
+  /// normal-) y su propio descuento, se suman, se aplica el descuento
+  /// global, y se redondea al lempira más cercano (resto >= .90 sube, si no
+  /// baja). Pedido explícito del dueño: "los montos en Ver Perdidas o Ver en
   /// Espera tienen que salir con el precio final, estaban saliendo sin
   /// impuesto" -antes se mostraba [total], que es el subtotal sin ISV-.
   double get totalFinal {
-    var totalConIsv = 0.0;
+    final aplicaIsv = tipoDocumento == 'Factura' || tipoDocumento == 'Boleta';
+    var totalFinal = 0.0;
     for (final i in items) {
-      final precioConIsv = redondearMoneda(i.precioVenta * 1.15);
-      totalConIsv += redondearMoneda(precioConIsv * i.cantidad * (1 - i.descuentoPorcentaje / 100));
+      final precioFinal = aplicaIsv ? redondearMoneda(i.precioVenta * 1.15) : i.precioVenta;
+      totalFinal += redondearMoneda(precioFinal * i.cantidad * (1 - i.descuentoPorcentaje / 100));
     }
-    totalConIsv *= (1 - descuentoGlobal / 100);
-    final base = totalConIsv.floorToDouble();
-    final resto = totalConIsv - base;
+    totalFinal *= (1 - descuentoGlobal / 100);
+    final base = totalFinal.floorToDouble();
+    final resto = totalFinal - base;
     return resto >= 0.90 ? base + 1 : base;
   }
 
