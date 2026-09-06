@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../data/reporte_venta_model.dart';
 import '../../data/reporte_export_service.dart';
 import '../../providers/reportes_provider.dart';
+import '../../../ventas/data/tipos_documento.dart';
 import '../../../../core/utils/texto_utils.dart';
 import '../../../../core/utils/formato_moneda.dart';
 import '../../../../core/utils/exportador.dart';
@@ -57,7 +58,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
   void initState() {
     super.initState();
     final ahora = DateTime.now();
-    _fechaInicio = DateTime(ahora.year, ahora.month, 1);
+    _fechaInicio = DateTime(ahora.year, ahora.month, ahora.day);
     _fechaFin = DateTime(ahora.year, ahora.month, ahora.day);
     _buscar();
   }
@@ -110,7 +111,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
     final ahora = DateTime.now();
     _busquedaController.clear();
     setState(() {
-      _fechaInicio = DateTime(ahora.year, ahora.month, 1);
+      _fechaInicio = DateTime(ahora.year, ahora.month, ahora.day);
       _fechaFin = DateTime(ahora.year, ahora.month, ahora.day);
       _busqueda = '';
       _metodoPagoFiltro = null;
@@ -120,6 +121,67 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
       _usuarioFiltro = null;
     });
     _buscar();
+  }
+
+  // Atajos de rango rápido: tocar uno aplica el rango y dispara la búsqueda
+  // de una vez, sin tener que abrir el selector de fecha dos veces.
+  void _aplicarRango(DateTime inicio, DateTime fin) {
+    setState(() {
+      _fechaInicio = inicio;
+      _fechaFin = fin;
+    });
+    _buscar();
+  }
+
+  List<(String, DateTime, DateTime)> get _rangosRapidos {
+    final hoy = DateTime.now();
+    final hoyDia = DateTime(hoy.year, hoy.month, hoy.day);
+    final ayer = hoyDia.subtract(const Duration(days: 1));
+    final inicioSemana = hoyDia.subtract(const Duration(days: 6));
+    final inicioMes = DateTime(hoy.year, hoy.month, 1);
+    final mesTrimestre = ((hoy.month - 1) ~/ 3) * 3 + 1;
+    final inicioTrimestre = DateTime(hoy.year, mesTrimestre, 1);
+    return [
+      ('Hoy', hoyDia, hoyDia),
+      ('Ayer', ayer, ayer),
+      ('Semana', inicioSemana, hoyDia),
+      ('Mes', inicioMes, hoyDia),
+      ('Trimestre', inicioTrimestre, hoyDia),
+    ];
+  }
+
+  bool _esRangoActivo(DateTime inicio, DateTime fin) {
+    return _fechaInicio.year == inicio.year &&
+        _fechaInicio.month == inicio.month &&
+        _fechaInicio.day == inicio.day &&
+        _fechaFin.year == fin.year &&
+        _fechaFin.month == fin.month &&
+        _fechaFin.day == fin.day;
+  }
+
+  Widget _chipsRangoRapido() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final r in _rangosRapidos)
+          ChoiceChip(
+            label: Text(r.$1, style: GoogleFonts.poppins(fontSize: 12.5)),
+            selected: _esRangoActivo(r.$2, r.$3),
+            onSelected: (_) => _aplicarRango(r.$2, r.$3),
+            selectedColor: const Color(0xFF0F1B3D),
+            labelStyle: GoogleFonts.poppins(
+              fontSize: 12.5,
+              color: _esRangoActivo(r.$2, r.$3)
+                  ? Colors.white
+                  : const Color(0xFF1A1A1A),
+            ),
+            backgroundColor: Colors.white,
+            side: const BorderSide(color: Color(0xFFB6BCC7)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+      ],
+    );
   }
 
   Future<void> _seleccionarFecha(bool esInicio) async {
@@ -229,6 +291,8 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
                   ),
                 ),
                 SliverToBoxAdapter(child: const SizedBox(height: 16)),
+                SliverToBoxAdapter(child: _chipsRangoRapido()),
+                SliverToBoxAdapter(child: const SizedBox(height: 10)),
                 SliverToBoxAdapter(
                   child: Wrap(
                     spacing: 10,
@@ -373,6 +437,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
                           _tipoDocumentoFiltro,
                           _tiposDocumento,
                           (v) => setState(() => _tipoDocumentoFiltro = v),
+                          etiquetaOpcion: (c) => tiposDocumento[c] ?? c,
                         ),
                       ),
                       SizedBox(
@@ -555,8 +620,9 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
     String etiqueta,
     String? valor,
     List<String> opciones,
-    void Function(String?) onChanged,
-  ) {
+    void Function(String?) onChanged, {
+    String Function(String)? etiquetaOpcion,
+  }) {
     return Container(
       height: 46,
       padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -591,7 +657,10 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
             ...opciones.map(
               (o) => DropdownMenuItem<String?>(
                 value: o,
-                child: Text(o, overflow: TextOverflow.ellipsis),
+                child: Text(
+                  etiquetaOpcion != null ? etiquetaOpcion(o) : o,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
           ],
@@ -658,7 +727,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        v.tipoDocumento,
+        tiposDocumento[v.tipoDocumento] ?? v.tipoDocumento,
         style: GoogleFonts.poppins(
           fontSize: 11,
           fontWeight: FontWeight.w600,
