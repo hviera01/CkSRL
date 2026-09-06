@@ -1946,6 +1946,15 @@ declare
   v_fecha_fin timestamptz := (payload->>'fechaFin')::timestamptz;
   v_total_real numeric := (payload->>'totalReal')::numeric;
   v_usuario text := coalesce(payload->>'usuarioResponsable', '');
+  -- El siguiente periodo arranca a las 00:00 del mismo día calendario en
+  -- que se registra el cierre (no en el minuto exacto) -mismo ajuste que
+  -- CierreCajaRepository.registrarCierre en Lopsi (Firestore)-. Se calcula
+  -- en Dart, en hora local del dispositivo, y se manda ya resuelto acá como
+  -- 'siguientePeriodo': calcularlo en el servidor con date_trunc trabajaría
+  -- en UTC y correría el día para negocios en otro huso horario. Si no viene
+  -- (payload viejo, RPC llamado desde otro lado), se cae a fechaFin tal
+  -- cual, el comportamiento previo.
+  v_siguiente_periodo timestamptz := coalesce((payload->>'siguientePeriodo')::timestamptz, v_fecha_fin);
 begin
   insert into cierres_caja (
     fecha_inicio, fecha_fin, monto_inicial, ingresos_efectivo, ingresos_tarjeta, ingresos_transferencia,
@@ -1959,7 +1968,7 @@ begin
     v_usuario, coalesce(payload->>'observaciones', '')
   );
   insert into caja_estado (id, fecha_desde, monto_inicial, usuario_responsable, actualizado_en)
-  values (1, v_fecha_fin, v_total_real, v_usuario, now())
+  values (1, v_siguiente_periodo, v_total_real, v_usuario, now())
   on conflict (id) do update set fecha_desde = excluded.fecha_desde, monto_inicial = excluded.monto_inicial,
     usuario_responsable = excluded.usuario_responsable, actualizado_en = excluded.actualizado_en;
 end;
@@ -2033,6 +2042,15 @@ alter table usuarios add column if not exists acciones_permitidas jsonb not null
 -- ----------------------------------------------------------------------------
 alter table apartados add column if not exists nombre_cliente text not null default '';
 create index if not exists idx_apartados_nombre_cliente on apartados (nombre_cliente);
+
+-- ----------------------------------------------------------------------------
+-- fecha_pago: cuándo se marcó pagada de verdad una cuota -antes no quedaba
+-- registro de fecha alguno, solo el estado-. La escribe registrar_abono_apartado
+-- (ver más abajo) con la MISMA fecha que el usuario eligió para el pago que
+-- la terminó de cubrir (o now() si no mandó ninguna), no con la fecha
+-- programada de la cuota.
+-- ----------------------------------------------------------------------------
+alter table apartado_cuotas add column if not exists fecha_pago date;
 
 -- ----------------------------------------------------------------------------
 -- producto_disponibilidad: cuánto de un producto está físicamente en stock
@@ -2146,15 +2164,33 @@ end;
 $$;
 
 -- ----------------------------------------------------------------------------
--- registrar_abono_apartado: modalidad 'abonos_libres'. A diferencia de
--- venta_credito_abonos/compra_credito_abonos (que confían en un
--- saldoAnterior calculado en Dart, porque ahí sí hay una columna
+-- registrar_abono_apartado: registra un pago sobre CUALQUIER modalidad -antes
+-- solo aceptaba 'abonos_libres' (rechazaba con excepción sobre 'cuotas_fijas',
+-- que forzaba ahí el monto exacto de una sola cuota elegida a mano); ahora el
+-- monto es siempre libre en los dos casos -pedido explícito del dueño: poder
+-- pagar de más o de menos sin que el sistema lo bloquee ni se lo ajuste-.
+-- apartado_abonos queda como el ÚNICO ledger de "cuánto se pagó de verdad"
+-- para las dos modalidades (saldosApartadosProvider y marcar_apartado_entregado
+-- en Dart/acá abajo se apoyan solo en esta tabla, ya no en la suma de
+-- apartado_cuotas.monto_programado): evita que un pago parcial que no alcanza
+-- a cubrir una cuota completa "desaparezca" del saldo mostrado.
+--
+-- A diferencia de venta_credito_abonos/compra_credito_abonos (que confían en
+-- un saldoAnterior calculado en Dart, porque ahí sí hay una columna
 -- saldo_pendiente en la cabecera que Dart ya leyó de un stream reciente),
 -- apartados NO tiene columna de saldo propia -el saldo siempre se deriva de
 -- monto_total/monto_inicial/abonos-, así que acá se recalcula el saldo
 -- anterior DE NUEVO server-side (bloqueando la fila de apartados) en vez de
 -- confiar en lo que mande Dart: evita que dos abonos concurrentes al mismo
 -- apartado lean el mismo "saldo anterior" viejo y ninguno de los dos falle.
+--
+-- Para 'cuotas_fijas', además, el pago se "aplica" contra las cuotas
+-- pendientes en orden (la más antigua primero) hasta agotar el total pagado
+-- hasta ahora: la cuota se marca 'pagada' (con fecha_pago = la misma fecha de
+-- este pago) solo si el acumulado alcanza a cubrirla POR COMPLETO. Lo que
+-- sobra sin alcanzar para la siguiente cuota completa no se pierde -ya quedó
+-- reflejado en el saldo_pendiente de arriba, vía apartado_abonos- y se toma
+-- en cuenta solo hasta que un pago futuro la termine de cubrir.
 -- ----------------------------------------------------------------------------
 create or replace function registrar_abono_apartado(payload jsonb) returns jsonb
 language plpgsql as $$
@@ -2168,6 +2204,9 @@ declare
   v_ya_abonado numeric;
   v_saldo_anterior numeric;
   v_saldo_pendiente numeric;
+  v_fecha timestamptz;
+  v_pagado_hacia_cuotas numeric;
+  cuota record;
 begin
   select monto_total, monto_inicial, estado, modalidad into v_monto_total, v_monto_inicial, v_estado, v_modalidad
     from apartados where id = v_id_apartado for update;
@@ -2175,24 +2214,35 @@ begin
     raise exception 'No se encontró el apartado';
   end if;
   if v_estado <> 'activo' then
-    raise exception 'Este apartado no admite abonos (estado: %)', v_estado;
-  end if;
-  if v_modalidad <> 'abonos_libres' then
-    raise exception 'Este apartado es de cuotas fijas, no de abonos libres';
+    raise exception 'Este apartado no admite pagos (estado: %)', v_estado;
   end if;
   if v_monto_abonado <= 0 then
-    raise exception 'Ingresá un monto de abono válido';
+    raise exception 'Ingresá un monto de pago válido';
   end if;
 
   select coalesce(sum(monto_abonado), 0) into v_ya_abonado from apartado_abonos where id_apartado = v_id_apartado;
   v_saldo_anterior := round(v_monto_total - v_monto_inicial - v_ya_abonado, 2);
   if v_monto_abonado > v_saldo_anterior + 0.01 then
-    raise exception 'El abono (%) supera el saldo pendiente (%)', round(v_monto_abonado, 2), v_saldo_anterior;
+    raise exception 'El pago (%) supera el saldo pendiente (%)', round(v_monto_abonado, 2), v_saldo_anterior;
   end if;
   v_saldo_pendiente := round(greatest(v_saldo_anterior - v_monto_abonado, 0), 2);
+  v_fecha := coalesce(nullif(payload->>'fecha', '')::timestamptz, now());
 
   insert into apartado_abonos (id_apartado, monto_abonado, fecha, saldo_anterior, saldo_pendiente)
-  values (v_id_apartado, round(v_monto_abonado, 2), coalesce(nullif(payload->>'fecha', '')::timestamptz, now()), v_saldo_anterior, v_saldo_pendiente);
+  values (v_id_apartado, round(v_monto_abonado, 2), v_fecha, v_saldo_anterior, v_saldo_pendiente);
+
+  if v_modalidad = 'cuotas_fijas' then
+    v_pagado_hacia_cuotas := round(v_ya_abonado + v_monto_abonado, 2);
+    for cuota in
+      select id, monto_programado from apartado_cuotas
+      where id_apartado = v_id_apartado and estado = 'pendiente'
+      order by numero_cuota asc
+    loop
+      exit when v_pagado_hacia_cuotas + 0.01 < cuota.monto_programado;
+      update apartado_cuotas set estado = 'pagada', fecha_pago = v_fecha::date where id = cuota.id;
+      v_pagado_hacia_cuotas := round(v_pagado_hacia_cuotas - cuota.monto_programado, 2);
+    end loop;
+  end if;
 
   return jsonb_build_object('saldoAnterior', v_saldo_anterior, 'saldoPendiente', v_saldo_pendiente);
 end;
@@ -2205,6 +2255,13 @@ $$;
 -- en que el producto de verdad sale del local. Exige saldo pendiente en 0
 -- -no se puede entregar algo que no se terminó de pagar, es la esencia de
 -- un apartado- y estado 'activo' (no ya entregado/cancelado).
+--
+-- v_ya_pagado sale SIEMPRE de apartado_abonos (ya no de la modalidad): desde
+-- que registrar_abono_apartado acepta pagos libres también en 'cuotas_fijas',
+-- apartado_abonos es el único ledger confiable de "cuánto se pagó de verdad"
+-- para las dos modalidades -sumar apartado_cuotas.monto_programado de las
+-- 'pagada' se quedaría corto si el último pago fue parcial y no alcanzó a
+-- cerrar una cuota completa-.
 -- ----------------------------------------------------------------------------
 create or replace function marcar_apartado_entregado(p_id_apartado uuid, p_usuario text) returns void
 language plpgsql as $$
@@ -2212,7 +2269,6 @@ declare
   v_estado text;
   v_monto_total numeric;
   v_monto_inicial numeric;
-  v_modalidad text;
   v_ya_pagado numeric;
   v_saldo numeric;
   item record;
@@ -2221,7 +2277,7 @@ declare
   v_costo numeric;
   v_stock_nuevo numeric;
 begin
-  select estado, monto_total, monto_inicial, modalidad into v_estado, v_monto_total, v_monto_inicial, v_modalidad
+  select estado, monto_total, monto_inicial into v_estado, v_monto_total, v_monto_inicial
     from apartados where id = p_id_apartado for update;
   if not found then
     raise exception 'No se encontró el apartado';
@@ -2230,11 +2286,7 @@ begin
     raise exception 'Este apartado no está activo (estado: %)', v_estado;
   end if;
 
-  if v_modalidad = 'abonos_libres' then
-    select coalesce(sum(monto_abonado), 0) into v_ya_pagado from apartado_abonos where id_apartado = p_id_apartado;
-  else
-    select coalesce(sum(monto_programado), 0) into v_ya_pagado from apartado_cuotas where id_apartado = p_id_apartado and estado = 'pagada';
-  end if;
+  select coalesce(sum(monto_abonado), 0) into v_ya_pagado from apartado_abonos where id_apartado = p_id_apartado;
   v_saldo := round(v_monto_total - v_monto_inicial - v_ya_pagado, 2);
   if v_saldo > 0.01 then
     raise exception 'Este apartado todavía tiene un saldo pendiente de %', v_saldo;
@@ -2274,3 +2326,20 @@ alter publication supabase_realtime add table compras_en_espera;
 alter publication supabase_realtime add table ventas_en_espera;
 alter publication supabase_realtime add table pendientes_reposicion;
 alter publication supabase_realtime add table producto_lotes_costo;
+
+-- ============================================================================
+-- 2026-09-06 — Cierre de Caja alineado con Lopsi (paridad de comportamiento,
+-- pedido explícito del dueño: "el cierre de caja ponelo tal cual como
+-- funciona en Lopsi").
+--
+-- No hizo falta agregar/quitar ninguna columna: cierres_caja y caja_estado ya
+-- tenían exactamente los mismos campos que el modelo de Lopsi. El único
+-- cambio de esquema fue corregir un bug ya arreglado en Lopsi que acá seguía
+-- presente: registrar_cierre_caja arrancaba el turno siguiente con el
+-- instante exacto de fechaFin en vez de la medianoche de ese día calendario
+-- (ver comentario junto a la función, más arriba en este archivo). El resto
+-- de la paridad -monto inicial editable en la pantalla, rango de
+-- fecha/hora editable con recálculo, modo de impresión directo sin diálogos
+-- (ModoImpresion.directo), ticket con ancho dinámico según la impresora- se
+-- hizo en lib/features/caja/ (Dart), sin tocar más columnas.
+-- ============================================================================

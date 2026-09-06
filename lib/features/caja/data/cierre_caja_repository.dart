@@ -83,10 +83,22 @@ class CierreCajaRepository with ConRedMixin {
   /// este, en una sola operación atómica — ver `registrar_cierre_caja` en
   /// supabase/schema.sql.
   Future<void> registrarCierre(CierreCajaModel cierre) {
+    // El siguiente periodo arranca a las 00:00 del mismo día calendario en
+    // que se registra el cierre (no en el minuto exacto), para que parta de
+    // un día completo en vez de un instante arbitrario del día -mismo
+    // ajuste que CierreCajaRepository.registrarCierre en Lopsi (Firestore)-.
+    // Antes se guardaba fechaFin tal cual: si el cierre se hacía a media
+    // mañana, ese instante exacto (no medianoche) quedaba como inicio del
+    // turno siguiente. Se calcula acá, en hora local del dispositivo (no con
+    // date_trunc en el servidor, que trabaja en UTC y correría el día para
+    // negocios en otro huso horario), y se manda ya resuelto al RPC.
+    final finCierre = cierre.fechaFin;
+    final siguientePeriodo = DateTime(finCierre.year, finCierre.month, finCierre.day);
     return conRed(() => _db.rpc('registrar_cierre_caja', params: {
           'payload': {
             'fechaInicio': cierre.fechaInicio.toIso8601String(),
             'fechaFin': cierre.fechaFin.toIso8601String(),
+            'siguientePeriodo': siguientePeriodo.toIso8601String(),
             'montoInicial': cierre.montoInicial,
             'ingresosEfectivo': cierre.ingresosEfectivo,
             'ingresosTarjeta': cierre.ingresosTarjeta,

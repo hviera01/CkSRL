@@ -12,57 +12,97 @@ class CajaExportService {
   static const _colorGrisTexto = PdfColor.fromInt(0xFF4B4F58);
   static const _colorGrisClaro = PdfColor.fromInt(0xFFF2F3F7);
 
-  Future<Uint8List> generarTicketCierre(CierreCajaModel cierre, NegocioModel negocio) async {
+  // Mismo criterio que venta_export_service._anchoValidoDesdeFormato: si el
+  // `format` que reporta la impresora seleccionada en Windows parece de
+  // rollo térmico (entre 40 y 120mm de ancho) se usa ese ancho real en vez
+  // del fijo de 80mm, para que el ticket no salga pegado a un lado en vez de
+  // centrado.
+  double? _anchoValidoDesdeFormato(PdfPageFormat? formato) {
+    if (formato == null) return null;
+    final anchoMm = formato.width / PdfPageFormat.mm;
+    if (anchoMm < 40 || anchoMm > 120) return null;
+    return anchoMm;
+  }
+
+  Future<Uint8List> generarTicketCierre(CierreCajaModel cierre, NegocioModel negocio, {PdfPageFormat? formatoImpresora}) async {
     final doc = pw.Document();
     final logo = decodificarLogoPdf(negocio.logoBnBase64);
     final formatoFecha = DateFormat('dd/MM/yyyy HH:mm');
+    // Mismo tamaño que el ticket de venta (ver
+    // venta_export_service._construirPaginaTicket).
     const fSmall = 7.5;
     const fNormal = 8.0;
+    final anchoMm = _anchoValidoDesdeFormato(formatoImpresora);
+    final alturaMm = _estimarAlturaTicketCierreMm(cierre, negocio, tieneLogo: logo != null);
+    final anchoPaginaMm = anchoMm ?? 80.0;
 
     doc.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat(80 * PdfPageFormat.mm, double.infinity, marginAll: 10),
+      // pw.MultiPage (no pw.Page con altura infinita fija): con una altura
+      // fija en "infinito" el paquete arma la página mucho más alta que lo
+      // que realmente se imprime y el resultado sale con un bloque de
+      // espacio en blanco enorme arriba del contenido (mismo motivo que
+      // venta_export_service._construirPaginaTicket). Con una altura
+      // estimada según lo que de verdad va a imprimirse (ver
+      // _estimarAlturaTicketCierreMm) el ticket sale ajustado, sin ese hueco.
+      pw.MultiPage(
+        pageFormat: PdfPageFormat(anchoPaginaMm * PdfPageFormat.mm, alturaMm * PdfPageFormat.mm, marginAll: 8 * PdfPageFormat.mm),
         build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              if (logo != null) pw.Center(child: pw.Image(logo, height: 50)),
-              if (negocio.nombre.isNotEmpty)
-                pw.Center(child: pw.Text(negocio.nombre.toUpperCase(), style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold))),
-              pw.SizedBox(height: 6),
+          return [
+            if (logo != null) pw.Center(child: pw.Image(logo, height: 50)),
+            if (negocio.nombre.isNotEmpty)
+              pw.Center(child: pw.Text(negocio.nombre.toUpperCase(), style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold))),
+            pw.SizedBox(height: 6),
+            _separador(),
+            pw.Center(child: pw.Text('CIERRE DE CAJA', style: pw.TextStyle(fontSize: fNormal + 1, fontWeight: pw.FontWeight.bold))),
+            _separador(),
+            pw.Text('Desde: ${formatoFecha.format(cierre.fechaInicio)}', style: const pw.TextStyle(fontSize: fNormal)),
+            pw.Text('Hasta: ${formatoFecha.format(cierre.fechaFin)}', style: const pw.TextStyle(fontSize: fNormal)),
+            pw.Text('Usuario: ${cierre.usuarioResponsable}', style: const pw.TextStyle(fontSize: fNormal)),
+            _separador(),
+            _filaTicket('Monto inicial efectivo:', cierre.montoInicial, fNormal),
+            _filaTicket('Ingreso efectivo:', cierre.ingresosEfectivo, fNormal),
+            _filaTicket('Ingreso tarjeta:', cierre.ingresosTarjeta, fNormal),
+            _filaTicket('Ingreso transferencia:', cierre.ingresosTransferencia, fNormal),
+            _filaTicket('Egreso efectivo:', cierre.egresosEfectivo, fNormal),
+            _filaTicket('Egreso transferencia:', cierre.egresosTransferencia, fNormal),
+            _separador(),
+            _filaTicket('Total efectivo:', cierre.totalCalculadoEfectivo, fNormal, negrita: true),
+            _filaTicket('Total transferencia:', cierre.totalTransferencia, fNormal, negrita: true),
+            _filaTicket('Gran total:', cierre.granTotal, fNormal, negrita: true),
+            _filaTicket('Total real efectivo:', cierre.totalReal, fNormal, negrita: true),
+            _filaTicket('Diferencia:', cierre.diferencia, fNormal, negrita: true),
+            _separador(),
+            if (cierre.observaciones.isNotEmpty) ...[
+              pw.Text('Observaciones:', style: pw.TextStyle(fontSize: fSmall, fontWeight: pw.FontWeight.bold)),
+              pw.Text(cierre.observaciones, style: const pw.TextStyle(fontSize: fSmall)),
               _separador(),
-              pw.Center(child: pw.Text('CIERRE DE CAJA', style: pw.TextStyle(fontSize: fNormal + 1, fontWeight: pw.FontWeight.bold))),
-              _separador(),
-              pw.Text('Desde: ${formatoFecha.format(cierre.fechaInicio)}', style: const pw.TextStyle(fontSize: fNormal)),
-              pw.Text('Hasta: ${formatoFecha.format(cierre.fechaFin)}', style: const pw.TextStyle(fontSize: fNormal)),
-              pw.Text('Usuario: ${cierre.usuarioResponsable}', style: const pw.TextStyle(fontSize: fNormal)),
-              _separador(),
-              _filaTicket('Monto inicial efectivo:', cierre.montoInicial, fNormal),
-              _filaTicket('Ingreso efectivo:', cierre.ingresosEfectivo, fNormal),
-              _filaTicket('Ingreso tarjeta:', cierre.ingresosTarjeta, fNormal),
-              _filaTicket('Ingreso transferencia:', cierre.ingresosTransferencia, fNormal),
-              _filaTicket('Egreso efectivo:', cierre.egresosEfectivo, fNormal),
-              _filaTicket('Egreso transferencia:', cierre.egresosTransferencia, fNormal),
-              _separador(),
-              _filaTicket('Total efectivo:', cierre.totalCalculadoEfectivo, fNormal, negrita: true),
-              _filaTicket('Total transferencia:', cierre.totalTransferencia, fNormal, negrita: true),
-              _filaTicket('Gran total:', cierre.granTotal, fNormal, negrita: true),
-              _filaTicket('Total real efectivo:', cierre.totalReal, fNormal, negrita: true),
-              _filaTicket('Diferencia:', cierre.diferencia, fNormal, negrita: true),
-              _separador(),
-              if (cierre.observaciones.isNotEmpty) ...[
-                pw.Text('Observaciones:', style: pw.TextStyle(fontSize: fSmall, fontWeight: pw.FontWeight.bold)),
-                pw.Text(cierre.observaciones, style: const pw.TextStyle(fontSize: fSmall)),
-                _separador(),
-              ],
-              pw.SizedBox(height: 6),
-              pw.Center(child: pw.Text('REPORTE CIERRE DE CAJA', style: pw.TextStyle(fontSize: fSmall, fontWeight: pw.FontWeight.bold))),
             ],
-          );
+            pw.SizedBox(height: 6),
+            pw.Center(child: pw.Text('REPORTE CIERRE DE CAJA', style: pw.TextStyle(fontSize: fSmall, fontWeight: pw.FontWeight.bold))),
+          ];
         },
       ),
     );
     return doc.save();
+  }
+
+  // Estima cuánto va a ocupar el ticket según lo que realmente se imprime
+  // (mismo criterio que _estimarAlturaTicketMm en venta_export_service):
+  // título, desde/hasta/usuario, los 11 renglones de montos, separadores
+  // entre cada bloque y el pie, más colchón de seguridad. MultiPage no
+  // recorta si la estimación se queda corta (a lo sumo pasa a una segunda
+  // página), así que no hace falta que sea exacta al milímetro.
+  double _estimarAlturaTicketCierreMm(CierreCajaModel cierre, NegocioModel negocio, {required bool tieneLogo}) {
+    double alto = 140.0;
+    if (tieneLogo) alto += 20.0;
+    if (negocio.nombre.isNotEmpty) alto += 7.0;
+    if (cierre.observaciones.isNotEmpty) {
+      alto += 14.0;
+      // Texto libre: a este tamaño de letra entra aprox. una línea nueva
+      // cada 45 caracteres dentro del ancho del ticket (80mm).
+      alto += (cierre.observaciones.length / 45).ceil() * 4.0;
+    }
+    return alto;
   }
 
   Future<Uint8List> generarPdfCierre(CierreCajaModel cierre, NegocioModel negocio) async {
