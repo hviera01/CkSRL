@@ -1,13 +1,9 @@
 ; Instalador de Windows para Ck S de R.L. de C.V., generado con Inno Setup 6.
 ;
-; El .iss original con el que se generaron los instaladores hasta la v28 (de
-; cuando este mismo proyecto todavía se llamaba Super Color) no estaba
-; versionado y se perdió (ver historial del chat). Este es un reemplazo
-; reconstruido a mano, pero con el mismo AppId y carpeta de instalación que
-; la instalación real (sacados del registro de Windows,
-; HKLM\...\Uninstall\{885ED3C7-640C-4A18-ABC1-52482C28F573}_is1, en una PC
-; que ya tenía instalado el nombre viejo) para que las actualizaciones sigan
-; reemplazando en el mismo lugar en vez de crear una instalación duplicada.
+; AppId propio y nuevo: este sistema es de otro negocio (Ck), no una versión
+; más de Super Color, así que NO comparte el AppId de aquel instalador —
+; si lo compartiera, instalar Ck en una PC que ya tiene Super Color
+; reemplazaría esa instalación en vez de convivir con ella.
 ;
 ; Uso: compilar con
 ;   flutter build windows --release
@@ -17,19 +13,19 @@
 ; ActualizacionService y version_app.dart-.
 
 #define MyAppName "Ck S de R.L. de C.V."
-#define MyAppVersion "151"
+#define MyAppVersion "1"
 #define MyAppExeName "ck_srl.exe"
 #define MyReleaseDir "..\..\build\windows\x64\runner\Release"
 
 [Setup]
-AppId={{885ED3C7-640C-4A18-ABC1-52482C28F573}
+AppId={{F76737D1-B87D-4530-9511-385121721CF5}
 AppName={#MyAppName}
 AppVerName={#MyAppName} version {#MyAppVersion}
 AppVersion={#MyAppVersion}
-AppPublisher=My Company, Inc.
-AppPublisherURL=https://www.example.com/
-AppSupportURL=https://www.example.com/
-AppUpdatesURL=https://www.example.com/
+AppPublisher=Ck S de R.L. de C.V.
+AppPublisherURL=https://github.com/hviera01/CkSRL
+AppSupportURL=https://github.com/hviera01/CkSRL
+AppUpdatesURL=https://github.com/hviera01/CkSRL/releases
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
@@ -78,7 +74,7 @@ var
   sVersion: String;
 begin
   Result := 0;
-  if RegQueryStringValue(HKLM64, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{885ED3C7-640C-4A18-ABC1-52482C28F573}_is1', 'DisplayVersion', sVersion) then
+  if RegQueryStringValue(HKLM64, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{F76737D1-B87D-4530-9511-385121721CF5}_is1', 'DisplayVersion', sVersion) then
     Result := StrToIntDef(sVersion, 0);
 end;
 
