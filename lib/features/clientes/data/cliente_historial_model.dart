@@ -1,5 +1,4 @@
 import '../../ventas_credito/data/venta_credito_model.dart';
-import 'cliente_model.dart';
 
 /// Una venta resumida para la lista de "compras recientes" de Detalle de
 /// Cliente: no trae el detalle (líneas) completo, solo lo que se muestra en
@@ -93,16 +92,6 @@ class ClienteHistorialData {
   // vínculo real. Dispara la nota de "puede no ser 100% exacto" en pantalla.
   final bool hayVentasEmparejadasPorNombre;
 
-  // ---- Quién lo refirió ----
-  // null cuando el cliente no tiene idReferidor, o cuando lo tiene pero ese
-  // cliente-referidor ya no existe (se borró el registro) -no debería pasar
-  // en uso normal, pero una lectura fallida no debe romper toda la
-  // pantalla-. Antes apuntaba a un ReferidorModel del módulo aparte
-  // 'referidores'; ese módulo se fusionó dentro de clientes (un referidor
-  // ahora es solo un ClienteModel con esReferidor == true), así que este
-  // campo es un ClienteModel como cualquier otro.
-  final ClienteModel? referidor;
-
   ClienteHistorialData({
     required this.creditos,
     required this.abonosATiempo,
@@ -117,7 +106,6 @@ class ClienteHistorialData {
     required this.productosTop,
     required this.historialColores,
     required this.hayVentasEmparejadasPorNombre,
-    required this.referidor,
   });
 
   bool get hayCreditoVencido => creditos.any((c) => c.vencida);

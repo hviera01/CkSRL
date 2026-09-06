@@ -33,8 +33,6 @@ class ClienteRepository with ConRedMixin {
     required String direccion,
     required String telefono,
     required bool estado,
-    String? idReferidor,
-    bool esReferidor = false,
   }) {
     return conRed(() async {
       if (dni.isNotEmpty) {
@@ -53,8 +51,6 @@ class ClienteRepository with ConRedMixin {
         'direccion': direccion,
         'telefono': telefono,
         'estado': estado,
-        'id_referidor': idReferidor,
-        'es_referidor': esReferidor,
       }).select().single();
       return ClienteModel.fromMap(fila['id'] as String, fila);
     });
@@ -67,8 +63,6 @@ class ClienteRepository with ConRedMixin {
     required String direccion,
     required String telefono,
     required bool estado,
-    String? idReferidor,
-    bool esReferidor = false,
   }) {
     return conRed(() async {
       if (dni.isNotEmpty) {
@@ -87,8 +81,6 @@ class ClienteRepository with ConRedMixin {
         'direccion': direccion,
         'telefono': telefono,
         'estado': estado,
-        'id_referidor': idReferidor,
-        'es_referidor': esReferidor,
       }).eq('id', id);
     });
   }

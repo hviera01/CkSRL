@@ -87,11 +87,10 @@ List<ModuloMenu> obtenerModulos() {
         SubModulo(titulo: 'Proveedores', icono: Icons.local_shipping_outlined, moduleKey: 'proveedores'),
       ],
     ),
-    // El módulo aparte "Referidores" que existió acá se eliminó: el dueño
-    // pidió explícitamente que un referidor sea solo un cliente marcado con
-    // ClienteModel.esReferidor, manejado desde ClientesScreen (que ahora
-    // tiene una vista "Referidores" propia), no una sección de menú
-    // separada.
+    // La función de "referidores" (heredada de Super Color, un negocio de
+    // pinturas donde pintores/contratistas traían clientes) se quitó por
+    // completo a pedido del dueño: no aplica a este negocio, así que no
+    // existe ni como módulo de menú ni como flag dentro de Clientes.
     ModuloMenu(
       titulo: 'Créditos',
       icono: Icons.credit_card_outlined,

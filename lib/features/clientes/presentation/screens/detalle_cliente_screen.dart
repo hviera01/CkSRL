@@ -78,8 +78,6 @@ class _DetalleClienteScreenState extends ConsumerState<DetalleClienteScreen> {
                         const SizedBox(height: 16),
                         _seccionColores(datos),
                         const SizedBox(height: 16),
-                        _seccionReferidor(datos),
-                        const SizedBox(height: 16),
                         _seccionMetodoPago(datos),
                         const SizedBox(height: 24),
                       ],
@@ -415,44 +413,6 @@ class _DetalleClienteScreenState extends ConsumerState<DetalleClienteScreen> {
                         Text('Fact. ${item.numeroDocumento}', style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey.shade500)),
                       ],
                     ),
-                  ),
-              ],
-            ),
-    );
-  }
-
-  // ---------- Quién lo refirió ----------
-  // Un referidor es ahora un ClienteModel más con esReferidor == true (ver
-  // fusión del módulo aparte 'referidores' dentro de clientes), así que
-  // referidor.estado acá es el mismo campo "Activo/Inactivo" de siempre.
-
-  Widget _seccionReferidor(ClienteHistorialData datos) {
-    final referidor = datos.referidor;
-    return _tarjeta(
-      titulo: 'Referido por',
-      icono: Icons.handshake_outlined,
-      child: referidor == null
-          ? Text('Este cliente no tiene un referidor registrado.', style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade500))
-          : Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(referidor.nombreCompleto, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1A1A1A))),
-                      if (referidor.telefono.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(referidor.telefono, style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade600)),
-                        ),
-                    ],
-                  ),
-                ),
-                if (!referidor.estado)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(8)),
-                    child: Text('Inactivo', style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
                   ),
               ],
             ),

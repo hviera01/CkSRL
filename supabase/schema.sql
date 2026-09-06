@@ -127,9 +127,10 @@ create table clientes (
   -- VentaRepository.registrarVenta) — detecta clientes inactivos sin
   -- recorrer todas sus ventas.
   fecha_ultima_compra timestamptz,
-  -- Quién trajo a este cliente (apunta a OTRO cliente con es_referidor=true).
-  id_referidor uuid references clientes (id) on delete set null,
-  es_referidor boolean not null default false,
+  -- Acá vivían id_referidor / es_referidor (la función de "referidores"
+  -- heredada de Super Color, negocio de pinturas donde pintores/contratistas
+  -- traían clientes). Se quitaron a pedido del dueño: no aplica a este
+  -- negocio, y las columnas ya se dropearon en la base real.
   -- Campo interno (no viene de ClienteModel.toMap()): nombre normalizado
   -- (mayúsculas/tildes/espacios colapsados) para que VentaRepository pueda
   -- encontrar un cliente por nombre sin exigir igualdad exacta de string.
@@ -141,8 +142,7 @@ create table clientes (
 create unique index uq_clientes_dni on clientes (dni) where dni <> '';
 create index idx_clientes_nombre_completo on clientes (nombre_completo);
 create index idx_clientes_nombre_normalizado on clientes (nombre_normalizado);
-create index idx_clientes_id_referidor on clientes (id_referidor);
-comment on table clientes is 'Reemplaza la colección clientes. Un "referidor" es solo un cliente con es_referidor=true (el módulo referidores aparte ya se eliminó en el código origen).';
+comment on table clientes is 'Reemplaza la colección clientes.';
 
 -- proveedor_model.dart / proveedor_repository.dart ('proveedores')
 create table proveedores (

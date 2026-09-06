@@ -2,7 +2,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/data/base_repository.dart';
 import 'cliente_model.dart';
 import 'cliente_historial_model.dart';
-import 'cliente_repository.dart';
 import '../../ventas/data/venta_model.dart';
 import '../../ventas/data/item_venta_model.dart';
 import '../../ventas_credito/data/venta_credito_model.dart';
@@ -25,13 +24,11 @@ const _maxProductosTop = 3;
 class ClienteHistorialRepository with ConRedMixin {
   final _db = Supabase.instance.client;
   final _ventaCreditoRepository = VentaCreditoRepository();
-  final _clienteRepository = ClienteRepository();
 
   Future<ClienteHistorialData> obtener(ClienteModel cliente) {
     return conRed(() async {
       final nombre = cliente.nombreCompleto.trim();
       final dni = cliente.dni.trim();
-      final idReferidor = cliente.idReferidor;
 
       // Todo lo que no depende de nada más se dispara junto.
       final ventasPorIdFuture = _db
@@ -54,15 +51,6 @@ class ClienteHistorialRepository with ConRedMixin {
       final creditosPorDniFuture = dni.isEmpty || dni == 'N/A'
           ? null
           : _db.from('ventas_credito').select().eq('documento_cliente', dni);
-      // Quién lo refirió: una sola lectura puntual, no un stream -acá solo
-      // hace falta el nombre/teléfono en el momento de abrir la pantalla-. Un
-      // referidor es ahora un ClienteModel más (con esReferidor == true, ver
-      // fusión del módulo 'referidores' dentro de clientes), así que se
-      // resuelve con ClienteRepository.obtenerPorId igual que cualquier otro
-      // cliente.
-      final referidorFuture = (idReferidor == null || idReferidor.isEmpty)
-          ? null
-          : _clienteRepository.obtenerPorId(idReferidor);
 
       final ventasPorIdFilas = await ventasPorIdFuture;
       final ventasPorNombreFilas = ventasPorNombreFuture == null
@@ -72,7 +60,6 @@ class ClienteHistorialRepository with ConRedMixin {
       final creditosPorDniFilas = creditosPorDniFuture == null
           ? null
           : await creditosPorDniFuture;
-      final referidor = referidorFuture == null ? null : await referidorFuture;
 
       // ---- Ventas: por idCliente (confiable) + respaldo por nombre (ventas
       // viejas, de antes del vínculo real) de-duplicadas por id.
@@ -301,7 +288,6 @@ class ClienteHistorialRepository with ConRedMixin {
         productosTop: productosTop.take(_maxProductosTop).toList(),
         historialColores: historialColores.take(_maxHistorialColores).toList(),
         hayVentasEmparejadasPorNombre: hayEmparejadasPorNombre,
-        referidor: referidor,
       );
     });
   }

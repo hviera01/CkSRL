@@ -10,17 +10,6 @@ class ClienteModel {
   // detectar clientes inactivos sin tener que recorrer todas sus ventas cada
   // vez (Fase 3 del CRM).
   final DateTime? fechaUltimaCompra;
-  // Quién trajo a este cliente (pintor/contratista referidor) -apunta al id
-  // de OTRO ClienteModel con esReferidor == true, ver comentario en ese
-  // campo más abajo-.
-  final String? idReferidor;
-  // true cuando este registro de cliente es, además (o en vez de), un
-  // referidor: alguien (típicamente un pintor/contratista) que trae otros
-  // clientes. A propósito NO es un módulo/colección aparte -el dueño pidió
-  // explícitamente que un referidor sea simplemente un cliente marcado así,
-  // manejado desde la misma pantalla de Clientes, y no una sección
-  // separada (ver antiguo módulo 'referidores', eliminado)-.
-  final bool esReferidor;
 
   ClienteModel({
     required this.id,
@@ -30,8 +19,6 @@ class ClienteModel {
     required this.telefono,
     required this.estado,
     this.fechaUltimaCompra,
-    this.idReferidor,
-    this.esReferidor = false,
   });
 
   factory ClienteModel.fromMap(String id, Map<String, dynamic> data) {
@@ -43,8 +30,6 @@ class ClienteModel {
       telefono: data['telefono'] ?? '',
       estado: data['estado'] ?? true,
       fechaUltimaCompra: data['fecha_ultima_compra'] == null ? null : DateTime.parse(data['fecha_ultima_compra'] as String),
-      idReferidor: data['id_referidor'] as String?,
-      esReferidor: data['es_referidor'] ?? false,
     );
   }
 
@@ -61,8 +46,6 @@ class ClienteModel {
       'telefono': telefono,
       'estado': estado,
       'fecha_ultima_compra': fechaUltimaCompra?.toIso8601String(),
-      'id_referidor': idReferidor,
-      'es_referidor': esReferidor,
     };
   }
 

@@ -29,12 +29,6 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
   bool _activo = true;
   bool _guardando = false;
   String? _error;
-  // Quién refirió a este cliente (otro cliente marcado como esReferidor).
-  // null = "Ninguno" -no todos los clientes tienen uno-.
-  String? _idReferidor;
-  // true cuando este mismo registro es, además, un referidor (pintor/
-  // contratista que trae otros clientes) -ver ClienteModel.esReferidor.
-  bool _esReferidor = false;
 
   @override
   void initState() {
@@ -46,8 +40,6 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
       _direccionController.text = c.direccion;
       _telefonoController.text = c.telefono;
       _activo = c.estado;
-      _idReferidor = c.idReferidor;
-      _esReferidor = c.esReferidor;
     } else if (widget.nombreInicial != null &&
         widget.nombreInicial!.trim().isNotEmpty) {
       _nombreController.text = widget.nombreInicial!.trim();
@@ -82,8 +74,6 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
           direccion: _direccionController.text.trim(),
           telefono: _telefonoController.text.trim(),
           estado: _activo,
-          idReferidor: _idReferidor,
-          esReferidor: _esReferidor,
         );
         // Al crear (a diferencia de editar) se devuelve el cliente nuevo:
         // BuscarClienteDialog lo necesita para vincularlo a la venta en
@@ -101,8 +91,6 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
           direccion: _direccionController.text.trim(),
           telefono: _telefonoController.text.trim(),
           estado: _activo,
-          idReferidor: _idReferidor,
-          esReferidor: _esReferidor,
         );
         if (mounted) Navigator.pop(context);
       }
@@ -165,97 +153,6 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
-      ),
-    );
-  }
-
-  /// "¿Quién lo refirió?": lista chica de clientes marcados como referidor
-  /// (esReferidor == true) -antes salía de un módulo/colección aparte
-  /// (referidores), ahora un referidor es simplemente otro registro de
-  /// 'clientes' con ese flag, así que esta lista se arma filtrando el mismo
-  /// clientesStreamProvider que usa toda la pantalla de Clientes. "Ninguno"
-  /// deja/limpia sin referidor. Un DropdownButtonFormField simple alcanza
-  /// acá -a diferencia de BuscarClienteDialog- porque esta lista es chica,
-  /// no hace falta un diálogo de búsqueda aparte.
-  Widget _selectorReferidor() {
-    final clientesAsync = ref.watch(clientesStreamProvider);
-    return clientesAsync.when(
-      data: (clientes) {
-        // Un cliente no puede ser su propio referidor.
-        final idPropio = widget.cliente?.id;
-        final activos = clientes
-            .where((c) => c.esReferidor && c.estado && c.id != idPropio)
-            .toList();
-        // Si el cliente ya tenía un referidor que ahora está inactivo, ya no
-        // está marcado esReferidor, o ya no existe, igual se muestra en la
-        // lista para no perder de vista a quién estaba asignado -si no, el
-        // dropdown reventaría al no encontrar el value actual entre sus
-        // items-.
-        final idActual = _idReferidor;
-        if (idActual != null && !activos.any((c) => c.id == idActual)) {
-          final referidorActual = clientes
-              .where((c) => c.id == idActual)
-              .toList();
-          if (referidorActual.isNotEmpty) activos.add(referidorActual.first);
-        }
-        return DropdownButtonFormField<String?>(
-          initialValue: _idReferidor,
-          isExpanded: true,
-          decoration: _decoracion('¿Quién lo refirió? (opcional)'),
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            color: const Color(0xFF1A1A1A),
-          ),
-          items: [
-            const DropdownMenuItem<String?>(
-              value: null,
-              child: Text('Ninguno'),
-            ),
-            for (final c in activos)
-              DropdownMenuItem<String?>(
-                value: c.id,
-                child: Text(c.nombreCompleto, overflow: TextOverflow.ellipsis),
-              ),
-          ],
-          onChanged: (v) => setState(() => _idReferidor = v),
-        );
-      },
-      loading: () => const SizedBox(height: 56),
-      error: (e, st) => Text(
-        'No se pudo cargar la lista de referidores',
-        style: GoogleFonts.poppins(fontSize: 11.5, color: Colors.red.shade600),
-      ),
-    );
-  }
-
-  /// "Es referidor": marca este mismo registro de cliente como alguien que
-  /// también trae otros clientes (pintor/contratista) -pedido explícito del
-  /// dueño para que no exista una sección separada, un referidor es
-  /// simplemente un cliente con este flag.
-  Widget _toggleEsReferidor() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE8EAF0),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Es referidor (pintor/contratista que trae clientes)',
-              style: GoogleFonts.poppins(
-                fontSize: 12.5,
-                color: Colors.grey.shade700,
-              ),
-            ),
-          ),
-          Switch(
-            value: _esReferidor,
-            activeThumbColor: const Color(0xFF14B8A6),
-            onChanged: (v) => setState(() => _esReferidor = v),
-          ),
-        ],
       ),
     );
   }
@@ -371,10 +268,6 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
                         decoration: _decoracion('Teléfono (opcional)'),
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    _toggleEsReferidor(),
-                    const SizedBox(height: 14),
-                    _selectorReferidor(),
                     const SizedBox(height: 18),
                     Container(
                       padding: const EdgeInsets.symmetric(
