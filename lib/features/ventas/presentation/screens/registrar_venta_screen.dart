@@ -118,7 +118,30 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
   // las 3 vistas se adapten bien también a celular, en vez de forzar dos
   // columnas angostas ilegibles-.
   String _panelMovilDividida = 'buscar';
+  // Toggle visual "Precio (c/ISV)/(s/ISV)" de la tabla "Productos en la
+  // venta": solo tiene sentido si esta venta de verdad cobra ISV (Factura o
+  // Boleta formal, ver CarritoVentaState._aplicaIsv). El tipo por defecto
+  // ("Venta", ni Factura ni Boleta) NO cobra ISV, así que ahí no hay nada
+  // que alternar: _ventaEsFacturable/_mostrarPrecioConIsv (abajo) fuerzan
+  // que se ignore este campo y se muestre siempre el precio real.
   bool _precioCarritoConIsv = true;
+
+  bool get _ventaEsFacturable {
+    final tipo = ref.read(carritoVentaProvider).tipoDocumento;
+    return tipo == 'Factura' || tipo == 'Boleta';
+  }
+
+  bool get _mostrarPrecioConIsv => _ventaEsFacturable && _precioCarritoConIsv;
+
+  String get _etiquetaColumnaPrecio {
+    if (!_ventaEsFacturable) return 'Precio';
+    return _precioCarritoConIsv ? 'Precio (c/ISV)' : 'Precio (s/ISV)';
+  }
+
+  String get _etiquetaColumnaImporte {
+    if (!_ventaEsFacturable) return 'Importe';
+    return _precioCarritoConIsv ? 'Importe (c/ISV)' : 'Importe (s/ISV)';
+  }
   // Cliente elegido por BuscarClienteDialog (o cargado de una venta
   // duplicada): permite abrir "Completar datos del cliente" sin tener que
   // ir a buscarlo de nuevo. Se limpia apenas el cajero edita a mano el
@@ -571,6 +594,14 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
 
   /// Igual que [_mostrarMensaje] pero con un botón al lado (por ejemplo,
   /// "Ver apartado" después de apartar el carrito).
+  ///
+  /// OJO con `persist`: desde que el SnackBar de Flutter tiene un `action`,
+  /// por default `persist` sale en `true` (se queda pegado para siempre
+  /// hasta que se toque la acción o la X, ignorando `duration` por completo)
+  /// -esto es justo lo que reportó el dueño ("la notificación no se cierra
+  /// sola"): el `duration: 8s` de acá abajo nunca hacía nada porque el solo
+  /// hecho de pasarle `action` ya activaba `persist` sin que nadie lo pidiera.
+  /// Se fuerza `persist: false` para que si de verdad se cierre solo.
   void _mostrarMensajeConAccion(
     String mensaje, {
     required String textoAccion,
@@ -582,6 +613,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
         content: Text(mensaje),
         showCloseIcon: true,
         duration: const Duration(seconds: 8),
+        persist: false,
         action: SnackBarAction(label: textoAccion, onPressed: alTocar),
       ),
     );
@@ -1800,7 +1832,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
       if (index < carrito.items.length) {
         final item = carrito.items[index];
         final precioBase = item.precioVenta;
-        final precioPorCuartoMostrado = _precioCarritoConIsv
+        final precioPorCuartoMostrado = _mostrarPrecioConIsv
             ? redondearMoneda(precioBase * 1.15)
             : precioBase;
         _ctrlPrecio[index]?.text = precioPorCuartoMostrado.toStringAsFixed(2);
@@ -1866,7 +1898,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
   }
 
   double _importeMostrado(dynamic item) =>
-      _precioCarritoConIsv ? _subtotalConIsv(item) : _subtotalSinIsv(item);
+      _mostrarPrecioConIsv ? _subtotalConIsv(item) : _subtotalSinIsv(item);
 
   // ---------- Ventas en espera ----------
 
@@ -6073,6 +6105,10 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
     bool compacto = false,
     VoidCallback? alCambiarExtra,
   }) {
+    // Este toggle solo tiene sentido si esta venta de verdad cobra ISV
+    // (Factura/Boleta formal): en el tipo "Venta" (el default, que no cobra
+    // ISV) no hay nada que alternar, así que se oculta entero.
+    if (!_ventaEsFacturable) return const SizedBox.shrink();
     Widget opcion(String texto, bool valor) {
       final activo = _precioCarritoConIsv == valor;
       return InkWell(
@@ -6419,7 +6455,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
         Expanded(
           flex: 2,
           child: Text(
-            _precioCarritoConIsv ? 'Precio (c/ISV)' : 'Precio (s/ISV)',
+            _etiquetaColumnaPrecio,
             textAlign: TextAlign.center,
             style: estilo,
           ),
@@ -6435,7 +6471,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
         Expanded(
           flex: 2,
           child: Text(
-            _precioCarritoConIsv ? 'Importe (c/ISV)' : 'Importe (s/ISV)',
+            _etiquetaColumnaImporte,
             textAlign: TextAlign.right,
             style: estilo,
           ),
@@ -6745,7 +6781,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
   ) {
     final producto = mapaProductos[item.idProducto as String];
     final precioSinIsv = item.precioVenta as double;
-    final precioPorCuartoMostrado = _precioCarritoConIsv
+    final precioPorCuartoMostrado = _mostrarPrecioConIsv
         ? redondearMoneda(precioSinIsv * 1.15)
         : precioSinIsv;
     final precioMostrado = precioPorCuartoMostrado;
@@ -6806,7 +6842,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                 ctrlPrecio,
                 precioMostrado,
                 (v) {
-                  if (_precioCarritoConIsv) {
+                  if (_mostrarPrecioConIsv) {
                     _actualizarPrecio(index, v);
                   } else {
                     _actualizarPrecioSinIsv(index, v);
@@ -6866,7 +6902,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
   ) {
     final producto = mapaProductos[item.idProducto as String];
     final precioSinIsv = item.precioVenta as double;
-    final precioPorCuartoMostrado = _precioCarritoConIsv
+    final precioPorCuartoMostrado = _mostrarPrecioConIsv
         ? redondearMoneda(precioSinIsv * 1.15)
         : precioSinIsv;
     final precioMostrado = precioPorCuartoMostrado;
@@ -6946,11 +6982,11 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
               Expanded(
                 child: _campoInlineConEtiqueta(
                   'precio_$index',
-                  _precioCarritoConIsv ? 'Precio (c/ISV)' : 'Precio (s/ISV)',
+                  _etiquetaColumnaPrecio,
                   ctrlPrecio,
                   precioMostrado,
                   (v) {
-                    if (_precioCarritoConIsv) {
+                    if (_mostrarPrecioConIsv) {
                       _actualizarPrecio(index, v);
                     } else {
                       _actualizarPrecioSinIsv(index, v);
@@ -6976,7 +7012,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              'Importe (${_precioCarritoConIsv ? 'c/ISV' : 's/ISV'}): ${formatearMoneda(importe)}',
+              '$_etiquetaColumnaImporte: ${formatearMoneda(importe)}',
               style: GoogleFonts.poppins(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w700,

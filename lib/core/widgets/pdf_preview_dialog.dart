@@ -71,6 +71,17 @@ class _PdfPreviewDialogState extends State<PdfPreviewDialog> {
       widget.generarTicketEscPos != null &&
       (widget.nombreImpresoraWindows?.isNotEmpty ?? false);
 
+  // Además del caso ESC/POS por USB de arriba (donde la vista previa en PDF
+  // ya no representa lo que se manda a imprimir), se prefiere la
+  // reproducción del ticket -pedido explícito del dueño- cuando esta PC
+  // todavía NO tiene ninguna impresora térmica configurada (widget.impresora
+  // null, ver negocio.impresoraTermicaUrl): antes en ese caso caía al PDF de
+  // generarPdfFactura, que se ve como una factura formal (bordes de tabla,
+  // logo) en vez de un ticket angosto, aunque la venta no sea facturable.
+  bool get _mostrarVistaPreviaTicket =>
+      widget.vistaPreviaTicket != null &&
+      (_usaEscPosEnWindows || widget.impresora == null);
+
   Future<void> _imprimirDirecto() async {
     final impresora = widget.impresora;
     if (impresora == null) return;
@@ -182,12 +193,12 @@ class _PdfPreviewDialogState extends State<PdfPreviewDialog> {
               ),
             ],
             // Cuando la vista previa de acá abajo es la reproducción del
-            // ticket ESC/POS (no el PDF real, ver _vistaPreviaNativa) se
-            // pierde el ícono de compartir que traía el visor de PDF nativo
-            // -acá ni se muestra-, así que se ofrece un botón aparte por si
-            // igual se quiere mandar la factura en PDF (por ejemplo, por
-            // WhatsApp).
-            if (_usaEscPosEnWindows) ...[
+            // ticket (no el PDF real, ver _vistaPreviaNativa/
+            // _mostrarVistaPreviaTicket) se pierde el ícono de compartir que
+            // traía el visor de PDF nativo -acá ni se muestra-, así que se
+            // ofrece un botón aparte por si igual se quiere mandar la
+            // factura en PDF (por ejemplo, por WhatsApp).
+            if (_mostrarVistaPreviaTicket) ...[
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
@@ -234,10 +245,13 @@ class _PdfPreviewDialogState extends State<PdfPreviewDialog> {
 
   Widget _vistaPreviaNativa() {
     final vistaTicket = widget.vistaPreviaTicket;
-    if (_usaEscPosEnWindows && vistaTicket != null) {
-      // La vía real de impresión acá es ESC/POS crudo, no el PDF (ver
-      // _imprimirDirecto): mostrar el PDF en la vista previa daría una idea
-      // equivocada de qué va a salir. En su lugar se muestra una
+    if (_mostrarVistaPreviaTicket && vistaTicket != null) {
+      // Dos casos (ver _mostrarVistaPreviaTicket): la vía real de impresión
+      // acá es ESC/POS crudo, no el PDF (_usaEscPosEnWindows) -mostrar el
+      // PDF en la vista previa daría una idea equivocada de qué va a
+      // salir-, o esta PC todavía no tiene ninguna impresora térmica
+      // configurada, y el PDF de generarPdfFactura se ve como una factura
+      // formal en vez de un ticket. En ambos se muestra en su lugar una
       // reproducción con widgets normales del mismo contenido/orden que
       // imprime de verdad VentaTicketEscPosService.
       return Expanded(

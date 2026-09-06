@@ -485,6 +485,31 @@ create index idx_venta_items_id_venta on venta_items (id_venta);
 create index idx_venta_items_id_producto on venta_items (id_producto);
 comment on table venta_items is 'Detalle de ventas (antes subcolección ventas/{id}/detalle).';
 
+-- Sin *_model.dart propio (soporte interno de anular_venta): registro de qué
+-- lote(s) de producto_lotes_costo cubrió el costeo FIFO de cada venta -por
+-- producto real, agrupado igual que calcular_cantidades_descuento, nunca
+-- por línea/combo suelto- y cuánto se tomó de cada uno (ver
+-- consumir_fifo_lotes). Antes esto no se guardaba en ningún lado, así que
+-- anular una venta no tenía forma de saber a qué lote devolverle la
+-- cantidad y en su lugar creaba SIEMPRE un lote nuevo 'ajuste' al costo
+-- promedio ponderado (ver el comentario grande de anular_venta más abajo).
+-- [revertido] evita devolver dos veces si algo raro llama a esto fuera del
+-- flujo normal de anular_venta (esa función además ya rechaza anular una
+-- venta que ya está en estado 'Anulada').
+create table venta_consumo_lotes (
+  id uuid primary key default gen_random_uuid(),
+  id_venta uuid not null references ventas (id) on delete cascade,
+  id_producto uuid not null references productos (id) on delete cascade,
+  id_lote uuid not null references producto_lotes_costo (id) on delete cascade,
+  cantidad numeric(14, 3) not null,
+  fecha timestamptz not null default now(),
+  revertido boolean not null default false
+);
+create index idx_venta_consumo_lotes_id_venta on venta_consumo_lotes (id_venta);
+create index idx_venta_consumo_lotes_id_producto on venta_consumo_lotes (id_producto);
+create index idx_venta_consumo_lotes_id_lote on venta_consumo_lotes (id_lote);
+comment on table venta_consumo_lotes is 'Detalle de consumo FIFO por venta: qué lote(s) de producto_lotes_costo cubrieron cada producto vendido y cuánto -para poder devolver la cantidad al lote original al anular en vez de crear uno nuevo, ver anular_venta-.';
+
 -- historial_venta_producto_model.dart — subcolección 'historialVentas'.
 create table producto_historial_ventas (
   id uuid primary key default gen_random_uuid(),
@@ -850,7 +875,7 @@ begin
       'producto_lotes_costo', 'producto_historial_precios_compra', 'producto_historial_stock',
       'producto_historial_ventas', 'pendientes_reposicion',
       'compras', 'compra_items', 'compras_en_espera', 'compras_credito', 'compra_credito_abonos',
-      'ventas', 'venta_items', 'ventas_en_espera', 'ventas_credito', 'venta_credito_abonos',
+      'ventas', 'venta_items', 'venta_consumo_lotes', 'ventas_en_espera', 'ventas_credito', 'venta_credito_abonos',
       'egresos', 'promociones', 'promocion_productos', 'dispositivos',
       'cierres_caja', 'caja_estado',
       'apartados', 'apartado_items', 'apartado_cuotas', 'apartado_abonos'
@@ -953,8 +978,14 @@ $$;
 -- producto no consuman el mismo lote dos veces. Devuelve el costo unitario
 -- promedio ponderado de lo consumido (usa p_costo_fallback para lo que no
 -- alcance a cubrir ningún lote).
+-- [p_id_venta] es opcional (solo lo manda registrar_venta): cuando se manda,
+-- deja un registro en venta_consumo_lotes de qué lote(s) se tocaron y cuánto
+-- -para que anular_venta pueda devolver la cantidad al lote ORIGINAL en vez
+-- de crear uno nuevo-. Los demás llamadores (registrar_salida_stock) no
+-- mandan nada y quedan exactamente igual que antes: esa salida no se anula
+-- por este mecanismo.
 -- ----------------------------------------------------------------------------
-create or replace function consumir_fifo_lotes(p_id_producto uuid, p_cantidad numeric, p_costo_fallback numeric)
+create or replace function consumir_fifo_lotes(p_id_producto uuid, p_cantidad numeric, p_costo_fallback numeric, p_id_venta uuid default null)
 returns numeric
 language plpgsql as $$
 declare
@@ -976,6 +1007,10 @@ begin
     exit when v_restante <= 0;
     v_consumido := least(lote.cantidad_restante, v_restante);
     update producto_lotes_costo set cantidad_restante = cantidad_restante - v_consumido where id = lote.id;
+    if p_id_venta is not null then
+      insert into venta_consumo_lotes (id_venta, id_producto, id_lote, cantidad)
+      values (p_id_venta, p_id_producto, lote.id, v_consumido);
+    end if;
     v_costo_total := v_costo_total + v_consumido * lote.costo_unitario;
     v_restante := v_restante - v_consumido;
   end loop;
@@ -1192,7 +1227,7 @@ begin
   for v_id_producto_txt in select jsonb_object_keys(v_cantidades) loop
     v_cantidad := (v_cantidades->>v_id_producto_txt)::numeric;
     select stock, precio_compra into v_stock_actual, v_precio_compra from productos where id = v_id_producto_txt::uuid for update;
-    v_costo := consumir_fifo_lotes(v_id_producto_txt::uuid, v_cantidad, coalesce(v_precio_compra, 0));
+    v_costo := consumir_fifo_lotes(v_id_producto_txt::uuid, v_cantidad, coalesce(v_precio_compra, 0), v_id_venta);
     v_costo_por_producto := jsonb_set(v_costo_por_producto, array[v_id_producto_txt], to_jsonb(v_costo));
     v_stock_nuevo := greatest(coalesce(v_stock_actual, 0) - v_cantidad, 0);
     update productos set stock = v_stock_nuevo where id = v_id_producto_txt::uuid;
@@ -1261,8 +1296,11 @@ end;
 $$;
 
 -- ----------------------------------------------------------------------------
--- anular_venta: repone stock (agrupado por producto único), crea un lote de
--- ajuste al costo promedio ponderado repuesto, cancela pendientes de
+-- anular_venta: repone stock (agrupado por producto único), devuelve la
+-- cantidad al/los lote(s) ORIGINAL(es) de los que salió al vender (ver
+-- venta_consumo_lotes/consumir_fifo_lotes) -pedido explícito del dueño: antes
+-- creaba SIEMPRE un lote nuevo 'ajuste' al costo promedio ponderado, sin
+-- relación con el lote real del que había salido-, cancela pendientes de
 -- reposición abiertas de esta venta, y borra el crédito asociado si no tiene
 -- abonos (si tiene, rechaza igual que la versión Dart).
 -- ----------------------------------------------------------------------------
@@ -1287,6 +1325,9 @@ declare
   v_stock_actual numeric;
   v_stock_nuevo numeric;
   v_costo_promedio numeric;
+  v_consumo record;
+  v_cantidad_restaurada numeric;
+  v_cantidad_faltante numeric;
 begin
   select estado, condicion, numero_documento into v_estado, v_condicion, v_numero_documento from ventas where id = p_id for update;
   if not found then
@@ -1346,8 +1387,39 @@ begin
     update productos set stock = v_stock_nuevo where id = v_id_producto_txt::uuid;
     insert into producto_historial_stock (id_producto, stock_anterior, stock_nuevo, usuario, motivo, fecha)
     values (v_id_producto_txt::uuid, coalesce(v_stock_actual, 0), v_stock_nuevo, p_usuario, 'Anulación de venta ' || v_numero_documento, now());
-    insert into producto_lotes_costo (id_producto, cantidad_original, cantidad_restante, costo_unitario, fecha, origen)
-    values (v_id_producto_txt::uuid, v_cantidad_total, v_cantidad_total, v_costo_promedio, now(), 'ajuste');
+
+    -- Devolver al/los lote(s) ORIGINAL(es) de los que salió (ver
+    -- venta_consumo_lotes), no crear uno nuevo. least(...) es solo un
+    -- resguardo (no debería pasar en el flujo normal) para no dejar un lote
+    -- con más cantidad_restante que su cantidad_original si algo más ya lo
+    -- había tocado. Se marca revertido=true, no se borra, para conservar el
+    -- historial de qué se consumió/devolvió.
+    v_cantidad_restaurada := 0;
+    for v_consumo in
+      select id_lote, cantidad from venta_consumo_lotes
+      where id_venta = p_id and id_producto = v_id_producto_txt::uuid and not revertido
+      for update
+    loop
+      update producto_lotes_costo
+        set cantidad_restante = least(cantidad_restante + v_consumo.cantidad, cantidad_original)
+        where id = v_consumo.id_lote;
+      v_cantidad_restaurada := v_cantidad_restaurada + v_consumo.cantidad;
+    end loop;
+    update venta_consumo_lotes set revertido = true
+      where id_venta = p_id and id_producto = v_id_producto_txt::uuid and not revertido;
+
+    -- Lo que no se pudo cubrir con ningún lote real registrado -ventas de
+    -- antes de este mecanismo (sin filas en venta_consumo_lotes), o la parte
+    -- que al vender ya había excedido todos los lotes existentes y se costeó
+    -- con el fallback (ver consumir_fifo_lotes)- cae, como antes, a un lote
+    -- 'ajuste' nuevo al costo promedio ponderado, pero solo por la cantidad
+    -- que de verdad falte, no por el total.
+    v_cantidad_faltante := round(v_cantidad_total - v_cantidad_restaurada, 3);
+    if v_cantidad_faltante > 0 then
+      insert into producto_lotes_costo (id_producto, cantidad_original, cantidad_restante, costo_unitario, fecha, origen)
+      values (v_id_producto_txt::uuid, v_cantidad_faltante, v_cantidad_faltante, v_costo_promedio, now(), 'ajuste');
+    end if;
+
     perform sincronizar_precio_compra_activo(v_id_producto_txt::uuid);
   end loop;
 end;
