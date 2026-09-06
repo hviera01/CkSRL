@@ -11,6 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Supabase REST API
+        # Se consulta una tabla real (una fila, una columna): la raíz
+        # /rest/v1/ responde 401 solo con la apikey, así que no sirve como
+        # ping y hacía fallar el workflow sin que nadie se enterara.
         run: |
           curl -sf -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/" -o /dev/null
+            "${{ secrets.SUPABASE_URL }}/rest/v1/negocio_config?select=id&limit=1" -o /dev/null
