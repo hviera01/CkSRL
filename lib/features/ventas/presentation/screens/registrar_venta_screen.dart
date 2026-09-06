@@ -24,6 +24,9 @@ import '../../../clientes/data/cliente_model.dart';
 import '../../../clientes/providers/clientes_provider.dart';
 import '../../../clientes/presentation/widgets/cliente_form_dialog.dart';
 import '../../../ventas_credito/providers/ventas_credito_provider.dart';
+import '../../../apartados/data/apartado_repository.dart';
+import '../../../apartados/presentation/screens/detalle_apartado_screen.dart';
+import '../../../apartados/presentation/widgets/apartar_carrito_dialog.dart';
 import '../../../negocio/providers/negocio_provider.dart';
 import '../../../negocio/data/negocio_model.dart';
 import '../../../negocio/presentation/widgets/acceso_especial.dart';
@@ -564,6 +567,24 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(mensaje), showCloseIcon: true));
+  }
+
+  /// Igual que [_mostrarMensaje] pero con un botón al lado (por ejemplo,
+  /// "Ver apartado" después de apartar el carrito).
+  void _mostrarMensajeConAccion(
+    String mensaje, {
+    required String textoAccion,
+    required VoidCallback alTocar,
+  }) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        showCloseIcon: true,
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(label: textoAccion, onPressed: alTocar),
+      ),
+    );
   }
 
   Future<bool> _confirmarDialogo(String titulo, String mensaje) async {
@@ -2188,6 +2209,116 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
     _limpiarTodo();
   }
 
+  // ---------- Apartar (crear un apartado con el carrito armado) ----------
+
+  /// El carrito, tal cual está, traducido a líneas de apartado -pedido
+  /// explícito del dueño: poder apartar armando el carrito acá, sin volver a
+  /// elegir los productos uno por uno en la pantalla de Apartados-.
+  ///
+  /// Se toma el precio NETO de cada línea (el subtotal, que ya trae el
+  /// descuento de línea) y se le aplica también el descuento global, para
+  /// que el monto total del apartado coincida con lo que muestra el carrito
+  /// como Subtotal. El ISV no entra: un apartado no es un documento fiscal
+  /// -no se emite factura ni se consume correlativo al crearlo-, es una
+  /// reserva; lo que se cobra es el precio de los productos.
+  List<NuevoItemApartado> _itemsCarritoParaApartado(CarritoVentaState carrito) {
+    final factorGlobal = 1 - carrito.descuentoGlobalPorcentaje / 100;
+    final items = <NuevoItemApartado>[];
+    for (final item in carrito.items) {
+      if (item.cantidad <= 0) continue;
+      final neto = redondearMoneda(item.subtotal * factorGlobal);
+      items.add(
+        NuevoItemApartado(
+          idProducto: item.idProducto.isEmpty ? null : item.idProducto,
+          nombreProducto: item.nombreProducto,
+          cantidad: item.cantidad,
+          precioUnitario: redondearMoneda(neto / item.cantidad),
+        ),
+      );
+    }
+    return items;
+  }
+
+  /// Crea un apartado con los productos del carrito. NO registra una venta:
+  /// no consume número de documento, no descuenta existencia física (eso
+  /// pasa recién al marcar el apartado como entregado, ver
+  /// `marcar_apartado_entregado`) y no imprime ticket. Usa el mismo
+  /// repositorio (y por lo tanto la misma función `crear_apartado`) que la
+  /// pantalla de Apartados: no hay una segunda ruta de creación.
+  Future<void> _apartarCarrito() async {
+    final carrito = ref.read(carritoVentaProvider);
+    if (carrito.items.isEmpty) {
+      _mostrarMensaje('Debe ingresar productos para apartar');
+      return;
+    }
+    final items = _itemsCarritoParaApartado(carrito);
+    if (items.isEmpty) {
+      _mostrarMensaje('Debe ingresar productos para apartar');
+      return;
+    }
+    final idApartado = await showDialog<String>(
+      useRootNavigator: false,
+      context: context,
+      builder: (context) => ApartarCarritoDialog(
+        items: items,
+        nombreClienteInicial: _nombreClienteController.text.trim(),
+        idClienteInicial: carrito.idCliente,
+      ),
+    );
+    if (idApartado == null || !mounted) return;
+    // Mismo cierre que una venta confirmada: la pestaña queda limpia y lista
+    // para lo próximo, con el check verde de siempre.
+    _limpiarTodo();
+    mostrarExitoTransaccion(context, mensaje: 'Apartado creado correctamente');
+    _mostrarMensajeConAccion(
+      'Apartado creado. Los productos quedan reservados hasta que se termine de pagar.',
+      textoAccion: 'Ver apartado',
+      alTocar: () => _abrirDetalleApartado(idApartado),
+    );
+  }
+
+  /// Botón "Apartar", al lado del de confirmar la venta. Va como acción
+  /// aparte -y no como una opción más junto a Contado/Crédito- justamente
+  /// porque un apartado NO es una venta: no registra venta, no consume
+  /// correlativo, no descuenta existencia física y no imprime ticket.
+  Widget _botonApartar({
+    required EdgeInsetsGeometry padding,
+    double fuente = 13,
+    double? alto,
+  }) {
+    final boton = OutlinedButton.icon(
+      onPressed: _guardando ? null : _apartarCarrito,
+      icon: const Icon(Icons.bookmark_add_outlined, size: 17),
+      label: Text(
+        'Apartar',
+        style: GoogleFonts.poppins(
+          fontSize: fuente,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: const Color(0xFF0F1B3D),
+        backgroundColor: Colors.white,
+        side: const BorderSide(color: Color(0xFF0F1B3D)),
+        padding: padding,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+    return alto == null ? boton : SizedBox(height: alto, child: boton);
+  }
+
+  void _abrirDetalleApartado(String idApartado) {
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (context) => DetalleApartadoScreen(idApartado: idApartado),
+      ),
+    );
+  }
+
   // ---------- Confirmar venta ----------
 
   String get _textoBoton {
@@ -3599,6 +3730,9 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
             case 'usuario':
               _cambiarUsuarioVenta();
               break;
+            case 'apartar':
+              _apartarCarrito();
+              break;
             case 'limpiar':
               _confirmarLimpiar();
               break;
@@ -3623,6 +3757,10 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
           PopupMenuItem(
             value: 'usuario',
             child: item(Icons.person_outline, 'Cambiar usuario'),
+          ),
+          PopupMenuItem(
+            value: 'apartar',
+            child: item(Icons.bookmark_add_outlined, 'Apartar productos'),
           ),
           const PopupMenuDivider(),
           PopupMenuItem(
@@ -6220,6 +6358,12 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
             ),
             const SizedBox(width: 14),
           ],
+          _botonApartar(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            fuente: 12,
+            alto: 38,
+          ),
+          const SizedBox(width: 8),
           SizedBox(
             height: 38,
             child: FilledButton(
@@ -6906,35 +7050,46 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _guardando ? null : _confirmarVenta,
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF1A1A1A),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+          Row(
+            children: [
+              _botonApartar(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 16,
+                ),
+                fuente: 14,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _guardando ? null : _confirmarVenta,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF1A1A1A),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _guardando
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.2,
+                          ),
+                        )
+                      : Text(
+                          _textoBoton,
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
-              child: _guardando
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2.2,
-                      ),
-                    )
-                  : Text(
-                      _textoBoton,
-                      style: GoogleFonts.poppins(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-            ),
+            ],
           ),
         ],
       ),
