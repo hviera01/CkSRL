@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import '../../data/apartado_model.dart';
 import '../../data/apartado_cuota_model.dart';
 import '../../providers/apartados_provider.dart';
 import '../../../auth/providers/auth_provider.dart';
@@ -169,12 +170,14 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  _tarjetaProgreso(apartado, saldoPendiente),
+                                  const SizedBox(height: 14),
                                   _tarjetaResumen(apartado, saldoPendiente, formatoFecha),
                                   const SizedBox(height: 14),
                                   _tarjetaItems(itemsAsync),
                                   const SizedBox(height: 14),
                                   if (apartado.esCuotasFijas)
-                                    _tarjetaCuotas(cuotasAsync.value ?? [], formatoFecha)
+                                    _tarjetaCuotas(apartado, cuotasAsync.value ?? [], formatoFecha)
                                   else
                                     _tarjetaAbonos(abonosAsync.value ?? [], formatoFecha),
                                   if (_error != null) ...[
@@ -265,6 +268,41 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
     );
   }
 
+  /// Barra de progreso general (pagado / monto total) -pedido explícito del
+  /// dueño, arriba de todo el detalle-.
+  Widget _tarjetaProgreso(ApartadoModel apartado, double saldoPendiente) {
+    final montoPagado = apartado.montoTotal - saldoPendiente;
+    final progreso = apartado.montoTotal <= 0 ? 0.0 : (montoPagado / apartado.montoTotal).clamp(0, 1).toDouble();
+    return _tarjeta(
+      titulo: 'Progreso de pago',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('${(progreso * 100).toStringAsFixed(0)}% pagado', style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              const Spacer(),
+              Text(
+                '${formatearMoneda(montoPagado)} de ${formatearMoneda(apartado.montoTotal)}',
+                style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: const Color(0xFF1A1A1A)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progreso,
+              minHeight: 12,
+              backgroundColor: const Color(0xFFE8EAF0),
+              valueColor: const AlwaysStoppedAnimation(Color(0xFF16A34A)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _tarjetaResumen(dynamic apartado, double saldoPendiente, DateFormat formatoFecha) {
     return _tarjeta(
       titulo: 'Resumen',
@@ -329,7 +367,16 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
     );
   }
 
-  Widget _tarjetaCuotas(List<ApartadoCuotaModel> cuotas, DateFormat formatoFecha) {
+  /// [apartado] solo se usa para el "saldo pendiente PROGRAMADO" de cada
+  /// fila -saldo a financiar (montoTotal - montoInicial) menos la suma de
+  /// las cuotas hasta esa fila inclusive, tal como quedaron programadas al
+  /// crear el apartado-: no es necesariamente el saldo real en cada
+  /// instante (un pago libre puede cubrir cuotas fuera de orden estricto o
+  /// dejar una a medio cubrir, ver registrar_abono_apartado), pero sí sirve
+  /// para ver de un vistazo cuánto debería quedar si el pago va al día.
+  Widget _tarjetaCuotas(ApartadoModel apartado, List<ApartadoCuotaModel> cuotas, DateFormat formatoFecha) {
+    final saldoAFinanciar = apartado.montoTotal - apartado.montoInicial;
+    var acumulado = 0.0;
     return _tarjeta(
       titulo: 'Cuotas programadas',
       child: cuotas.isEmpty
@@ -338,17 +385,33 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
               children: [
                 for (var i = 0; i < cuotas.length; i++) ...[
                   if (i > 0) Divider(height: 1, color: Colors.grey.shade200),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Row(
-                      children: [
-                        Expanded(child: Text('Cuota ${cuotas[i].numeroCuota}', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600))),
-                        Expanded(child: Text(formatoFecha.format(cuotas[i].fechaProgramada), style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade600))),
-                        Expanded(child: Text(formatearMoneda(cuotas[i].montoProgramado), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700))),
-                        _chipCuotaEstado(cuotas[i]),
-                      ],
-                    ),
-                  ),
+                  Builder(builder: (context) {
+                    acumulado += cuotas[i].montoProgramado;
+                    final saldoProgramado = (saldoAFinanciar - acumulado).clamp(0, saldoAFinanciar).toDouble();
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: Text('Cuota ${cuotas[i].numeroCuota}', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              cuotas[i].pagada && cuotas[i].fechaPago != null
+                                  ? 'Pagada ${formatoFecha.format(cuotas[i].fechaPago!)}'
+                                  : 'Vence ${formatoFecha.format(cuotas[i].fechaProgramada)}',
+                              style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade600),
+                            ),
+                          ),
+                          Expanded(child: Text(formatearMoneda(cuotas[i].montoProgramado), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700))),
+                          Expanded(child: Text(formatearMoneda(saldoProgramado), style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade500))),
+                          _chipCuotaEstado(cuotas[i]),
+                        ],
+                      ),
+                    );
+                  }),
                 ],
               ],
             ),

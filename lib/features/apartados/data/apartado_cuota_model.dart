@@ -12,6 +12,10 @@ class ApartadoCuotaModel {
   // así que la UI calcula "vencida" a partir de [pendiente] + [fechaProgramada]
   // (ver [vencida] abajo) en vez de confiar ciegamente en este texto.
   final String estado;
+  // Cuándo se terminó de cubrir de verdad -la escribe registrar_abono_apartado
+  // con la misma fecha que el pago que la cerró-, no confundir con
+  // [fechaProgramada] (la fecha límite original). Null mientras esté pendiente.
+  final DateTime? fechaPago;
 
   ApartadoCuotaModel({
     required this.id,
@@ -20,6 +24,7 @@ class ApartadoCuotaModel {
     required this.montoProgramado,
     required this.fechaProgramada,
     required this.estado,
+    this.fechaPago,
   });
 
   bool get pagada => estado == 'pagada';
@@ -34,6 +39,7 @@ class ApartadoCuotaModel {
       montoProgramado: (data['monto_programado'] ?? 0).toDouble(),
       fechaProgramada: DateTime.parse(data['fecha_programada'] as String),
       estado: data['estado'] ?? 'pendiente',
+      fechaPago: data['fecha_pago'] == null ? null : DateTime.parse(data['fecha_pago'] as String),
     );
   }
 }

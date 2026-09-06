@@ -87,30 +87,31 @@ final apartadosActivosPorProductoProvider = Provider.family<List<ApartadoConCant
 });
 
 /// Saldo pendiente de CADA apartado (monto_total - monto_inicial - lo ya
-/// pagado, según abonos libres o cuotas pagadas) -calculado acá, en vez de
-/// guardado en la tabla `apartados` (que a propósito no tiene columna de
-/// saldo, ver comentario en supabase/schema.sql), para que el listado
-/// (ApartadosScreen) muestre el saldo de todos sin abrir el detalle de cada
-/// uno.
+/// pagado) -calculado acá, en vez de guardado en la tabla `apartados` (que a
+/// propósito no tiene columna de saldo, ver comentario en
+/// supabase/schema.sql), para que el listado (ApartadosScreen) muestre el
+/// saldo de todos sin abrir el detalle de cada uno.
+///
+/// "Lo ya pagado" sale SIEMPRE de `apartado_abonos`, para las dos
+/// modalidades -desde que `registrar_abono_apartado` acepta pagos libres
+/// también en 'cuotas_fijas' (ver ese comentario en supabase/schema.sql),
+/// apartado_abonos es el único ledger confiable-. Sumar
+/// apartado_cuotas.monto_programado de las 'pagada' (como se hacía antes acá)
+/// se quedaría corto apenas un pago parcial no alcance a cerrar una cuota
+/// completa: quedaría reflejado en la fila del abono pero desaparecido del
+/// saldo mostrado.
 final saldosApartadosProvider = Provider<Map<String, double>>((ref) {
   final apartados = ref.watch(apartadosStreamProvider).value ?? const <ApartadoModel>[];
   final abonos = ref.watch(todosLosApartadoAbonosProvider).value ?? const <ApartadoAbonoModel>[];
-  final cuotas = ref.watch(todasLasApartadoCuotasProvider).value ?? const <ApartadoCuotaModel>[];
 
   final abonadoPorApartado = <String, double>{};
   for (final a in abonos) {
     abonadoPorApartado[a.idApartado] = (abonadoPorApartado[a.idApartado] ?? 0) + a.montoAbonado;
   }
-  final pagadoPorCuotasPorApartado = <String, double>{};
-  for (final c in cuotas) {
-    if (!c.pagada) continue;
-    pagadoPorCuotasPorApartado[c.idApartado] = (pagadoPorCuotasPorApartado[c.idApartado] ?? 0) + c.montoProgramado;
-  }
 
   final mapa = <String, double>{};
   for (final a in apartados) {
-    final pagado = a.montoInicial +
-        (a.esCuotasFijas ? (pagadoPorCuotasPorApartado[a.id] ?? 0) : (abonadoPorApartado[a.id] ?? 0));
+    final pagado = a.montoInicial + (abonadoPorApartado[a.id] ?? 0);
     final saldo = a.montoTotal - pagado;
     mapa[a.id] = saldo < 0 ? 0 : saldo;
   }

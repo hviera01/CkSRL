@@ -178,8 +178,17 @@ class ApartadoRepository with ConRedMixin {
     });
   }
 
-  /// Registra un abono libre (modalidad 'abonos_libres') -el saldo anterior
-  /// se recalcula server-side, ver `registrar_abono_apartado`-.
+  /// Registra un pago sobre un apartado activo -de CUALQUIER modalidad,
+  /// abonos_libres o cuotas_fijas- por el monto que el usuario haya
+  /// tipeado (nunca forzado a coincidir con el monto exacto de una cuota):
+  /// el saldo anterior se recalcula server-side, ver
+  /// `registrar_abono_apartado`, que además -si la modalidad es
+  /// cuotas_fijas- aplica el pago contra la(s) cuota(s) pendiente(s) más
+  /// antigua(s) hasta agotar el monto, marcando pagada solo la que
+  /// efectivamente cubre por completo (ver el comentario grande de esa
+  /// función en supabase/schema.sql). [fecha] es la fecha que el usuario
+  /// eligió para el registro (hoy por defecto, pero editable), no
+  /// necesariamente el instante en que se guardó.
   Future<void> registrarAbono({required String idApartado, required double montoAbonado, DateTime? fecha}) {
     return conRed(() async {
       try {
@@ -192,25 +201,6 @@ class ApartadoRepository with ConRedMixin {
         });
       } on PostgrestException catch (e) {
         throw Exception(e.message);
-      }
-    });
-  }
-
-  /// Marca una cuota (modalidad 'cuotas_fijas') como pagada -un solo UPDATE
-  /// condicionado (id_apartado + numero_cuota + estado='pendiente'), no hace
-  /// falta una función plpgsql para esto: es una sola escritura atómica de
-  /// por sí-.
-  Future<void> registrarCuotaPagada({required String idApartado, required int numeroCuota}) {
-    return conRed(() async {
-      final actualizadas = await _db
-          .from('apartado_cuotas')
-          .update({'estado': 'pagada'})
-          .eq('id_apartado', idApartado)
-          .eq('numero_cuota', numeroCuota)
-          .eq('estado', 'pendiente')
-          .select('id');
-      if (actualizadas.isEmpty) {
-        throw Exception('Esa cuota ya no está pendiente (puede que otra pestaña ya la haya marcado)');
       }
     });
   }

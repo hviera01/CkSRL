@@ -9,11 +9,15 @@ import '../../../../core/utils/formato_moneda.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
 
-/// Registra un pago sobre un apartado activo: según [apartado.modalidad],
-/// deja elegir UNA cuota pendiente para marcarla pagada (cuotas_fijas) o
-/// tipear un monto de abono libre (abonos_libres) -mismo espíritu que
-/// RegistrarAbonoDialog de Ventas a Crédito, pero con las dos modalidades
-/// resueltas en un solo diálogo porque comparten cabecera/estilo-.
+/// Registra un pago sobre un apartado activo -de CUALQUIER modalidad-: el
+/// monto es SIEMPRE libre (igual que ya era en abonos_libres; antes, en
+/// cuotas_fijas, obligaba a elegir una cuota y pagaba su monto exacto, sin
+/// dejar pagar de más ni de menos -pedido explícito del dueño: que el monto
+/// se pueda escribir siempre a mano-). Si la modalidad es cuotas_fijas, acá
+/// solo se MUESTRA -de forma informativa, ya no seleccionable- cuál es la
+/// próxima cuota pendiente: qué cuota(s) quedan cubiertas de verdad lo
+/// decide el servidor (`registrar_abono_apartado`, ver supabase/schema.sql),
+/// aplicando el monto contra las pendientes más antiguas en orden.
 class RegistrarPagoApartadoDialog extends ConsumerStatefulWidget {
   final ApartadoModel apartado;
   final double saldoPendiente;
@@ -32,17 +36,9 @@ class RegistrarPagoApartadoDialog extends ConsumerStatefulWidget {
 
 class _RegistrarPagoApartadoDialogState extends ConsumerState<RegistrarPagoApartadoDialog> {
   final _montoController = TextEditingController();
-  ApartadoCuotaModel? _cuotaElegida;
+  DateTime _fecha = DateTime.now();
   bool _guardando = false;
   String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.cuotasPendientes.isNotEmpty) {
-      _cuotaElegida = widget.cuotasPendientes.first;
-    }
-  }
 
   @override
   void dispose() {
@@ -54,41 +50,39 @@ class _RegistrarPagoApartadoDialogState extends ConsumerState<RegistrarPagoApart
 
   bool get _esCuotasFijas => widget.apartado.esCuotasFijas;
 
+  double get _montoPagadoHastaAhora => widget.apartado.montoTotal - widget.saldoPendiente;
+
+  double get _progreso => widget.apartado.montoTotal <= 0 ? 0 : (_montoPagadoHastaAhora / widget.apartado.montoTotal).clamp(0, 1);
+
+  Future<void> _elegirFecha() async {
+    final fecha = await showDatePicker(
+      context: context,
+      initialDate: _fecha,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (fecha == null) return;
+    final ahora = DateTime.now();
+    setState(() => _fecha = DateTime(fecha.year, fecha.month, fecha.day, ahora.hour, ahora.minute, ahora.second));
+  }
+
   Future<void> _guardar() async {
+    final monto = _parseDouble(_montoController.text);
+    if (monto <= 0) {
+      setState(() => _error = 'Ingresá un monto de pago válido');
+      return;
+    }
+    if (monto > widget.saldoPendiente + 0.01) {
+      setState(() => _error = 'El pago no puede superar el saldo pendiente (${formatearMoneda(widget.saldoPendiente)})');
+      return;
+    }
     setState(() {
       _guardando = true;
       _error = null;
     });
     try {
       final repo = ref.read(apartadoRepositoryProvider);
-      if (_esCuotasFijas) {
-        final cuota = _cuotaElegida;
-        if (cuota == null) {
-          setState(() {
-            _error = 'Elegí qué cuota se va a pagar';
-            _guardando = false;
-          });
-          return;
-        }
-        await repo.registrarCuotaPagada(idApartado: widget.apartado.id, numeroCuota: cuota.numeroCuota);
-      } else {
-        final monto = _parseDouble(_montoController.text);
-        if (monto <= 0) {
-          setState(() {
-            _error = 'Ingresá un monto de abono válido';
-            _guardando = false;
-          });
-          return;
-        }
-        if (monto > widget.saldoPendiente + 0.01) {
-          setState(() {
-            _error = 'El abono no puede superar el saldo pendiente (${formatearMoneda(widget.saldoPendiente)})';
-            _guardando = false;
-          });
-          return;
-        }
-        await repo.registrarAbono(idApartado: widget.apartado.id, montoAbonado: monto);
-      }
+      await repo.registrarAbono(idApartado: widget.apartado.id, montoAbonado: monto, fecha: _fecha);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() {
@@ -120,7 +114,7 @@ class _RegistrarPagoApartadoDialogState extends ConsumerState<RegistrarPagoApart
       insetPadding: const EdgeInsets.all(16),
       child: Container(
         width: anchoDialog,
-        constraints: const BoxConstraints(maxHeight: 620),
+        constraints: const BoxConstraints(maxHeight: 680),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -150,63 +144,48 @@ class _RegistrarPagoApartadoDialogState extends ConsumerState<RegistrarPagoApart
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _filaSoloLectura('Saldo pendiente', formatearMoneda(widget.saldoPendiente)),
+                    _progresoPago(formatoFecha),
                     const SizedBox(height: 16),
                     if (_esCuotasFijas) ...[
-                      Text('Elegí la cuota que se está pagando', style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade600)),
-                      const SizedBox(height: 8),
-                      if (widget.cuotasPendientes.isEmpty)
-                        Text('No hay cuotas pendientes.', style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey.shade500))
-                      else
-                        Column(
-                          children: widget.cuotasPendientes.map((c) {
-                            final elegida = _cuotaElegida?.id == c.id;
-                            return InkWell(
-                              onTap: () => setState(() => _cuotaElegida = c),
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: elegida ? const Color(0xFF0F1B3D).withOpacity(0.08) : const Color(0xFFE8EAF0),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: elegida ? const Color(0xFF0F1B3D) : Colors.transparent, width: 1.4),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(elegida ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                                        size: 18, color: elegida ? const Color(0xFF0F1B3D) : Colors.grey.shade500),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text('Cuota ${c.numeroCuota}${c.vencida ? ' (vencida)' : ''}',
-                                          style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: c.vencida ? const Color(0xFFB91C1C) : const Color(0xFF1A1A1A))),
-                                    ),
-                                    Text(formatoFecha.format(c.fechaProgramada), style: GoogleFonts.poppins(fontSize: 11.5, color: Colors.grey.shade500)),
-                                    const SizedBox(width: 10),
-                                    Text(formatearMoneda(c.montoProgramado), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                    ] else ...[
-                      CampoTecladoCompacto(
+                      _infoCuotasPendientes(formatoFecha),
+                      const SizedBox(height: 16),
+                    ],
+                    Text('Monto a pagar', style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade600)),
+                    const SizedBox(height: 8),
+                    CampoTecladoCompacto(
+                      controller: _montoController,
+                      numerico: true,
+                      child: TextField(
+                        inputFormatters: [mayusculasInputFormatter],
+                        autocorrect: false,
+                        enableSuggestions: false,
                         controller: _montoController,
-                        numerico: true,
-                        child: TextField(
-                          inputFormatters: [mayusculasInputFormatter],
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          controller: _montoController,
-                          autofocus: true,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          style: GoogleFonts.poppins(fontSize: 14),
-                          decoration: _decoracion('Monto abonado'),
-                          onChanged: (_) => setState(() {}),
+                        autofocus: true,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: GoogleFonts.poppins(fontSize: 14),
+                        decoration: _decoracion('Monto pagado'),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    InkWell(
+                      onTap: _elegirFecha,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(color: const Color(0xFFE8EAF0), borderRadius: BorderRadius.circular(12)),
+                        child: Row(
+                          children: [
+                            Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey.shade600),
+                            const SizedBox(width: 10),
+                            Text('Fecha del pago', style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey.shade600)),
+                            const Spacer(),
+                            Text(formatoFecha.format(_fecha), style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1A1A1A))),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                     if (_error != null) ...[
                       const SizedBox(height: 14),
                       Container(
@@ -248,16 +227,83 @@ class _RegistrarPagoApartadoDialogState extends ConsumerState<RegistrarPagoApart
     );
   }
 
-  Widget _filaSoloLectura(String etiqueta, String valor) {
+  /// Barra de progreso general (pagado hasta ahora / monto total del
+  /// apartado) -pedido explícito del dueño, visible en este mismo diálogo
+  /// (no solo en el detalle)-.
+  Widget _progresoPago(DateFormat formatoFecha) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: const Color(0xFFE8EAF0), borderRadius: BorderRadius.circular(12)),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(etiqueta, style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey.shade600)),
-          const Spacer(),
-          Text(valor, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1A1A1A))),
+          Row(
+            children: [
+              Text('Pagado', style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade600)),
+              const Spacer(),
+              Text(
+                '${formatearMoneda(_montoPagadoHastaAhora)} de ${formatearMoneda(widget.apartado.montoTotal)}',
+                style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: const Color(0xFF1A1A1A)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: _progreso,
+              minHeight: 10,
+              backgroundColor: const Color(0xFFD5D9E2),
+              valueColor: const AlwaysStoppedAnimation(Color(0xFF16A34A)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text('Saldo pendiente: ${formatearMoneda(widget.saldoPendiente)}', style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade600)),
+        ],
+      ),
+    );
+  }
+
+  /// Solo informativo (cuotas_fijas): ya no se elige una cuota puntual acá
+  /// -el monto es libre, ver comentario grande de la clase-, pero conviene
+  /// seguir mostrando qué cuotas quedan pendientes y cuándo vencen.
+  Widget _infoCuotasPendientes(DateFormat formatoFecha) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: const Color(0xFFF2F3F7), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFC7CBD3))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Cuotas pendientes', style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.grey.shade700)),
+          const SizedBox(height: 8),
+          if (widget.cuotasPendientes.isEmpty)
+            Text('No hay cuotas pendientes.', style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey.shade500))
+          else
+            Column(
+              children: widget.cuotasPendientes.map((c) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text('Cuota ${c.numeroCuota}${c.vencida ? ' (vencida)' : ''}',
+                            style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: c.vencida ? const Color(0xFFB91C1C) : const Color(0xFF1A1A1A))),
+                      ),
+                      Text(formatoFecha.format(c.fechaProgramada), style: GoogleFonts.poppins(fontSize: 11.5, color: Colors.grey.shade500)),
+                      const SizedBox(width: 10),
+                      Text(formatearMoneda(c.montoProgramado), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          const SizedBox(height: 6),
+          Text(
+            'El pago se aplica contra la(s) cuota(s) más antigua(s) hasta agotar el monto; se marca pagada solo la que se cubre por completo.',
+            style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey.shade500),
+          ),
         ],
       ),
     );

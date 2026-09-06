@@ -15,17 +15,64 @@ import '../../../../core/widgets/campo_teclado_compacto.dart';
 /// ApartarCarritoDialog). Lo único que cambia entre los dos lados es de dónde
 /// salen los productos: acá no se toca esa parte.
 
+/// Una opción preestablecida de "cada cuánto" cae la próxima cuota -pedido
+/// explícito del dueño: antes había que tipear un número de días a mano
+/// (fácil de errar, ej. escribir 30 pensando en "un mes" que en realidad no
+/// siempre son 30 días), ahora se elige de una lista corta con las
+/// frecuencias reales de un negocio. [dias] se usa tal cual (Diario/
+/// Semanal/Quincenal: no varían mes a mes, un `Duration` alcanza); Mensual/
+/// Trimestral en cambio usan [meses] -mes de calendario real vía `DateTime`
+/// (ver [_sumarMeses] abajo), más preciso que asumir 30/90 días fijos: así
+/// una cuota "mensual" que cae el 31 sigue cayendo a fin de mes siguiente en
+/// vez de irse corriendo con el tiempo-. Exactamente uno de los dos viene
+/// en > 0 para cada opción.
+class IntervaloApartado {
+  final String id;
+  final String etiqueta;
+  final int dias;
+  final int meses;
+
+  const IntervaloApartado({required this.id, required this.etiqueta, this.dias = 0, this.meses = 0});
+}
+
+const List<IntervaloApartado> intervalosApartado = [
+  IntervaloApartado(id: 'diario', etiqueta: 'Diario', dias: 1),
+  IntervaloApartado(id: 'semanal', etiqueta: 'Semanal', dias: 7),
+  IntervaloApartado(id: 'quincenal', etiqueta: 'Quincenal', dias: 15),
+  IntervaloApartado(id: 'mensual', etiqueta: 'Mensual', meses: 1),
+  IntervaloApartado(id: 'trimestral', etiqueta: 'Trimestral', meses: 3),
+];
+
+IntervaloApartado intervaloApartadoPorId(String id) =>
+    intervalosApartado.firstWhere((i) => i.id == id, orElse: () => intervalosApartado[2]);
+
+/// Suma [meses] de calendario real a [fecha] -mismo criterio que el resto de
+/// la app no necesitaba hasta ahora: si el mes resultante no tiene ese día
+/// (ej. 31 de enero + 1 mes), cae al último día de ese mes en vez de
+/// "desbordar" a marzo (que es lo que haría sumar treinta y un días fijos).
+DateTime _sumarMeses(DateTime fecha, int meses) {
+  final anioTotal = fecha.year * 12 + (fecha.month - 1) + meses;
+  final anio = anioTotal ~/ 12;
+  final mes = anioTotal % 12 + 1;
+  final ultimoDiaDelMes = DateTime(anio, mes + 1, 0).day;
+  final dia = fecha.day > ultimoDiaDelMes ? ultimoDiaDelMes : fecha.day;
+  return DateTime(anio, mes, dia);
+}
+
 /// Reparte [saldoRestante] en partes iguales entre [numeroCuotas], ajustando
 /// el residuo de redondeo en la última cuota (para que la suma exacta de las
 /// cuotas cuadre centavo a centavo con el saldo restante). Las fechas salen
-/// de [desde] (hoy por defecto) sumando [intervaloDias] por cuota.
+/// de [desde] (hoy por defecto) sumando [intervaloDias] días o [intervaloMeses]
+/// meses de calendario por cuota -exactamente uno de los dos > 0, ver
+/// [IntervaloApartado]-.
 List<NuevaCuota> calcularCuotasApartado({
   required double saldoRestante,
   required int numeroCuotas,
-  required int intervaloDias,
+  int intervaloDias = 0,
+  int intervaloMeses = 0,
   DateTime? desde,
 }) {
-  if (numeroCuotas <= 0 || intervaloDias <= 0) return const [];
+  if (numeroCuotas <= 0 || (intervaloDias <= 0 && intervaloMeses <= 0)) return const [];
   final montoBase = redondearMoneda(saldoRestante / numeroCuotas);
   final base = desde ?? DateTime.now();
   final dia = DateTime(base.year, base.month, base.day);
@@ -35,11 +82,8 @@ List<NuevaCuota> calcularCuotasApartado({
     final esUltima = i == numeroCuotas;
     final monto = esUltima ? redondearMoneda(saldoRestante - acumulado) : montoBase;
     acumulado = redondearMoneda(acumulado + monto);
-    cuotas.add(NuevaCuota(
-      numeroCuota: i,
-      montoProgramado: monto,
-      fechaProgramada: dia.add(Duration(days: intervaloDias * i)),
-    ));
+    final fechaProgramada = intervaloMeses > 0 ? _sumarMeses(dia, intervaloMeses * i) : dia.add(Duration(days: intervaloDias * i));
+    cuotas.add(NuevaCuota(numeroCuota: i, montoProgramado: monto, fechaProgramada: fechaProgramada));
   }
   return cuotas;
 }
@@ -62,7 +106,11 @@ class ConfiguracionApartadoController {
 
   String modalidad = 'abonos_libres';
   final numeroCuotasController = TextEditingController(text: '2');
-  final intervaloDiasController = TextEditingController(text: '15');
+  // Frecuencia entre cuotas, elegida de una lista corta (ver
+  // [intervalosApartado]) en vez de un número de días libre -pedido
+  // explícito del dueño-. 'quincenal' como default: mismo intervalo (15
+  // días) que ya traía el campo numérico libre de antes.
+  String intervaloPresetId = 'quincenal';
 
   ConfiguracionApartadoController({String nombreClienteInicial = '', this.idCliente})
       : clienteController = TextEditingController(text: nombreClienteInicial);
@@ -72,7 +120,6 @@ class ConfiguracionApartadoController {
     porcentajeController.dispose();
     montoInicialController.dispose();
     numeroCuotasController.dispose();
-    intervaloDiasController.dispose();
   }
 
   static double _parseDouble(String texto) => double.tryParse(texto.replaceAll(',', '').trim()) ?? 0;
@@ -80,7 +127,7 @@ class ConfiguracionApartadoController {
 
   String get nombreCliente => clienteController.text.trim();
   int get numeroCuotas => _parseInt(numeroCuotasController.text);
-  int get intervaloDias => _parseInt(intervaloDiasController.text);
+  IntervaloApartado get intervalo => intervaloApartadoPorId(intervaloPresetId);
 
   double montoInicialSobre(double montoTotal) {
     if (inicialPorPorcentaje) {
@@ -100,7 +147,8 @@ class ConfiguracionApartadoController {
     return calcularCuotasApartado(
       saldoRestante: saldoRestanteSobre(montoTotal),
       numeroCuotas: numeroCuotas,
-      intervaloDias: intervaloDias,
+      intervaloDias: intervalo.dias,
+      intervaloMeses: intervalo.meses,
     );
   }
 
@@ -114,7 +162,6 @@ class ConfiguracionApartadoController {
     if (inicial < 0) return 'El pago inicial no puede ser negativo';
     if (modalidad == 'cuotas_fijas') {
       if (numeroCuotas <= 0) return 'Ingresá un número de cuotas válido';
-      if (intervaloDias <= 0) return 'Ingresá cada cuántos días válido';
     }
     return null;
   }
@@ -370,16 +417,20 @@ class ConfiguracionApartadoForm extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: CampoTecladoCompacto(
-                        controller: controller.intervaloDiasController,
-                        numerico: true,
-                        child: TextField(
-                          controller: controller.intervaloDiasController,
-                          keyboardType: TextInputType.number,
-                          style: GoogleFonts.poppins(fontSize: 14),
-                          decoration: decoracionApartado('Cada cuántos días'),
-                          onChanged: (_) => alCambiar(),
-                        ),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: controller.intervaloPresetId,
+                        isExpanded: true,
+                        style: GoogleFonts.poppins(fontSize: 14, color: const Color(0xFF1A1A1A)),
+                        decoration: decoracionApartado('Frecuencia'),
+                        items: [
+                          for (final intervalo in intervalosApartado)
+                            DropdownMenuItem(value: intervalo.id, child: Text(intervalo.etiqueta)),
+                        ],
+                        onChanged: (v) {
+                          if (v == null) return;
+                          controller.intervaloPresetId = v;
+                          alCambiar();
+                        },
                       ),
                     ),
                   ],

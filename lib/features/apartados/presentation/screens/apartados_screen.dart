@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../data/apartado_model.dart';
+import '../../data/apartado_cuota_model.dart';
 import '../../providers/apartados_provider.dart';
 import '../../../../core/utils/texto_utils.dart';
 import '../../../../core/utils/formato_moneda.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
+import '../widgets/registrar_pago_apartado_dialog.dart';
 import 'crear_apartado_screen.dart';
 import 'detalle_apartado_screen.dart';
 
@@ -66,6 +68,33 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
     await Navigator.of(context).push(
       MaterialPageRoute(fullscreenDialog: true, builder: (context) => DetalleApartadoScreen(idApartado: apartado.id)),
     );
+  }
+
+  /// Acción directa "Registrar pago" desde el listado -antes solo se podía
+  /// llegar a esto abriendo el detalle primero-: para cuotas_fijas hace
+  /// falta la lista de cuotas pendientes (informativa dentro del diálogo,
+  /// ver RegistrarPagoApartadoDialog), que acá se pide de una sola vez con
+  /// `.future` sobre el stream ya existente en vez de mantener una
+  /// suscripción por fila del listado.
+  Future<void> _registrarPago(ApartadoModel apartado, double saldoPendiente) async {
+    var cuotasPendientes = const <ApartadoCuotaModel>[];
+    if (apartado.esCuotasFijas) {
+      final cuotas = await ref.read(apartadoCuotasProvider(apartado.id).future);
+      cuotasPendientes = cuotas.where((c) => c.pendiente).toList();
+    }
+    if (!mounted) return;
+    final ok = await showDialog<bool>(
+      useRootNavigator: false,
+      context: context,
+      builder: (context) => RegistrarPagoApartadoDialog(
+        apartado: apartado,
+        saldoPendiente: saldoPendiente,
+        cuotasPendientes: cuotasPendientes,
+      ),
+    );
+    if (ok == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pago registrado'), showCloseIcon: true, duration: Duration(seconds: 4)));
+    }
   }
 
   Widget _chipEstado(ApartadoModel a) {
@@ -280,6 +309,7 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
                 _celdaHeader('MONTO TOTAL', 2),
                 _celdaHeader('SALDO PENDIENTE', 2),
                 _celdaHeader('ESTADO', 2),
+                _celdaHeader('ACCIONES', 3),
               ],
             ),
           );
@@ -302,6 +332,7 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
                     _celda(2, formatearMoneda(a.montoTotal), gris: true),
                     _celda(2, formatearMoneda(saldo), peso: FontWeight.w700),
                     Expanded(flex: 2, child: _chipEstado(a)),
+                    Expanded(flex: 3, child: _accionesFila(a, saldo)),
                   ],
                 ),
               ),
@@ -309,6 +340,28 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
           ],
         );
       },
+    );
+  }
+
+  /// "Ver detalle" y "Registrar pago" explícitos por fila -antes solo se
+  /// llegaba al detalle tocando la fila entera, sin ninguna acción visible-.
+  /// "Registrar pago" solo tiene sentido en un apartado activo.
+  Widget _accionesFila(ApartadoModel a, double saldo) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (a.activo)
+          IconButton(
+            tooltip: 'Registrar pago',
+            icon: const Icon(Icons.payments_outlined, size: 19, color: Color(0xFF0F1B3D)),
+            onPressed: () => _registrarPago(a, saldo),
+          ),
+        IconButton(
+          tooltip: 'Ver detalle',
+          icon: Icon(Icons.visibility_outlined, size: 19, color: Colors.grey.shade600),
+          onPressed: () => _abrirDetalle(a),
+        ),
+      ],
     );
   }
 
@@ -382,6 +435,25 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
                     _chipModalidad(a),
                     _chipInfo('Monto total', formatearMoneda(a.montoTotal)),
                     _chipInfo('Saldo pendiente', formatearMoneda(saldo)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (a.activo)
+                      TextButton.icon(
+                        onPressed: () => _registrarPago(a, saldo),
+                        icon: const Icon(Icons.payments_outlined, size: 17),
+                        label: Text('Registrar pago', style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                        style: TextButton.styleFrom(foregroundColor: const Color(0xFF0F1B3D)),
+                      ),
+                    TextButton.icon(
+                      onPressed: () => _abrirDetalle(a),
+                      icon: const Icon(Icons.visibility_outlined, size: 17),
+                      label: Text('Ver detalle', style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                      style: TextButton.styleFrom(foregroundColor: Colors.grey.shade700),
+                    ),
                   ],
                 ),
               ],
