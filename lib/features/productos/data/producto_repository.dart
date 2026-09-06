@@ -84,6 +84,7 @@ class ProductoRepository with ConRedMixin {
           'cantidad_original': stock,
           'cantidad_restante': stock,
           'costo_unitario': precioCompra,
+          'fecha': DateTime.now().toIso8601String(),
           'origen': 'inicial',
         });
       }

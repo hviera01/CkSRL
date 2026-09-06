@@ -2254,3 +2254,23 @@ begin
   update apartados set estado = 'completado', fecha_entrega = now() where id = p_id_apartado;
 end;
 $$;
+-- Tablas que la app consume con .stream() (Supabase Realtime) pero que no
+-- habían quedado en la publicación `supabase_realtime` al crear el esquema.
+--
+-- Sin esto, `.stream()` entrega solo el snapshot inicial y nunca recibe los
+-- INSERT/UPDATE/DELETE posteriores: en la app se veía como que un registro
+-- recién guardado no aparecía hasta apretar "Refrescar", y como un parpadeo
+-- constante de la pantalla (la suscripción reintentando en loop). En el
+-- sistema original esto no pasaba porque Firestore transmite en vivo todas
+-- las colecciones por defecto, sin publicación que configurar.
+alter publication supabase_realtime add table categorias;
+alter publication supabase_realtime add table clientes;
+alter publication supabase_realtime add table proveedores;
+alter publication supabase_realtime add table usuarios;
+alter publication supabase_realtime add table promociones;
+alter publication supabase_realtime add table compras_credito;
+alter publication supabase_realtime add table compra_credito_abonos;
+alter publication supabase_realtime add table compras_en_espera;
+alter publication supabase_realtime add table ventas_en_espera;
+alter publication supabase_realtime add table pendientes_reposicion;
+alter publication supabase_realtime add table producto_lotes_costo;
