@@ -62,6 +62,22 @@ class _ReporteFinancieroScreenState
   String? _error;
   ReporteFinancieroData? _data;
 
+  // Tablas cuyo primer evento de Realtime (el snapshot inicial de la
+  // suscripción, no un cambio real) ya se descartó -ver _escucharCambios-.
+  final _tablasConSnapshotInicialListo = <String>{};
+
+  // Tablas que alimentan el reporte financiero y, al cambiar, deben
+  // re-disparar _generar() -mismo rango de fecha ya elegido, sin resetear
+  // nada- para que el reporte no quede desactualizado si el dueño lo deja
+  // abierto en una pestaña y sigue vendiendo/comprando en otra.
+  static const _tablasQueAfectanReporte = [
+    'ventas',
+    'compras',
+    'egresos',
+    'venta_credito_abonos',
+    'compra_credito_abonos',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -158,6 +174,21 @@ class _ReporteFinancieroScreenState
     }
   }
 
+  // Re-dispara _generar() (mismo rango de fecha ya elegido, sin resetear
+  // nada) cuando algo cambia en [tabla] -mismo mecanismo que
+  // ReporteVentasScreen/ReporteComprasScreen, ver ese comentario para el
+  // detalle-.
+  void _escucharCambios(String tabla) {
+    ref.listen<AsyncValue<void>>(cambiosEnTablaProvider(tabla), (
+      previous,
+      next,
+    ) {
+      if (!next.hasValue || !mounted) return;
+      if (_tablasConSnapshotInicialListo.add(tabla)) return;
+      if (!_cargando) _generar();
+    });
+  }
+
   Future<void> _seleccionarFecha(bool esInicio) async {
     final fecha = await showDatePicker(
       context: context,
@@ -191,6 +222,9 @@ class _ReporteFinancieroScreenState
 
   @override
   Widget build(BuildContext context) {
+    for (final tabla in _tablasQueAfectanReporte) {
+      _escucharCambios(tabla);
+    }
     return Container(
       color: const Color(0xFFF2F3F7),
       child: LayoutBuilder(

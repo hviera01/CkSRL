@@ -2378,6 +2378,135 @@ begin
   update apartados set estado = 'completado', fecha_entrega = now() where id = p_id_apartado;
 end;
 $$;
+
+-- ----------------------------------------------------------------------------
+-- recalcular_cadena_abonos_apartado: recorre TODOS los abonos de un apartado
+-- (en orden de `fecha`, mismo criterio que ya usan
+-- recalcular_cadena_abonos_venta_credito/recalcular_cadena_abonos_compra_credito)
+-- y vuelve a calcular, desde cero, saldo_anterior/saldo_pendiente de cada
+-- fila -para que editar o eliminar un pago puntual (ver
+-- editar_abono_apartado/eliminar_abono_apartado abajo) recalcule en cadena
+-- los abonos POSTERIORES sin dejar ninguno con un saldo viejo-.
+--
+-- Si la modalidad es 'cuotas_fijas', además vuelve a determinar -desde
+-- cero, no incremental- qué cuotas quedan cubiertas por completo: primero
+-- reabre TODAS a 'pendiente' (fecha_pago = null) y luego recorre abonos y
+-- cuotas en paralelo (mismo orden de fecha/numero_cuota) marcando 'pagada'
+-- -con fecha_pago = la fecha del abono que la terminó de cubrir- solo la(s)
+-- que el acumulado alcanza a cubrir por completo. Es el mismo criterio de
+-- "abonar contra la cuota pendiente más antigua" de registrar_abono_apartado,
+-- pero rearmando toda la cadena en vez de aplicar solo el último pago -por
+-- eso hace falta esta función aparte en vez de solo reutilizar esa-.
+-- ----------------------------------------------------------------------------
+create or replace function recalcular_cadena_abonos_apartado(p_id_apartado uuid) returns void
+language plpgsql as $$
+declare
+  v_monto_total numeric;
+  v_monto_inicial numeric;
+  v_modalidad text;
+  v_saldo numeric;
+  v_saldo_anterior numeric;
+  v_crudo numeric;
+  rec record;
+  v_cuota_cursor refcursor;
+  v_cuota_id uuid;
+  v_cuota_monto numeric;
+  v_tiene_cuota boolean;
+  v_acumulado_cuota numeric;
+  v_restante_abono numeric;
+  v_falta numeric;
+begin
+  select monto_total, monto_inicial, modalidad into v_monto_total, v_monto_inicial, v_modalidad
+    from apartados where id = p_id_apartado for update;
+  if not found then
+    raise exception 'No se encontró el apartado';
+  end if;
+
+  -- 1) Saldo de cada abono, en orden de fecha.
+  v_saldo := round(v_monto_total - v_monto_inicial, 2);
+  for rec in select id, monto_abonado from apartado_abonos where id_apartado = p_id_apartado order by fecha, id loop
+    v_saldo_anterior := v_saldo;
+    v_crudo := v_saldo_anterior - rec.monto_abonado;
+    if v_crudo < -0.01 then
+      raise exception 'El pago de % superaría el saldo disponible en ese momento (%)', round(rec.monto_abonado, 2), round(v_saldo_anterior, 2);
+    end if;
+    v_saldo := round(greatest(v_crudo, 0), 2);
+    update apartado_abonos set saldo_anterior = round(v_saldo_anterior, 2), saldo_pendiente = v_saldo where id = rec.id;
+  end loop;
+
+  if v_modalidad <> 'cuotas_fijas' then
+    return;
+  end if;
+
+  -- 2) cuotas_fijas: reabre todas y vuelve a cubrirlas desde cero.
+  update apartado_cuotas set estado = 'pendiente', fecha_pago = null where id_apartado = p_id_apartado;
+
+  open v_cuota_cursor for select id, monto_programado from apartado_cuotas where id_apartado = p_id_apartado order by numero_cuota asc for update;
+  fetch v_cuota_cursor into v_cuota_id, v_cuota_monto;
+  v_tiene_cuota := found;
+  v_acumulado_cuota := 0;
+
+  for rec in select monto_abonado, fecha from apartado_abonos where id_apartado = p_id_apartado order by fecha, id loop
+    v_restante_abono := rec.monto_abonado;
+    while v_tiene_cuota and v_restante_abono > 0.001 loop
+      v_falta := round(v_cuota_monto - v_acumulado_cuota, 2);
+      if v_restante_abono + 0.01 >= v_falta then
+        update apartado_cuotas set estado = 'pagada', fecha_pago = rec.fecha::date where id = v_cuota_id;
+        v_restante_abono := round(v_restante_abono - v_falta, 2);
+        fetch v_cuota_cursor into v_cuota_id, v_cuota_monto;
+        v_tiene_cuota := found;
+        v_acumulado_cuota := 0;
+      else
+        v_acumulado_cuota := round(v_acumulado_cuota + v_restante_abono, 2);
+        v_restante_abono := 0;
+      end if;
+    end loop;
+  end loop;
+  close v_cuota_cursor;
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- editar_abono_apartado / eliminar_abono_apartado: corrige o borra un pago ya
+-- registrado -acción sensible para arreglar errores de carga, pedida desde
+-- Dart SIEMPRE (con o sin el apartado activo, ver DetalleApartadoScreen), que
+-- del lado de Flutter ya pasó por verificarAccesoEspecial (permisos
+-- PermisosEspeciales.apartadosEditarPago/apartadosEliminarPago) antes de
+-- llegar acá-. Ambas son una sola función atómica cada una (lock de la fila
+-- de apartados adentro de recalcular_cadena_abonos_apartado) en vez de que
+-- Dart haga varios round-trips recalculando saldos/cuotas a mano.
+-- ----------------------------------------------------------------------------
+create or replace function editar_abono_apartado(payload jsonb) returns void
+language plpgsql as $$
+declare
+  v_id_apartado uuid;
+begin
+  select id_apartado into v_id_apartado from apartado_abonos where id = (payload->>'idAbono')::uuid;
+  if not found then
+    raise exception 'No se encontró el pago a editar';
+  end if;
+  update apartado_abonos set
+    monto_abonado = round((payload->>'montoAbonado')::numeric, 2),
+    fecha = (payload->>'fecha')::timestamptz
+  where id = (payload->>'idAbono')::uuid;
+  perform recalcular_cadena_abonos_apartado(v_id_apartado);
+end;
+$$;
+
+create or replace function eliminar_abono_apartado(p_id_abono uuid) returns void
+language plpgsql as $$
+declare
+  v_id_apartado uuid;
+begin
+  select id_apartado into v_id_apartado from apartado_abonos where id = p_id_abono;
+  if not found then
+    raise exception 'No se encontró el pago a eliminar';
+  end if;
+  delete from apartado_abonos where id = p_id_abono;
+  perform recalcular_cadena_abonos_apartado(v_id_apartado);
+end;
+$$;
+
 -- Tablas que la app consume con .stream() (Supabase Realtime) pero que no
 -- habían quedado en la publicación `supabase_realtime` al crear el esquema.
 --

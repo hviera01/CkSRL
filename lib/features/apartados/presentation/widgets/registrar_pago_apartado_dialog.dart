@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../data/apartado_model.dart';
 import '../../data/apartado_cuota_model.dart';
 import '../../providers/apartados_provider.dart';
+import '../../../auth/providers/auth_provider.dart';
 import '../../../../core/utils/formato_moneda.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
@@ -83,12 +84,58 @@ class _RegistrarPagoApartadoDialogState extends ConsumerState<RegistrarPagoApart
     try {
       final repo = ref.read(apartadoRepositoryProvider);
       await repo.registrarAbono(idApartado: widget.apartado.id, montoAbonado: monto, fecha: _fecha);
+      // Si este pago dejó el saldo en 0 -no puede quedar en negativo, ya se
+      // validó arriba que no supere el saldo pendiente-, se ofrece de una
+      // vez marcar el apartado como entregado (mismo flujo que el botón
+      // "Marcar Entregado" del detalle), en vez de que el dueño tenga que ir
+      // a buscarlo aparte -pedido explícito: "que pregunte apenas llega a
+      // 0"-. Si el usuario dice que no, o si marcarEntregado falla por lo
+      // que sea, el pago ya quedó guardado igual: solo se avisa el error,
+      // sin revertir nada.
+      final saldoRestante = widget.saldoPendiente - monto;
+      if (mounted && saldoRestante <= 0.01) {
+        await _preguntarMarcarEntregado();
+      }
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');
         _guardando = false;
       });
+    }
+  }
+
+  Future<void> _preguntarMarcarEntregado() async {
+    final confirmar = await showDialog<bool>(
+      useRootNavigator: false,
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Apartado pagado por completo', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+        content: Text(
+          'El apartado quedó completamente pagado. ¿Querés marcarlo como entregado ahora?',
+          style: GoogleFonts.poppins(fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('No, todavía no', style: GoogleFonts.poppins())),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Sí, marcar entregado', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true || !mounted) return;
+    try {
+      final usuario = ref.read(authProvider).usuario?.nombreCompleto ?? '';
+      await ref.read(apartadoRepositoryProvider).marcarEntregado(idApartado: widget.apartado.id, usuario: usuario);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('El pago se guardó, pero no se pudo marcar como entregado: ${e.toString().replaceAll('Exception: ', '')}')),
+        );
+      }
     }
   }
 

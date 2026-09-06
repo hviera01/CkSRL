@@ -5,6 +5,8 @@ class PermisosEspeciales {
   static const ventasCambiarPrecio = 'ventas_cambiar_precio';
   static const ventasEditarDescripcion = 'ventas_editar_descripcion';
   static const ventasVenderSinStock = 'ventas_vender_sin_stock';
+  static const apartadosEditarPago = 'apartados_editar_pago';
+  static const apartadosEliminarPago = 'apartados_eliminar_pago';
 
   // Claves nuevas para el rol Encargado: a diferencia de las de arriba,
   // estas no gatillan el diálogo de clave especial compartida, sino que se
@@ -28,6 +30,8 @@ class PermisosEspeciales {
     ventasCambiarPrecio: 'Cambiar precio de un producto en Ventas',
     ventasEditarDescripcion: 'Editar descripción de un producto en Ventas',
     ventasVenderSinStock: 'Agregar a una venta un producto sin existencia',
+    apartadosEditarPago: 'Editar un pago de Apartados ya registrado',
+    apartadosEliminarPago: 'Eliminar un pago de Apartados ya registrado',
     comprasCrear: 'Registrar compras',
     comprasEditar: 'Editar compras',
     comprasEliminar: 'Anular compras',
@@ -52,6 +56,10 @@ class PermisosEspeciales {
         'Pide la clave especial antes de cambiar la descripción de un producto dentro de una venta.',
     ventasVenderSinStock:
         'Pide la clave especial antes de agregar a una venta (o aumentar la cantidad de) un producto sin existencia disponible, en categorías que sí controlan stock. Si se cancela, se ofrece igual la opción de reembasado.',
+    apartadosEditarPago:
+        'Pide la clave especial antes de editar un pago ya registrado de un apartado (monto o fecha), sin importar si el apartado sigue activo o ya fue entregado/cancelado.',
+    apartadosEliminarPago:
+        'Pide la clave especial antes de eliminar por completo un pago ya registrado de un apartado, sin importar si el apartado sigue activo o ya fue entregado/cancelado.',
     comprasCrear: 'Permite registrar una nueva compra.',
     comprasEditar: 'Permite editar una compra ya registrada.',
     comprasEliminar: 'Permite anular una compra ya registrada.',

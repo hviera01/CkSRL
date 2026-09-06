@@ -59,6 +59,20 @@ class ReporteRepository with ConRedMixin {
     );
   }
 
+  /// Emite un evento (sin contenido útil, solo "avisa") cada vez que cambia
+  /// algo en [tabla] vía Supabase Realtime. No trae ni mapea filas -a
+  /// diferencia de [observarReporteVentas]-, solo sirve para que una
+  /// pantalla de Reporte ya abierta se re-dispare sola (misma consulta,
+  /// mismo rango de fecha ya elegido, sin resetear ningún filtro) cuando el
+  /// dueño registra/anula algo en otra pestaña mientras el reporte sigue
+  /// abierto en esta -pedido explícito: "entro a ver el reporte y la venta
+  /// que acabo de hacer no aparece hasta que lo busco de nuevo a mano"-.
+  Stream<void> observarCambiosEnTabla(String tabla) {
+    return conRedStream(
+      () => _db.from(tabla).stream(primaryKey: ['id']),
+    ).map((_) {});
+  }
+
   Future<List<ReporteCompraModel>> obtenerReporteCompras(
     DateTime inicio,
     DateTime finInclusive, {

@@ -38,6 +38,10 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
   String? _error;
   List<ReporteVentaModel>? _ventas;
 
+  // Tablas cuyo primer evento de Realtime (el snapshot inicial de la
+  // suscripción, no un cambio real) ya se descartó -ver _escucharCambios-.
+  final _tablasConSnapshotInicialListo = <String>{};
+
   static const _metodosPago = [
     'Efectivo',
     'Transferencia',
@@ -92,6 +96,24 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
+  }
+
+  // Re-dispara _buscar() (mismo rango de fecha ya elegido, sin resetear
+  // ningún filtro) cuando algo cambia en [tabla] -pedido explícito del
+  // dueño: "entro a Reporte de Ventas, registro una venta en otra pestaña,
+  // vuelvo, y no aparece hasta que la busco de nuevo a mano". El primer
+  // evento del stream es el snapshot inicial de la suscripción (no un
+  // cambio real: el reporte ya se cargó por su cuenta en initState), así
+  // que se descarta una sola vez por tabla.
+  void _escucharCambios(String tabla) {
+    ref.listen<AsyncValue<void>>(cambiosEnTablaProvider(tabla), (
+      previous,
+      next,
+    ) {
+      if (!next.hasValue || !mounted) return;
+      if (_tablasConSnapshotInicialListo.add(tabla)) return;
+      if (!_cargando) _buscar();
+    });
   }
 
   void _verDetalle(ReporteVentaModel venta) {
@@ -252,6 +274,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _escucharCambios('ventas');
     final lista = _listaFiltrada;
     final totalFacturado = lista
         .where((v) => v.esActiva && !v.esCotizacion)

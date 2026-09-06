@@ -220,6 +220,45 @@ class ApartadoRepository with ConRedMixin {
     });
   }
 
+  /// Edita un pago ya registrado (monto y/o fecha) -acción sensible pensada
+  /// para corregir errores de carga, disponible SIEMPRE (activo, completado o
+  /// cancelado, ver DetalleApartadoScreen; del lado de Flutter ya pasó por
+  /// verificarAccesoEspecial con PermisosEspeciales.apartadosEditarPago-. Una
+  /// sola función atómica en Postgres (`editar_abono_apartado`, ver
+  /// supabase/schema.sql) recalcula server-side, bloqueando la fila del
+  /// apartado, el saldo_anterior/saldo_pendiente de TODOS los abonos
+  /// posteriores y -si la modalidad es cuotas_fijas- vuelve a aplicar el
+  /// total abonado contra las cuotas programadas desde cero: no son varios
+  /// round-trips desde acá.
+  Future<void> editarAbono({required String idAbono, required double montoAbonado, required DateTime fecha}) {
+    return conRed(() async {
+      try {
+        await _db.rpc('editar_abono_apartado', params: {
+          'payload': {
+            'idAbono': idAbono,
+            'montoAbonado': montoAbonado,
+            'fecha': fecha.toIso8601String(),
+          },
+        });
+      } on PostgrestException catch (e) {
+        throw Exception(e.message);
+      }
+    });
+  }
+
+  /// Elimina por completo un pago ya registrado -mismo criterio que
+  /// [editarAbono]: siempre disponible, recalcula toda la cadena de abonos
+  /// (y cuotas, si aplica) server-side vía la misma función atómica.
+  Future<void> eliminarAbono(String idAbono) {
+    return conRed(() async {
+      try {
+        await _db.rpc('eliminar_abono_apartado', params: {'p_id_abono': idAbono});
+      } on PostgrestException catch (e) {
+        throw Exception(e.message);
+      }
+    });
+  }
+
   /// Cancela un apartado activo -no repone nada, el producto nunca salió de
   /// existencia física-. Un solo UPDATE condicionado (estado='activo'), sin
   /// necesidad de función plpgsql.

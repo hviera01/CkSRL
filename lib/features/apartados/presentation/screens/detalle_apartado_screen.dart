@@ -4,10 +4,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../data/apartado_model.dart';
 import '../../data/apartado_cuota_model.dart';
+import '../../data/apartado_abono_model.dart';
 import '../../providers/apartados_provider.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../negocio/data/negocio_model.dart';
+import '../../../negocio/presentation/widgets/acceso_especial.dart';
 import '../../../../core/utils/formato_moneda.dart';
 import '../widgets/registrar_pago_apartado_dialog.dart';
+import '../widgets/editar_abono_apartado_dialog.dart';
 
 /// Detalle completo de un apartado: items, saldo, y -según la modalidad- las
 /// cuotas programadas o el historial de abonos libres, con botones para
@@ -119,6 +123,74 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
     }
   }
 
+  /// Editar/eliminar un pago -acción sensible pensada para corregir errores
+  /// de carga, disponible SIEMPRE (no solo con el apartado activo): antes de
+  /// dejar pasar pide la clave especial (si está activada en Negocio para
+  /// esta acción puntual, ver verificarAccesoEspecial) con la clave
+  /// correspondiente de PermisosEspeciales.
+  Future<void> _editarPago(ApartadoAbonoModel abono) async {
+    final autorizado = (await verificarAccesoEspecial(context, ref, PermisosEspeciales.apartadosEditarPago)).autorizado;
+    if (!autorizado || !mounted) return;
+    await showDialog<bool>(
+      useRootNavigator: false,
+      context: context,
+      builder: (context) => EditarAbonoApartadoDialog(abono: abono),
+    );
+  }
+
+  Future<void> _eliminarPago(ApartadoAbonoModel abono) async {
+    final autorizado = (await verificarAccesoEspecial(context, ref, PermisosEspeciales.apartadosEliminarPago)).autorizado;
+    if (!autorizado || !mounted) return;
+    final confirmar = await showDialog<bool>(
+      useRootNavigator: false,
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Eliminar pago', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+        content: Text(
+          '¿Seguro que querés eliminar el pago de ${formatearMoneda(abono.montoAbonado)}? El saldo y, si aplica, el estado de las cuotas se recalculan automáticamente. Esta acción no se puede deshacer.',
+          style: GoogleFonts.poppins(fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Cancelar', style: GoogleFonts.poppins())),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB91C1C)),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Eliminar', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true || !mounted) return;
+    try {
+      await ref.read(apartadoRepositoryProvider).eliminarAbono(abono.id);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pago eliminado')));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))));
+      }
+    }
+  }
+
+  /// Reparte, en Dart, el total abonado (ledger real de apartado_abonos, sin
+  /// importar cuántos pagos distintos lo compusieron) contra las cuotas
+  /// programadas en orden (numero_cuota asc) -mismo criterio que
+  /// registrar_abono_apartado/recalcular_cadena_abonos_apartado del lado del
+  /// servidor-: para cada cuota, cuánto de lo ya pagado le corresponde de
+  /// verdad (hasta su monto programado). Así una cuota pagada en dos partes
+  /// (ej. L.20 un día y el resto otro) muestra el avance real en vez de un
+  /// simple sí/no.
+  Map<String, double> _abonadoPorCuota(List<ApartadoCuotaModel> cuotas, double totalAbonado) {
+    var restante = totalAbonado;
+    final mapa = <String, double>{};
+    for (final c in cuotas) {
+      final abonado = restante <= 0 ? 0.0 : (restante < c.montoProgramado ? restante : c.montoProgramado);
+      mapa[c.id] = abonado;
+      restante = (restante - abonado) < 0 ? 0 : (restante - abonado);
+    }
+    return mapa;
+  }
+
   @override
   Widget build(BuildContext context) {
     final apartadosAsync = ref.watch(apartadosStreamProvider);
@@ -165,7 +237,11 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
                               final saldoPendiente = saldos[apartado.id] ?? (apartado.montoTotal - apartado.montoInicial);
                               final cuotasAsync = ref.watch(apartadoCuotasProvider(widget.idApartado));
                               final abonosAsync = ref.watch(apartadoAbonosProvider(widget.idApartado));
-                              final cuotasPendientes = (cuotasAsync.value ?? []).where((c) => c.pendiente).toList();
+                              final cuotas = cuotasAsync.value ?? [];
+                              final abonos = abonosAsync.value ?? [];
+                              final cuotasPendientes = cuotas.where((c) => c.pendiente).toList();
+                              final totalAbonado = abonos.fold<double>(0, (s, a) => s + a.montoAbonado);
+                              final abonadoPorCuota = _abonadoPorCuota(cuotas, totalAbonado);
 
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,10 +252,11 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
                                   const SizedBox(height: 14),
                                   _tarjetaItems(itemsAsync),
                                   const SizedBox(height: 14),
-                                  if (apartado.esCuotasFijas)
-                                    _tarjetaCuotas(apartado, cuotasAsync.value ?? [], formatoFecha)
-                                  else
-                                    _tarjetaAbonos(abonosAsync.value ?? [], formatoFecha),
+                                  if (apartado.esCuotasFijas) ...[
+                                    _tarjetaCuotas(apartado, cuotas, abonadoPorCuota, formatoFecha),
+                                    const SizedBox(height: 14),
+                                  ],
+                                  _tarjetaHistorialPagos(abonos, formatoFecha),
                                   if (_error != null) ...[
                                     const SizedBox(height: 14),
                                     Container(
@@ -255,13 +332,13 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
   Widget _tarjeta({required String titulo, required Widget child}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFC7CBD3))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(titulo, style: GoogleFonts.poppins(fontSize: 14.5, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
+          Text(titulo, style: GoogleFonts.poppins(fontSize: 13.5, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
           child,
         ],
       ),
@@ -332,6 +409,43 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
     );
   }
 
+  /// Encabezado compacto de una mini-tabla dentro de una tarjeta (mismo
+  /// estilo que ApartadosScreen._celdaHeader/HistorialAbonosDialog, para que
+  /// estas tablas del detalle se vean consistentes con el resto del sistema).
+  Widget _celdaHeaderTabla(String texto, int flex, {TextAlign align = TextAlign.left}) {
+    return Expanded(
+      flex: flex,
+      child: Text(
+        texto,
+        textAlign: align,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFF666A72), letterSpacing: 0.3),
+      ),
+    );
+  }
+
+  Widget _encabezadoTabla(List<Widget> columnas) {
+    return Container(
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(color: const Color(0xFFECEEF3), borderRadius: BorderRadius.circular(8)),
+      child: Row(children: columnas),
+    );
+  }
+
+  /// Fila con zebra striping -alterna blanco/gris muy claro- para que una
+  /// tabla larga se lea de un vistazo fila por fila, en vez de solo confiar
+  /// en el Divider entre filas (pedido de estética: "más compacta y
+  /// prolija").
+  Widget _filaTabla(int index, Widget child) {
+    return Container(
+      color: index.isEven ? Colors.white : const Color(0xFFF8F9FB),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      child: child,
+    );
+  }
+
   Widget _tarjetaItems(AsyncValue<List<dynamic>> itemsAsync) {
     return _tarjeta(
       titulo: 'Productos',
@@ -340,25 +454,32 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
             ? Text('Sin productos', style: GoogleFonts.poppins(color: Colors.grey.shade500))
             : Column(
                 children: [
-                  for (var i = 0; i < items.length; i++) ...[
-                    if (i > 0) Divider(height: 1, color: Colors.grey.shade200),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
+                  _encabezadoTabla([
+                    _celdaHeaderTabla('PRODUCTO', 4),
+                    _celdaHeaderTabla('CANT.', 2, align: TextAlign.right),
+                    _celdaHeaderTabla('PRECIO', 2, align: TextAlign.right),
+                    _celdaHeaderTabla('SUBTOTAL', 2, align: TextAlign.right),
+                  ]),
+                  const SizedBox(height: 2),
+                  for (var i = 0; i < items.length; i++)
+                    _filaTabla(
+                      i,
+                      Row(
                         children: [
-                          Expanded(flex: 3, child: Text(items[i].nombreProducto, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600))),
+                          Expanded(flex: 4, child: Text(items[i].nombreProducto, style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600))),
                           Expanded(
+                            flex: 2,
                             child: Text(
                               'x${items[i].cantidad.toStringAsFixed(items[i].cantidad == items[i].cantidad.roundToDouble() ? 0 : 2)}',
-                              style: GoogleFonts.poppins(fontSize: 13),
+                              textAlign: TextAlign.right,
+                              style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade600),
                             ),
                           ),
-                          Expanded(child: Text(formatearMoneda(items[i].precioUnitario), style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey.shade600))),
-                          Expanded(child: Text(formatearMoneda(items[i].subtotal), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700))),
+                          Expanded(flex: 2, child: Text(formatearMoneda(items[i].precioUnitario), textAlign: TextAlign.right, style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade600))),
+                          Expanded(flex: 2, child: Text(formatearMoneda(items[i].subtotal), textAlign: TextAlign.right, style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700))),
                         ],
                       ),
                     ),
-                  ],
                 ],
               ),
         loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF0F1B3D))),
@@ -367,54 +488,58 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
     );
   }
 
-  /// [apartado] solo se usa para el "saldo pendiente PROGRAMADO" de cada
-  /// fila -saldo a financiar (montoTotal - montoInicial) menos la suma de
-  /// las cuotas hasta esa fila inclusive, tal como quedaron programadas al
-  /// crear el apartado-: no es necesariamente el saldo real en cada
-  /// instante (un pago libre puede cubrir cuotas fuera de orden estricto o
-  /// dejar una a medio cubrir, ver registrar_abono_apartado), pero sí sirve
-  /// para ver de un vistazo cuánto debería quedar si el pago va al día.
-  Widget _tarjetaCuotas(ApartadoModel apartado, List<ApartadoCuotaModel> cuotas, DateFormat formatoFecha) {
-    final saldoAFinanciar = apartado.montoTotal - apartado.montoInicial;
-    var acumulado = 0.0;
+  /// Por cada cuota: monto programado vs. lo que [abonadoPorCuota] dice que
+  /// se le abonó de verdad -calculado en Dart repartiendo TODO el historial
+  /// de apartado_abonos contra las cuotas en orden, ver [_abonadoPorCuota]-,
+  /// no solo un sí/no. Mientras no esté completa se muestra el avance
+  /// parcial (ej. "L.60.00 programado, L.20.00 abonado"), aunque el estado
+  /// server-side (columna `estado`) siga en 'pendiente' hasta que un pago
+  /// futuro la termine de cubrir por completo.
+  Widget _tarjetaCuotas(ApartadoModel apartado, List<ApartadoCuotaModel> cuotas, Map<String, double> abonadoPorCuota, DateFormat formatoFecha) {
     return _tarjeta(
       titulo: 'Cuotas programadas',
       child: cuotas.isEmpty
           ? Text('Sin cuotas', style: GoogleFonts.poppins(color: Colors.grey.shade500))
           : Column(
               children: [
-                for (var i = 0; i < cuotas.length; i++) ...[
-                  if (i > 0) Divider(height: 1, color: Colors.grey.shade200),
-                  Builder(builder: (context) {
-                    acumulado += cuotas[i].montoProgramado;
-                    final saldoProgramado = (saldoAFinanciar - acumulado).clamp(0, saldoAFinanciar).toDouble();
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: Text('Cuota ${cuotas[i].numeroCuota}', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              cuotas[i].pagada && cuotas[i].fechaPago != null
-                                  ? 'Pagada ${formatoFecha.format(cuotas[i].fechaPago!)}'
-                                  : 'Vence ${formatoFecha.format(cuotas[i].fechaProgramada)}',
-                              style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade600),
-                            ),
-                          ),
-                          Expanded(child: Text(formatearMoneda(cuotas[i].montoProgramado), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700))),
-                          Expanded(child: Text(formatearMoneda(saldoProgramado), style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade500))),
-                          _chipCuotaEstado(cuotas[i]),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
+                _encabezadoTabla([
+                  _celdaHeaderTabla('CUOTA', 2),
+                  _celdaHeaderTabla('FECHA', 3),
+                  _celdaHeaderTabla('PROGRAMADO', 2, align: TextAlign.right),
+                  _celdaHeaderTabla('ABONADO', 2, align: TextAlign.right),
+                  _celdaHeaderTabla('ESTADO', 2, align: TextAlign.right),
+                ]),
+                const SizedBox(height: 2),
+                for (var i = 0; i < cuotas.length; i++)
+                  _filaTabla(i, _filaCuota(cuotas[i], abonadoPorCuota[cuotas[i].id] ?? 0, formatoFecha)),
               ],
             ),
+    );
+  }
+
+  Widget _filaCuota(ApartadoCuotaModel c, double abonado, DateFormat formatoFecha) {
+    final completa = abonado + 0.01 >= c.montoProgramado;
+    return Row(
+      children: [
+        Expanded(flex: 2, child: Text('Cuota ${c.numeroCuota}', style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600))),
+        Expanded(
+          flex: 3,
+          child: Text(
+            c.pagada && c.fechaPago != null ? 'Pagada ${formatoFecha.format(c.fechaPago!)}' : 'Vence ${formatoFecha.format(c.fechaProgramada)}',
+            style: GoogleFonts.poppins(fontSize: 11.5, color: Colors.grey.shade600),
+          ),
+        ),
+        Expanded(flex: 2, child: Text(formatearMoneda(c.montoProgramado), textAlign: TextAlign.right, style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700))),
+        Expanded(
+          flex: 2,
+          child: Text(
+            formatearMoneda(abonado),
+            textAlign: TextAlign.right,
+            style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: completa ? const Color(0xFF16A34A) : const Color(0xFF3B82F6)),
+          ),
+        ),
+        Expanded(flex: 2, child: Align(alignment: Alignment.centerRight, child: _chipCuotaEstado(c))),
+      ],
     );
   }
 
@@ -425,39 +550,88 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
             ? (const Color(0xFFB91C1C), 'Vencida')
             : (const Color(0xFF3B82F6), 'Pendiente');
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
-      child: Text(texto, style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+      child: Text(texto, style: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w600, color: color)),
     );
   }
 
-  Widget _tarjetaAbonos(List<dynamic> abonos, DateFormat formatoFecha) {
+  /// Historial COMPLETO de pagos (apartado_abonos), sin importar la
+  /// modalidad -es la única fuente de verdad de "cuánto se pagó" en las dos,
+  /// ver comentario grande en supabase/schema.sql-: por eso se muestra
+  /// siempre, incluso en cuotas_fijas, para que dos pagos distintos que
+  /// cubrieron juntos una misma cuota (ej. L.20 un día y L.40 otro) queden a
+  /// la vista como los dos movimientos reales que fueron, no como una sola
+  /// fila "Pagada". Cada fila tiene su menú de editar/eliminar -acción
+  /// sensible, siempre disponible, protegida por verificarAccesoEspecial-.
+  Widget _tarjetaHistorialPagos(List<ApartadoAbonoModel> abonos, DateFormat formatoFecha) {
     return _tarjeta(
-      titulo: 'Historial de abonos',
+      titulo: 'Historial de pagos',
       child: abonos.isEmpty
-          ? Text('Todavía no hay abonos registrados', style: GoogleFonts.poppins(color: Colors.grey.shade500))
+          ? Text('Todavía no hay pagos registrados', style: GoogleFonts.poppins(color: Colors.grey.shade500))
           : Column(
               children: [
-                for (var i = 0; i < abonos.length; i++) ...[
-                  if (i > 0) Divider(height: 1, color: Colors.grey.shade200),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Row(
+                _encabezadoTabla([
+                  _celdaHeaderTabla('FECHA', 3),
+                  _celdaHeaderTabla('MONTO PAGADO', 2, align: TextAlign.right),
+                  _celdaHeaderTabla('SALDO ANTES', 2, align: TextAlign.right),
+                  _celdaHeaderTabla('SALDO DESPUÉS', 2, align: TextAlign.right),
+                  _celdaHeaderTabla('', 1),
+                ]),
+                const SizedBox(height: 2),
+                for (var i = 0; i < abonos.length; i++)
+                  _filaTabla(
+                    i,
+                    Row(
                       children: [
+                        Expanded(flex: 3, child: Text(abonos[i].fecha != null ? formatoFecha.format(abonos[i].fecha!) : '-', style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade600))),
                         Expanded(
-                          child: Text(
-                            abonos[i].fecha != null ? formatoFecha.format(abonos[i].fecha) : '-',
-                            style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade600),
-                          ),
+                          flex: 2,
+                          child: Text(formatearMoneda(abonos[i].montoAbonado), textAlign: TextAlign.right, style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: const Color(0xFF16A34A))),
                         ),
-                        Expanded(child: Text(formatearMoneda(abonos[i].montoAbonado), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700))),
-                        Expanded(child: Text('Saldo: ${formatearMoneda(abonos[i].saldoPendiente)}', style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade500))),
+                        Expanded(flex: 2, child: Text(formatearMoneda(abonos[i].saldoAnterior), textAlign: TextAlign.right, style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade500))),
+                        Expanded(flex: 2, child: Text(formatearMoneda(abonos[i].saldoPendiente), textAlign: TextAlign.right, style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600))),
+                        Expanded(flex: 1, child: Align(alignment: Alignment.centerRight, child: _menuAccionesPago(abonos[i]))),
                       ],
                     ),
                   ),
-                ],
               ],
             ),
+    );
+  }
+
+  Widget _menuAccionesPago(ApartadoAbonoModel abono) {
+    return PopupMenuButton<String>(
+      tooltip: 'Más acciones',
+      padding: EdgeInsets.zero,
+      icon: Icon(Icons.more_vert, size: 18, color: Colors.grey.shade600),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: (valor) {
+        if (valor == 'editar') _editarPago(abono);
+        if (valor == 'eliminar') _eliminarPago(abono);
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'editar',
+          child: Row(
+            children: [
+              const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF4B4F58)),
+              const SizedBox(width: 10),
+              Text('Editar pago', style: GoogleFonts.poppins(fontSize: 12.5)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'eliminar',
+          child: Row(
+            children: [
+              const Icon(Icons.delete_outline, size: 18, color: Color(0xFFB91C1C)),
+              const SizedBox(width: 10),
+              Text('Eliminar pago', style: GoogleFonts.poppins(fontSize: 12.5)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

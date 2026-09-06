@@ -37,6 +37,10 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
   String? _error;
   List<ReporteCompraModel>? _compras;
 
+  // Tablas cuyo primer evento de Realtime (el snapshot inicial de la
+  // suscripción, no un cambio real) ya se descartó -ver _escucharCambios-.
+  final _tablasConSnapshotInicialListo = <String>{};
+
   static const _metodosPago = [
     'Efectivo',
     'Transferencia',
@@ -87,6 +91,20 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
+  }
+
+  // Re-dispara _buscar() (mismo rango de fecha ya elegido, sin resetear
+  // ningún filtro) cuando algo cambia en [tabla] -mismo mecanismo que
+  // ReporteVentasScreen, ver ese comentario para el detalle-.
+  void _escucharCambios(String tabla) {
+    ref.listen<AsyncValue<void>>(cambiosEnTablaProvider(tabla), (
+      previous,
+      next,
+    ) {
+      if (!next.hasValue || !mounted) return;
+      if (_tablasConSnapshotInicialListo.add(tabla)) return;
+      if (!_cargando) _buscar();
+    });
   }
 
   void _verDetalle(String idCompra) {
@@ -238,6 +256,7 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _escucharCambios('compras');
     final lista = _listaFiltrada;
     final totalFacturado = lista.fold<double>(0, (s, c) => s + c.montoTotal);
     final proveedoresAsync = ref.watch(proveedoresStreamProvider);

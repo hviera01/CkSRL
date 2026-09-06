@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../../core/constants/roles.dart';
 import '../../../../core/data/modulos_menu.dart';
 import '../../../../core/utils/abrir_submodulo.dart';
 import '../../../../core/utils/formato_moneda.dart';
 import '../../providers/resumen_ventas_provider.dart';
+import '../widgets/dashboard_admin.dart';
 
 // Solo el navegador de un celular (no la PC, no la app de escritorio): ahí
 // es donde tiene sentido un atajo directo a "Nueva Venta" / "Nueva Compra" /
@@ -91,7 +93,7 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final usuario = authState.usuario;
-    final esAdmin = usuario?.rol == 'Administrador';
+    final esAdmin = usuario?.rol == Roles.administrador;
 
     final modulosVisibles = obtenerModulos().where((m) {
       return m.subModulos.any((s) => esAdmin || !s.soloAdmin);
@@ -128,6 +130,13 @@ class HomeScreen extends ConsumerWidget {
                   if (_esWebMovil) ...[
                     _accesosDirectos(context, ref),
                     const SizedBox(height: 20),
+                  ],
+                  // Dashboard "de un vistazo" -pedido explícito del dueño-:
+                  // solo el Administrador lo ve, el resto de roles sigue
+                  // viendo Inicio igual que siempre.
+                  if (esAdmin) ...[
+                    const DashboardAdmin(),
+                    const SizedBox(height: 24),
                   ],
                   _resumenVentas(ref, esMovil),
                   const SizedBox(height: 24),
