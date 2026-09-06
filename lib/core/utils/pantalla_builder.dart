@@ -11,6 +11,7 @@ import '../../features/clientes/presentation/screens/clientes_screen.dart';
 import '../../features/proveedores/presentation/screens/proveedores_screen.dart';
 import '../../features/ventas_credito/presentation/screens/ventas_credito_screen.dart';
 import '../../features/compras_credito/presentation/screens/compras_credito_screen.dart';
+import '../../features/apartados/presentation/screens/apartados_screen.dart';
 import '../../features/reportes/presentation/screens/reporte_ventas_screen.dart';
 import '../../features/reportes/presentation/screens/reporte_compras_screen.dart';
 import '../../features/reportes/presentation/screens/reporte_financiero_screen.dart';
@@ -178,6 +179,11 @@ Widget _construirContenidoPantalla(
           comprasCreditoVistaProvider,
         ],
         child: const ComprasCreditoScreen(),
+      );
+    case 'apartados':
+      return ProviderScope(
+        overrides: [apartadosBusquedaProvider, apartadosVistaProvider],
+        child: const ApartadosScreen(),
       );
     case 'reporte_ventas':
       return const ReporteVentasScreen();

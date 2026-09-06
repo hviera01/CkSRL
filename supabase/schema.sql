@@ -2021,3 +2021,236 @@ end $$;
 -- en '{}'. Estructura libre, no se consulta por SQL -jsonb-.
 alter table usuarios add column if not exists pantallas_permitidas jsonb not null default '{}'::jsonb;
 alter table usuarios add column if not exists acciones_permitidas jsonb not null default '{}'::jsonb;
+
+-- ============================================================================
+-- APARTADOS (fase Dart, ver lib/features/apartados/). Ajuste puntual sobre
+-- el esquema original de apartados (arriba): falta un snapshot congelado del
+-- nombre del cliente -mismo criterio que ventas.nombre_cliente /
+-- ventas_credito.nombre_cliente / compras.razon_social en el resto del
+-- esquema-, para listar apartados sin depender de un join contra clientes en
+-- cada pantalla (clientes.id_cliente ya tiene on delete restrict, así que el
+-- registro real siempre existe, pero el nombre puede cambiar después).
+-- ----------------------------------------------------------------------------
+alter table apartados add column if not exists nombre_cliente text not null default '';
+create index if not exists idx_apartados_nombre_cliente on apartados (nombre_cliente);
+
+-- ----------------------------------------------------------------------------
+-- producto_disponibilidad: cuánto de un producto está físicamente en stock
+-- vs. cuánto ya está comprometido por apartados ACTIVOS (todavía no
+-- entregados) -para no vender/apartar de más algo que ya se separó para
+-- otro cliente-. Es de solo lectura (se usa con SELECT desde Dart, tanto en
+-- Inventario como al armar un apartado nuevo); la validación que de verdad
+-- IMPIDE apartar de más vive en crear_apartado (abajo), que recalcula esto
+-- mismo pero bloqueando la fila de productos (FOR UPDATE) para que dos
+-- apartados concurrentes del mismo producto no pasen los dos el chequeo a la
+-- vez -esta vista sola, sin ese lock, no alcanzaría para evitar esa carrera-.
+-- ----------------------------------------------------------------------------
+create or replace view producto_disponibilidad as
+select
+  p.id as id_producto,
+  p.stock as stock_fisico,
+  coalesce(a.cantidad_apartada, 0) as cantidad_apartada,
+  p.stock - coalesce(a.cantidad_apartada, 0) as disponible
+from productos p
+left join (
+  select ai.id_producto, sum(ai.cantidad) as cantidad_apartada
+  from apartado_items ai
+  join apartados ap on ap.id = ai.id_apartado
+  where ap.estado = 'activo'
+  group by ai.id_producto
+) a on a.id_producto = p.id;
+comment on view producto_disponibilidad is 'stock_fisico (productos.stock) vs. cantidad_apartada (activa) vs. disponible real. Ver crear_apartado para el chequeo atómico real al crear un apartado.';
+
+-- ----------------------------------------------------------------------------
+-- crear_apartado: inserta cabecera + items (+ cuotas si modalidad =
+-- 'cuotas_fijas', ya armadas por Dart -número/monto/fecha de cada cuota,
+-- nada hardcodeado acá-), validando ANTES de insertar nada que cada producto
+-- de la lista tenga existencia disponible de verdad (stock físico menos lo
+-- ya apartado por otros apartados activos), bloqueando la fila de
+-- productos (FOR UPDATE) para que dos apartados concurrentes del mismo
+-- producto no pasen los dos el chequeo a la vez. NO descuenta stock -eso
+-- pasa recién en marcar_apartado_entregado-, esto solo reserva.
+-- payload: idCliente, nombreCliente, montoTotal, montoInicial, modalidad,
+--   fechaCreacion, items: [{idProducto, nombreProducto, cantidad,
+--   precioUnitario, subtotal}], cuotas (solo si modalidad='cuotas_fijas'):
+--   [{numeroCuota, montoProgramado, fechaProgramada}].
+-- ----------------------------------------------------------------------------
+create or replace function crear_apartado(payload jsonb) returns jsonb
+language plpgsql as $$
+declare
+  v_id_apartado uuid := gen_random_uuid();
+  v_id_cliente uuid := nullif(payload->>'idCliente', '')::uuid;
+  v_monto_total numeric := (payload->>'montoTotal')::numeric;
+  v_monto_inicial numeric := coalesce((payload->>'montoInicial')::numeric, 0);
+  v_modalidad text := payload->>'modalidad';
+  item jsonb;
+  cuota jsonb;
+  v_id_producto uuid;
+  v_cantidad numeric;
+  v_nombre text;
+  v_stock_fisico numeric;
+  v_cantidad_apartada numeric;
+  v_disponible numeric;
+begin
+  if v_monto_inicial > v_monto_total + 0.01 then
+    raise exception 'El pago inicial no puede superar el monto total del apartado';
+  end if;
+
+  -- Chequeo de disponibilidad (con lock) ANTES de insertar nada: si un
+  -- producto no alcanza, toda la operación se cancela sola (ver raise
+  -- exception dentro de una función plpgsql = rollback automático de lo que
+  -- ya se hubiera insertado en esta misma llamada).
+  for item in select * from jsonb_array_elements(payload->'items') loop
+    v_id_producto := nullif(item->>'idProducto', '')::uuid;
+    if v_id_producto is null then continue; end if;
+    v_cantidad := (item->>'cantidad')::numeric;
+    v_nombre := coalesce(item->>'nombreProducto', '');
+    select stock into v_stock_fisico from productos where id = v_id_producto for update;
+    select coalesce(sum(ai.cantidad), 0) into v_cantidad_apartada
+      from apartado_items ai
+      join apartados ap on ap.id = ai.id_apartado
+      where ai.id_producto = v_id_producto and ap.estado = 'activo';
+    v_disponible := coalesce(v_stock_fisico, 0) - v_cantidad_apartada;
+    if v_disponible < v_cantidad then
+      raise exception 'Existencia insuficiente de "%": disponible % (ya hay % apartado), solicitado %',
+        v_nombre, formatear_cantidad(v_disponible), formatear_cantidad(v_cantidad_apartada), formatear_cantidad(v_cantidad);
+    end if;
+  end loop;
+
+  insert into apartados (id, id_cliente, nombre_cliente, monto_total, monto_inicial, modalidad, estado, fecha_creacion)
+  values (
+    v_id_apartado, v_id_cliente, coalesce(payload->>'nombreCliente', ''), v_monto_total, v_monto_inicial, v_modalidad,
+    'activo', coalesce(nullif(payload->>'fechaCreacion', '')::timestamptz, now())
+  );
+
+  for item in select * from jsonb_array_elements(payload->'items') loop
+    insert into apartado_items (id_apartado, id_producto, nombre_producto, cantidad, precio_unitario, subtotal)
+    values (
+      v_id_apartado, nullif(item->>'idProducto', '')::uuid, item->>'nombreProducto',
+      (item->>'cantidad')::numeric, (item->>'precioUnitario')::numeric, (item->>'subtotal')::numeric
+    );
+  end loop;
+
+  if v_modalidad = 'cuotas_fijas' then
+    for cuota in select * from jsonb_array_elements(coalesce(payload->'cuotas', '[]'::jsonb)) loop
+      insert into apartado_cuotas (id_apartado, numero_cuota, monto_programado, fecha_programada, estado)
+      values (
+        v_id_apartado, (cuota->>'numeroCuota')::integer, (cuota->>'montoProgramado')::numeric,
+        (cuota->>'fechaProgramada')::date, 'pendiente'
+      );
+    end loop;
+  end if;
+
+  return jsonb_build_object('id', v_id_apartado);
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- registrar_abono_apartado: modalidad 'abonos_libres'. A diferencia de
+-- venta_credito_abonos/compra_credito_abonos (que confían en un
+-- saldoAnterior calculado en Dart, porque ahí sí hay una columna
+-- saldo_pendiente en la cabecera que Dart ya leyó de un stream reciente),
+-- apartados NO tiene columna de saldo propia -el saldo siempre se deriva de
+-- monto_total/monto_inicial/abonos-, así que acá se recalcula el saldo
+-- anterior DE NUEVO server-side (bloqueando la fila de apartados) en vez de
+-- confiar en lo que mande Dart: evita que dos abonos concurrentes al mismo
+-- apartado lean el mismo "saldo anterior" viejo y ninguno de los dos falle.
+-- ----------------------------------------------------------------------------
+create or replace function registrar_abono_apartado(payload jsonb) returns jsonb
+language plpgsql as $$
+declare
+  v_id_apartado uuid := (payload->>'idApartado')::uuid;
+  v_monto_abonado numeric := (payload->>'montoAbonado')::numeric;
+  v_monto_total numeric;
+  v_monto_inicial numeric;
+  v_estado text;
+  v_modalidad text;
+  v_ya_abonado numeric;
+  v_saldo_anterior numeric;
+  v_saldo_pendiente numeric;
+begin
+  select monto_total, monto_inicial, estado, modalidad into v_monto_total, v_monto_inicial, v_estado, v_modalidad
+    from apartados where id = v_id_apartado for update;
+  if not found then
+    raise exception 'No se encontró el apartado';
+  end if;
+  if v_estado <> 'activo' then
+    raise exception 'Este apartado no admite abonos (estado: %)', v_estado;
+  end if;
+  if v_modalidad <> 'abonos_libres' then
+    raise exception 'Este apartado es de cuotas fijas, no de abonos libres';
+  end if;
+  if v_monto_abonado <= 0 then
+    raise exception 'Ingresá un monto de abono válido';
+  end if;
+
+  select coalesce(sum(monto_abonado), 0) into v_ya_abonado from apartado_abonos where id_apartado = v_id_apartado;
+  v_saldo_anterior := round(v_monto_total - v_monto_inicial - v_ya_abonado, 2);
+  if v_monto_abonado > v_saldo_anterior + 0.01 then
+    raise exception 'El abono (%) supera el saldo pendiente (%)', round(v_monto_abonado, 2), v_saldo_anterior;
+  end if;
+  v_saldo_pendiente := round(greatest(v_saldo_anterior - v_monto_abonado, 0), 2);
+
+  insert into apartado_abonos (id_apartado, monto_abonado, fecha, saldo_anterior, saldo_pendiente)
+  values (v_id_apartado, round(v_monto_abonado, 2), coalesce(nullif(payload->>'fecha', '')::timestamptz, now()), v_saldo_anterior, v_saldo_pendiente);
+
+  return jsonb_build_object('saldoAnterior', v_saldo_anterior, 'saldoPendiente', v_saldo_pendiente);
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- marcar_apartado_entregado: acá -y solo acá- se descuenta el stock físico
+-- de verdad (mismo motor FIFO que registrar_venta: consumir_fifo_lotes +
+-- historial_stock + sincronizar_precio_compra_activo), porque es el momento
+-- en que el producto de verdad sale del local. Exige saldo pendiente en 0
+-- -no se puede entregar algo que no se terminó de pagar, es la esencia de
+-- un apartado- y estado 'activo' (no ya entregado/cancelado).
+-- ----------------------------------------------------------------------------
+create or replace function marcar_apartado_entregado(p_id_apartado uuid, p_usuario text) returns void
+language plpgsql as $$
+declare
+  v_estado text;
+  v_monto_total numeric;
+  v_monto_inicial numeric;
+  v_modalidad text;
+  v_ya_pagado numeric;
+  v_saldo numeric;
+  item record;
+  v_stock_actual numeric;
+  v_precio_compra numeric;
+  v_costo numeric;
+  v_stock_nuevo numeric;
+begin
+  select estado, monto_total, monto_inicial, modalidad into v_estado, v_monto_total, v_monto_inicial, v_modalidad
+    from apartados where id = p_id_apartado for update;
+  if not found then
+    raise exception 'No se encontró el apartado';
+  end if;
+  if v_estado <> 'activo' then
+    raise exception 'Este apartado no está activo (estado: %)', v_estado;
+  end if;
+
+  if v_modalidad = 'abonos_libres' then
+    select coalesce(sum(monto_abonado), 0) into v_ya_pagado from apartado_abonos where id_apartado = p_id_apartado;
+  else
+    select coalesce(sum(monto_programado), 0) into v_ya_pagado from apartado_cuotas where id_apartado = p_id_apartado and estado = 'pagada';
+  end if;
+  v_saldo := round(v_monto_total - v_monto_inicial - v_ya_pagado, 2);
+  if v_saldo > 0.01 then
+    raise exception 'Este apartado todavía tiene un saldo pendiente de %', v_saldo;
+  end if;
+
+  for item in select id_producto, cantidad from apartado_items where id_apartado = p_id_apartado loop
+    if item.id_producto is null then continue; end if;
+    select stock, precio_compra into v_stock_actual, v_precio_compra from productos where id = item.id_producto for update;
+    v_costo := consumir_fifo_lotes(item.id_producto, item.cantidad, coalesce(v_precio_compra, 0));
+    v_stock_nuevo := greatest(coalesce(v_stock_actual, 0) - item.cantidad, 0);
+    update productos set stock = v_stock_nuevo where id = item.id_producto;
+    insert into producto_historial_stock (id_producto, stock_anterior, stock_nuevo, usuario, motivo, fecha)
+    values (item.id_producto, coalesce(v_stock_actual, 0), v_stock_nuevo, coalesce(p_usuario, ''), 'Entrega de apartado', now());
+    perform sincronizar_precio_compra_activo(item.id_producto);
+  end loop;
+
+  update apartados set estado = 'completado', fecha_entrega = now() where id = p_id_apartado;
+end;
+$$;

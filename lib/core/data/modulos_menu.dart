@@ -101,6 +101,18 @@ List<ModuloMenu> obtenerModulos() {
         SubModulo(titulo: 'Compras Crédito', icono: Icons.credit_score_outlined, moduleKey: 'compras_credito'),
       ],
     ),
+    // Apartados (lay-away): distinto de Ventas a Crédito -acá el cliente NO
+    // se lleva el producto hasta terminar de pagarlo (ver
+    // lib/features/apartados/)-, por eso es un módulo propio en vez de una
+    // vista más adentro de Créditos.
+    ModuloMenu(
+      titulo: 'Apartados',
+      icono: Icons.shopping_bag_outlined,
+      color: const Color(0xFF6D28D9),
+      subModulos: [
+        SubModulo(titulo: 'Apartados', icono: Icons.shopping_bag_outlined, moduleKey: 'apartados'),
+      ],
+    ),
     ModuloMenu(
       titulo: 'Reportes',
       icono: Icons.bar_chart_outlined,

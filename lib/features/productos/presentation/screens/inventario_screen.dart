@@ -29,6 +29,8 @@ import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
 import '../../../../core/widgets/imagen_zoom_dialog.dart';
 import '../../../../core/widgets/imagen_producto_network.dart';
+import '../../../apartados/providers/apartados_provider.dart';
+import '../../../apartados/presentation/widgets/apartados_producto_dialog.dart';
 
 class InventarioScreen extends ConsumerStatefulWidget {
   const InventarioScreen({super.key});
@@ -789,6 +791,9 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     final categoriasAsync = ref.watch(categoriasStreamProvider);
     final busqueda = ref.watch(inventarioBusquedaProvider);
     final vista = ref.watch(inventarioVistaProvider);
+    // Cuánto de cada producto está reservado por apartados ACTIVOS (ver
+    // lib/features/apartados/) -para el badge "N apartados" de cada fila.
+    final cantidadesApartadas = ref.watch(cantidadesApartadasProvider);
     final categoriasLista = categoriasAsync.value ?? <dynamic>[];
     // Cache: OJO, esto era el bug real de por qué el cache de
     // `_filtrarYOrdenar` de abajo nunca se activaba -comparaba por identidad
@@ -1063,8 +1068,8 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                       focusNode: _focusNode,
                       onKeyEvent: _manejarTeclado,
                       child: usarTarjetas
-                          ? _tarjetas(lista, mapaCategorias, mapaProductos)
-                          : _tabla(lista, mapaCategorias, mapaProductos),
+                          ? _tarjetas(lista, mapaCategorias, mapaProductos, cantidadesApartadas)
+                          : _tabla(lista, mapaCategorias, mapaProductos, cantidadesApartadas),
                     );
                   },
                   loading: () => const Center(
@@ -1081,6 +1086,42 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// Badge "N apartados" -solo se muestra si hay algo apartado de este
+  /// producto (ver cantidadesApartadasProvider)-, tocable: abre un diálogo
+  /// chico con el desglose (qué apartados, de qué cliente) y acceso directo
+  /// al detalle de cada uno -pedido explícito: indicador con acceso rápido,
+  /// sin tener que ir manualmente al módulo Apartados a buscarlo-.
+  Widget _badgeApartados(ProductoModel producto, Map<String, double> cantidadesApartadas) {
+    final cantidad = cantidadesApartadas[producto.id] ?? 0;
+    if (cantidad <= 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => showDialog(
+          useRootNavigator: false,
+          context: context,
+          builder: (context) => ApartadosProductoDialog(idProducto: producto.id, nombreProducto: producto.nombre),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(color: const Color(0xFF6D28D9).withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.shopping_bag_outlined, size: 11, color: Color(0xFF6D28D9)),
+              const SizedBox(width: 3),
+              Text(
+                '${cantidad.toStringAsFixed(cantidad == cantidad.roundToDouble() ? 0 : 2)} apartado${cantidad == 1 ? '' : 's'}',
+                style: GoogleFonts.poppins(fontSize: 9.5, fontWeight: FontWeight.w700, color: const Color(0xFF6D28D9)),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1107,6 +1148,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     List<ProductoModel> lista,
     Map<String, String> mapaCategorias,
     Map<String, ProductoModel> mapaProductos,
+    Map<String, double> cantidadesApartadas,
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1280,31 +1322,38 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                             flex: 12,
                             child: Align(
                               alignment: Alignment.centerLeft,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: bajoStock
-                                      ? const Color(0xFFFCE4E4)
-                                      : const Color(0xFFEFF4FF),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  existencia.toStringAsFixed(
-                                    existencia == existencia.roundToDouble()
-                                        ? 0
-                                        : 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: bajoStock
+                                          ? const Color(0xFFFCE4E4)
+                                          : const Color(0xFFEFF4FF),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      existencia.toStringAsFixed(
+                                        existencia == existencia.roundToDouble()
+                                            ? 0
+                                            : 2,
+                                      ),
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: bajoStock
+                                            ? const Color(0xFF0F1B3D)
+                                            : const Color(0xFF3B82F6),
+                                      ),
+                                    ),
                                   ),
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: bajoStock
-                                        ? const Color(0xFF0F1B3D)
-                                        : const Color(0xFF3B82F6),
-                                  ),
-                                ),
+                                  _badgeApartados(producto, cantidadesApartadas),
+                                ],
                               ),
                             ),
                           ),
@@ -1379,6 +1428,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     List<ProductoModel> lista,
     Map<String, String> mapaCategorias,
     Map<String, ProductoModel> mapaProductos,
+    Map<String, double> cantidadesApartadas,
   ) {
     return Column(
       children: [
@@ -1392,6 +1442,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
               lista[index],
               mapaCategorias,
               mapaProductos,
+              cantidadesApartadas,
             ),
           ),
         ),
@@ -1431,6 +1482,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     ProductoModel p,
     Map<String, String> mapaCategorias,
     Map<String, ProductoModel> mapaProductos,
+    Map<String, double> cantidadesApartadas,
   ) {
     final existencia = p.esCombo
         ? p.stockDisponibleCombo(mapaProductos)
@@ -1594,15 +1646,22 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                   Divider(height: 1, color: Colors.grey.shade200),
                   _filaDatoTarjeta(
                     'EXISTENCIA',
-                    Text(
-                      '$textoExistencia Unidades',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: bajoStock
-                            ? const Color(0xFF0F1B3D)
-                            : const Color(0xFF1A1A1A),
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$textoExistencia Unidades',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: bajoStock
+                                ? const Color(0xFF0F1B3D)
+                                : const Color(0xFF1A1A1A),
+                          ),
+                        ),
+                        _badgeApartados(p, cantidadesApartadas),
+                      ],
                     ),
                   ),
                   Divider(height: 1, color: Colors.grey.shade200),
