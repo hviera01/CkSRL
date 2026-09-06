@@ -4,6 +4,7 @@ import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 import '../../data/venta_model.dart';
 import '../../data/numero_a_letras.dart';
+import '../../data/tipos_documento.dart';
 import '../../../negocio/data/negocio_model.dart';
 import '../../../../core/utils/formato_moneda.dart';
 import '../../../../core/utils/logo_escpos.dart';
@@ -125,7 +126,7 @@ class TicketEscPosPreview extends StatelessWidget {
           if (negocio.cai.isNotEmpty) linea('CAI: ${negocio.cai}', centrado: true),
           const SizedBox(height: 6),
           separador(),
-          linea('${venta.tipoDocumento.toUpperCase()} ${negocio.rangoPrefijo}${venta.numeroDocumento}', negrita: true),
+          linea('${(tiposDocumento[venta.tipoDocumento] ?? venta.tipoDocumento).toUpperCase()} ${negocio.rangoPrefijo}${venta.numeroDocumento}', negrita: true),
           linea('Fecha: ${venta.fechaRegistro != null ? formatoFecha.format(venta.fechaRegistro!) : '-'}'),
           linea('Atendido por: ${venta.usuarioRegistro}'),
           linea('Condición: ${venta.condicion}'),

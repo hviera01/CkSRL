@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import '../../data/tipos_documento.dart';
 import '../../data/venta_en_espera_model.dart';
 import '../../providers/ventas_provider.dart';
 import '../../../auth/providers/auth_provider.dart';
@@ -180,7 +181,7 @@ class VentasEnEsperaDialog extends ConsumerWidget {
                                       // totalFinal (con ISV y descuento global, lo que de verdad
                                       // pagaría el cliente) -pedido explícito del dueño: antes
                                       // salía el subtotal sin impuesto-.
-                                      '${sesion.tipoDocumento} · ${sesion.items.length} producto(s) · ${formatearMoneda(sesion.totalFinal)}',
+                                      '${tiposDocumento[sesion.tipoDocumento] ?? sesion.tipoDocumento} · ${sesion.items.length} producto(s) · ${formatearMoneda(sesion.totalFinal)}',
                                       style: GoogleFonts.poppins(
                                         fontSize: 11.5,
                                         color: Colors.grey.shade600,

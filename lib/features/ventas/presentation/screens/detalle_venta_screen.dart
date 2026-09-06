@@ -602,7 +602,7 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
         context: context,
         builder: (context) => PdfPreviewDialog(
           titulo: 'Documento formal · ${venta.numeroDocumento}',
-          nombreArchivo: '${venta.tipoDocumento}_${venta.numeroDocumento}.pdf',
+          nombreArchivo: '${tiposDocumento[venta.tipoDocumento] ?? venta.tipoDocumento}_${venta.numeroDocumento}.pdf',
           generarPdf: () => _servicioExport.generarPdfDetalleVenta(
             venta,
             negocio,
@@ -1051,7 +1051,7 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
             spacing: 24,
             runSpacing: 14,
             children: [
-              _campoInfo('Tipo de documento', venta.tipoDocumento),
+              _campoInfo('Tipo de documento', tiposDocumento[venta.tipoDocumento] ?? venta.tipoDocumento),
               _campoInfo('No. Documento', venta.numeroDocumento),
               _campoInfo(
                 'Fecha',

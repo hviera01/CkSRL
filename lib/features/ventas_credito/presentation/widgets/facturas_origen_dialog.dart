@@ -7,6 +7,7 @@ import '../../providers/ventas_credito_provider.dart';
 import '../../../../core/utils/formato_moneda.dart';
 import '../../../../core/widgets/pdf_preview_dialog.dart';
 import '../../../ventas/data/item_venta_model.dart';
+import '../../../ventas/data/tipos_documento.dart';
 import '../../../ventas/data/venta_model.dart';
 import '../../../ventas/data/venta_export_service.dart';
 import '../../../ventas/providers/ventas_provider.dart';
@@ -295,7 +296,7 @@ class _FacturasOrigenDialogState extends ConsumerState<FacturasOrigenDialog> {
       builder: (context) => PdfPreviewDialog(
         titulo: 'Documento formal · ${ventaSintetica.numeroDocumento}',
         nombreArchivo:
-            '${ventaSintetica.tipoDocumento}_${ventaSintetica.numeroDocumento}.pdf',
+            '${tiposDocumento[ventaSintetica.tipoDocumento] ?? ventaSintetica.tipoDocumento}_${ventaSintetica.numeroDocumento}.pdf',
         generarPdf: () => VentaExportService().generarPdfDetalleVenta(
           ventaSintetica,
           negocio,

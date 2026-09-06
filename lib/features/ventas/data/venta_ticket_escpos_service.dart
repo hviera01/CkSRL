@@ -5,6 +5,7 @@ import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 import 'venta_model.dart';
 import 'numero_a_letras.dart';
+import 'tipos_documento.dart';
 import '../../../core/utils/formato_moneda.dart';
 import '../../../core/utils/logo_escpos.dart';
 import '../../../core/utils/texto_utils.dart';
@@ -144,7 +145,7 @@ class VentaTicketEscPosService {
     }
 
     bytes += generador.hr();
-    bytes += _texto(generador, '${venta.tipoDocumento} ${negocio.rangoPrefijo}${venta.numeroDocumento}');
+    bytes += _texto(generador, '${tiposDocumento[venta.tipoDocumento] ?? venta.tipoDocumento} ${negocio.rangoPrefijo}${venta.numeroDocumento}');
     bytes += _texto(generador, 'Fecha: ${venta.fechaRegistro != null ? formatoFecha.format(venta.fechaRegistro!) : '-'}');
     if (venta.nombreCliente.isNotEmpty && venta.nombreCliente != venta.envioNombre) {
       bytes += _texto(generador, 'Comprador: ${venta.nombreCliente}');
@@ -185,7 +186,7 @@ class VentaTicketEscPosService {
       if (venta.envioTelefono.isNotEmpty) _SeccionGuiaGrande('TELEFONO', venta.envioTelefono, fontEtiqueta: 26, fontValor: 65, maxAnchoValor: 400),
       _SeccionGuiaGrande(
         negocio.nombre.isEmpty ? '' : negocio.nombre.toUpperCase(),
-        '${venta.tipoDocumento} ${negocio.rangoPrefijo}${venta.numeroDocumento}',
+        '${tiposDocumento[venta.tipoDocumento] ?? venta.tipoDocumento} ${negocio.rangoPrefijo}${venta.numeroDocumento}',
         fontEtiqueta: 22,
         fontValor: 28,
         maxAnchoValor: 500,
@@ -341,7 +342,7 @@ class VentaTicketEscPosService {
     bytes += generador.emptyLines(1);
     bytes += generador.hr();
 
-    bytes += _texto(generador, '${venta.tipoDocumento.toUpperCase()} ${negocio.rangoPrefijo}${venta.numeroDocumento}', styles: const PosStyles(bold: true));
+    bytes += _texto(generador, '${(tiposDocumento[venta.tipoDocumento] ?? venta.tipoDocumento).toUpperCase()} ${negocio.rangoPrefijo}${venta.numeroDocumento}', styles: const PosStyles(bold: true));
     bytes += _texto(generador, 'Fecha: ${venta.fechaRegistro != null ? formatoFecha.format(venta.fechaRegistro!) : '-'}');
     bytes += _texto(generador, 'Atendido por: ${venta.usuarioRegistro}');
     bytes += _texto(generador, 'Condicion: ${venta.condicion}');

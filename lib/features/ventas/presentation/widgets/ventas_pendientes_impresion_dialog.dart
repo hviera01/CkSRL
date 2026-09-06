@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../data/impresion_pendiente_service.dart';
+import '../../data/tipos_documento.dart';
 import '../../data/venta_model.dart';
 import '../../providers/ventas_provider.dart';
 import '../../../../core/utils/formato_moneda.dart';
@@ -126,7 +127,7 @@ class _VentasPendientesImpresionDialogState extends ConsumerState<VentasPendient
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      '${venta.tipoDocumento} · ${venta.numeroDocumento} · ${formatearMoneda(venta.totalAPagar)}',
+                                      '${tiposDocumento[venta.tipoDocumento] ?? venta.tipoDocumento} · ${venta.numeroDocumento} · ${formatearMoneda(venta.totalAPagar)}',
                                       style: GoogleFonts.poppins(fontSize: 11.5, color: Colors.grey.shade600),
                                     ),
                                     if (venta.fechaRegistro != null) ...[
