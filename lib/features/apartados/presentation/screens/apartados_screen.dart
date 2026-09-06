@@ -315,7 +315,7 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
           );
         }
         final a = lista[index - 1];
-        final saldo = saldos[a.id] ?? (a.montoTotal - a.montoInicial);
+        final saldo = saldos[a.id] ?? a.montoTotal;
         return Column(
           children: [
             if (index > 1) Divider(height: 1, color: Colors.grey.shade200),
@@ -400,7 +400,7 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final a = lista[index];
-        final saldo = saldos[a.id] ?? (a.montoTotal - a.montoInicial);
+        final saldo = saldos[a.id] ?? a.montoTotal;
         return InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () => _abrirDetalle(a),

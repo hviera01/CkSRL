@@ -4,9 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../data/apartado_repository.dart';
 import '../../providers/apartados_provider.dart';
 import '../widgets/configuracion_apartado.dart';
-import '../../../ventas/presentation/widgets/buscar_producto_dialog.dart';
-import '../../../../core/utils/formato_moneda.dart';
-import '../../../../core/widgets/campo_teclado_compacto.dart';
+import '../widgets/editor_productos_apartado.dart';
 
 /// Pantalla completa (push, no diálogo chico) para armar un apartado nuevo:
 /// elegir cliente, agregar productos (reusando BuscarProductoDialog, igual
@@ -41,109 +39,13 @@ class _CrearApartadoScreenState extends ConsumerState<CrearApartadoScreen> {
 
   double get _montoTotal => _items.fold<double>(0, (s, i) => s + i.subtotal);
 
-  Future<void> _agregarProducto() async {
-    final elegido = await showDialog<ProductoConPrecio>(
-      useRootNavigator: false,
-      context: context,
-      builder: (context) => const BuscarProductoDialog(),
-    );
-    if (elegido == null || !mounted) return;
-    final disponible = await ref.read(apartadoRepositoryProvider).obtenerDisponible(elegido.producto.id).catchError((_) => elegido.producto.stock);
-    if (!mounted) return;
-    final cantidad = await _pedirCantidad(elegido.producto.nombre, disponible);
-    if (cantidad == null || cantidad <= 0) return;
-    if (cantidad > disponible) {
-      final continuar = await _confirmarSobreDisponible(elegido.producto.nombre, disponible, cantidad);
-      if (continuar != true || !mounted) return;
-    }
+  void _actualizarItems(List<NuevoItemApartado> nuevaLista) {
     setState(() {
-      _items.add(NuevoItemApartado(
-        idProducto: elegido.producto.id,
-        nombreProducto: elegido.producto.nombre,
-        cantidad: cantidad,
-        precioUnitario: elegido.precio,
-      ));
+      _items
+        ..clear()
+        ..addAll(nuevaLista);
     });
   }
-
-  Future<double?> _pedirCantidad(String nombreProducto, double disponible) async {
-    final controller = TextEditingController(text: '1');
-    final resultado = await showDialog<double>(
-      useRootNavigator: false,
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Cantidad a apartar', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(nombreProducto, style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey.shade600)),
-            const SizedBox(height: 4),
-            Text(
-              'Disponible (sin contar lo ya apartado): ${disponible.toStringAsFixed(disponible == disponible.roundToDouble() ? 0 : 2)}',
-              style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade500),
-            ),
-            const SizedBox(height: 14),
-            CampoTecladoCompacto(
-              controller: controller,
-              numerico: true,
-              titulo: 'Cantidad',
-              child: TextField(
-                controller: controller,
-                autofocus: true,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                style: GoogleFonts.poppins(fontSize: 14),
-                decoration: InputDecoration(
-                  labelText: 'Cantidad',
-                  labelStyle: GoogleFonts.poppins(fontSize: 13),
-                  filled: true,
-                  fillColor: const Color(0xFFE8EAF0),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancelar', style: GoogleFonts.poppins())),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F1B3D)),
-            onPressed: () => Navigator.pop(context, double.tryParse(controller.text.replaceAll(',', '').trim())),
-            child: Text('Agregar', style: GoogleFonts.poppins()),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    return resultado;
-  }
-
-  Future<bool?> _confirmarSobreDisponible(String nombreProducto, double disponible, double cantidad) {
-    return showDialog<bool>(
-      useRootNavigator: false,
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Existencia insuficiente', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-        content: Text(
-          '"$nombreProducto" solo tiene ${disponible.toStringAsFixed(2)} disponible (contando lo que ya está apartado por otros clientes), pero se está pidiendo $cantidad. '
-          'Si continuás, el sistema va a rechazar el apartado al guardar si ya no alcanza.',
-          style: GoogleFonts.poppins(fontSize: 13),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Cancelar', style: GoogleFonts.poppins())),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F1B3D)),
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Agregar de todas formas', style: GoogleFonts.poppins()),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _quitarItem(int index) => setState(() => _items.removeAt(index));
 
   Future<void> _guardar() async {
     if (_items.isEmpty) {
@@ -165,6 +67,8 @@ class _CrearApartadoScreenState extends ConsumerState<CrearApartadoScreen> {
             idCliente: _config.idCliente,
             nombreCliente: _config.nombreCliente,
             montoInicial: _config.montoInicialSobre(_montoTotal),
+            montoInicialReal: _config.montoInicialReal,
+            metodoPagoInicial: _config.montoInicialReal > 0.009 ? _config.metodoPagoInicial : null,
             modalidad: _config.modalidad,
             items: _items,
             cuotas: _config.cuotasSobre(_montoTotal),
@@ -252,60 +156,6 @@ class _CrearApartadoScreenState extends ConsumerState<CrearApartadoScreen> {
   }
 
   Widget _tarjetaProductos() {
-    return tarjetaApartado(
-      titulo: 'Productos',
-      accion: OutlinedButton.icon(
-        onPressed: _agregarProducto,
-        icon: const Icon(Icons.add, size: 18),
-        label: Text('Agregar producto', style: GoogleFonts.poppins(fontSize: 13)),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFF0F1B3D),
-          side: const BorderSide(color: Color(0xFF0F1B3D)),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      ),
-      child: _items.isEmpty
-          ? Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Text('Todavía no agregaste ningún producto', style: GoogleFonts.poppins(color: Colors.grey.shade500)),
-            )
-          : Column(
-              children: [
-                for (var i = 0; i < _items.length; i++) ...[
-                  if (i > 0) Divider(height: 1, color: Colors.grey.shade200),
-                  _filaItem(i, _items[i]),
-                ],
-              ],
-            ),
-    );
-  }
-
-  Widget _filaItem(int index, NuevoItemApartado item) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Text(item.nombreProducto, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
-          ),
-          Expanded(
-            child: Text('x${item.cantidad.toStringAsFixed(item.cantidad == item.cantidad.roundToDouble() ? 0 : 2)}', style: GoogleFonts.poppins(fontSize: 13)),
-          ),
-          Expanded(
-            child: Text(formatearMoneda(item.precioUnitario), style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey.shade600)),
-          ),
-          Expanded(
-            child: Text(formatearMoneda(item.subtotal), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
-          ),
-          IconButton(
-            tooltip: 'Quitar',
-            icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFB91C1C)),
-            onPressed: () => _quitarItem(index),
-          ),
-        ],
-      ),
-    );
+    return EditorProductosApartado(items: _items, alCambiar: _actualizarItems);
   }
 }

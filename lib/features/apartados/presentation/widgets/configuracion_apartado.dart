@@ -35,6 +35,10 @@ class IntervaloApartado {
   const IntervaloApartado({required this.id, required this.etiqueta, this.dias = 0, this.meses = 0});
 }
 
+/// Mismas opciones que usa carrito_provider.dart en Ventas (sin 'Cheque' ni
+/// 'Mixto': un pago de apartado es un solo movimiento, no una venta completa).
+const List<String> metodosPagoApartado = ['Efectivo', 'Tarjeta', 'Transferencia'];
+
 const List<IntervaloApartado> intervalosApartado = [
   IntervaloApartado(id: 'diario', etiqueta: 'Diario', dias: 1),
   IntervaloApartado(id: 'semanal', etiqueta: 'Semanal', dias: 7),
@@ -99,10 +103,22 @@ class ConfiguracionApartadoController {
   /// falso -mismo criterio que el carrito de Registrar Venta-.
   String? idCliente;
 
-  // Pago inicial: por porcentaje del total, o un monto fijo tipeado a mano.
+  // Pago inicial SUGERIDO/planeado: por porcentaje del total, o un monto fijo
+  // tipeado a mano -sirve solo de guía para armar las cuotas (ver
+  // cuotasSobre) y queda como referencia histórica en apartados.monto_inicial-.
   bool inicialPorPorcentaje = true;
   final porcentajeController = TextEditingController(text: '50');
   final montoInicialController = TextEditingController();
+
+  // Pago inicial REAL: lo que el cliente da de verdad al armar el apartado
+  // -puede diferir del sugerido de arriba-, con su método de pago. Entra
+  // como el PRIMER movimiento real de apartado_abonos (ver
+  // ApartadoRepository.crearApartado), no como un campo estático. Sigue al
+  // sugerido automáticamente hasta que el usuario lo edite a mano -ver
+  // [sincronizarMontoInicialReal]-.
+  final montoInicialRealController = TextEditingController();
+  bool _montoInicialRealTocado = false;
+  String metodoPagoInicial = 'Efectivo';
 
   String modalidad = 'abonos_libres';
   final numeroCuotasController = TextEditingController(text: '2');
@@ -119,6 +135,7 @@ class ConfiguracionApartadoController {
     clienteController.dispose();
     porcentajeController.dispose();
     montoInicialController.dispose();
+    montoInicialRealController.dispose();
     numeroCuotasController.dispose();
   }
 
@@ -136,6 +153,23 @@ class ConfiguracionApartadoController {
     }
     return redondearMoneda(_parseDouble(montoInicialController.text));
   }
+
+  /// Lo que el usuario tipeó como pago inicial REAL (puede ser 0 si el
+  /// cliente no dio nada de entrada).
+  double get montoInicialReal => redondearMoneda(_parseDouble(montoInicialRealController.text));
+
+  /// Mantiene [montoInicialRealController] mostrando el sugerido -hasta que
+  /// el usuario lo edite a mano, ver [marcarMontoInicialRealTocado]-: se
+  /// llama en cada build del formulario (ConfiguracionApartadoForm.build),
+  /// es barato. Así el campo arranca mostrando "lo que debería dar" pero
+  /// queda libre para tipear "lo que dio de verdad".
+  void sincronizarMontoInicialReal(double montoTotal) {
+    if (_montoInicialRealTocado) return;
+    final texto = montoInicialSobre(montoTotal).toStringAsFixed(2);
+    if (montoInicialRealController.text != texto) montoInicialRealController.text = texto;
+  }
+
+  void marcarMontoInicialRealTocado() => _montoInicialRealTocado = true;
 
   double saldoRestanteSobre(double montoTotal) {
     final saldo = montoTotal - montoInicialSobre(montoTotal);
@@ -158,8 +192,12 @@ class ConfiguracionApartadoController {
   String? validar(double montoTotal) {
     if (nombreCliente.isEmpty) return 'Elegí (o escribí) el cliente';
     final inicial = montoInicialSobre(montoTotal);
-    if (inicial > montoTotal + 0.01) return 'El pago inicial no puede superar el monto total';
-    if (inicial < 0) return 'El pago inicial no puede ser negativo';
+    if (inicial > montoTotal + 0.01) return 'El pago inicial sugerido no puede superar el monto total';
+    if (inicial < 0) return 'El pago inicial sugerido no puede ser negativo';
+    final inicialReal = montoInicialReal;
+    if (inicialReal > montoTotal + 0.01) return 'El pago inicial real no puede superar el monto total';
+    if (inicialReal < 0) return 'El pago inicial real no puede ser negativo';
+    if (inicialReal > 0.009 && metodoPagoInicial.isEmpty) return 'Elegí el método de pago del pago inicial';
     if (modalidad == 'cuotas_fijas') {
       if (numeroCuotas <= 0) return 'Ingresá un número de cuotas válido';
     }
@@ -259,6 +297,7 @@ class ConfiguracionApartadoForm extends StatelessWidget {
     final formatoFecha = DateFormat('dd/MM/yyyy');
     final montoInicial = controller.montoInicialSobre(montoTotal);
     final saldoRestante = controller.saldoRestanteSobre(montoTotal);
+    controller.sincronizarMontoInicialReal(montoTotal);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -361,8 +400,54 @@ class ConfiguracionApartadoForm extends StatelessWidget {
                 ),
               const SizedBox(height: 12),
               filaResumenApartado('Monto total', formatearMoneda(montoTotal)),
-              filaResumenApartado('Pago inicial', formatearMoneda(montoInicial)),
-              filaResumenApartado('Saldo a financiar', formatearMoneda(saldoRestante), destacado: true),
+              filaResumenApartado('Pago inicial sugerido', formatearMoneda(montoInicial)),
+              filaResumenApartado('Saldo a financiar (para las cuotas)', formatearMoneda(saldoRestante), destacado: true),
+              const SizedBox(height: 14),
+              Divider(height: 1, color: Colors.grey.shade200),
+              const SizedBox(height: 14),
+              Text(
+                '¿Cuánto dio de verdad el cliente ahora?',
+                style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Puede ser distinto al sugerido de arriba -las cuotas ya quedaron armadas sobre el sugerido, esto solo registra lo que entró de verdad-.',
+                style: GoogleFonts.poppins(fontSize: 11.5, color: Colors.grey.shade500),
+              ),
+              const SizedBox(height: 10),
+              CampoTecladoCompacto(
+                controller: controller.montoInicialRealController,
+                numerico: true,
+                child: TextField(
+                  controller: controller.montoInicialRealController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: GoogleFonts.poppins(fontSize: 14),
+                  decoration: decoracionApartado('Pago inicial real'),
+                  onChanged: (_) {
+                    controller.marcarMontoInicialRealTocado();
+                    alCambiar();
+                  },
+                ),
+              ),
+              if (controller.montoInicialReal > 0.009) ...[
+                const SizedBox(height: 12),
+                Text('Método de pago', style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade600)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final metodo in metodosPagoApartado)
+                      ChoiceChip(
+                        label: Text(metodo, style: GoogleFonts.poppins(fontSize: 12.5)),
+                        selected: controller.metodoPagoInicial == metodo,
+                        onSelected: (v) {
+                          controller.metodoPagoInicial = metodo;
+                          alCambiar();
+                        },
+                      ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),

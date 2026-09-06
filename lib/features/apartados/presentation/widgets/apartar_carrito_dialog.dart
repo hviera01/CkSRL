@@ -4,22 +4,28 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../data/apartado_repository.dart';
 import '../../providers/apartados_provider.dart';
 import 'configuracion_apartado.dart';
-import '../../../../core/utils/formato_moneda.dart';
+import 'editor_productos_apartado.dart';
 
 /// Convierte en apartado un carrito ya armado en Registrar Venta -pedido
 /// explícito del dueño: poder apartar sin tener que volver a elegir los
 /// productos uno por uno en la pantalla de Apartados-.
 ///
-/// Los productos llegan cerrados (los del carrito, tal cual): acá solo se
-/// piden los datos propios del apartado, con la MISMA UI y el MISMO cálculo
-/// de cuotas que CrearApartadoScreen (ver ConfiguracionApartadoForm), y se
-/// crea con el MISMO repositorio -o sea, la misma función plpgsql
-/// `crear_apartado`, que reserva sin descontar existencia física-.
+/// Los productos llegan del carrito como punto de partida ([widget.items]),
+/// pero acá adentro siguen siendo tan editables como en CrearApartadoScreen
+/// -precio/cantidad inline y "Agregar Producto" siempre disponible, ver
+/// EditorProductosApartado-, no una copia de solo lectura: pedido explícito
+/// del dueño tras probar el módulo, misma libertad que ya tiene la tabla de
+/// Registrar Venta. Se arma con la MISMA UI y el MISMO cálculo de cuotas que
+/// CrearApartadoScreen (ver ConfiguracionApartadoForm), y se crea con el
+/// MISMO repositorio -o sea, la misma función plpgsql `crear_apartado`, que
+/// reserva sin descontar existencia física-.
 ///
 /// Devuelve por Navigator.pop el id del apartado creado, o null si se
 /// canceló. Es Registrar Venta quien decide qué hacer después (limpiar el
 /// carrito, avisar, ofrecer ver el detalle): acá NO se registra ninguna
-/// venta, no se consume correlativo ni se imprime nada.
+/// venta, no se consume correlativo ni se imprime nada -y los cambios acá
+/// adentro (editar/agregar productos) tampoco se reflejan de vuelta en el
+/// carrito de Registrar Venta, que sigue intacto si el usuario cancela-.
 class ApartarCarritoDialog extends ConsumerStatefulWidget {
   final List<NuevoItemApartado> items;
   final String nombreClienteInicial;
@@ -42,6 +48,8 @@ class _ApartarCarritoDialogState extends ConsumerState<ApartarCarritoDialog> {
     idCliente: widget.idClienteInicial,
   );
 
+  late final List<NuevoItemApartado> _items = [...widget.items];
+
   bool _guardando = false;
   String? _error;
 
@@ -51,9 +59,21 @@ class _ApartarCarritoDialogState extends ConsumerState<ApartarCarritoDialog> {
     super.dispose();
   }
 
-  double get _montoTotal => widget.items.fold<double>(0, (s, i) => s + i.subtotal);
+  double get _montoTotal => _items.fold<double>(0, (s, i) => s + i.subtotal);
+
+  void _actualizarItems(List<NuevoItemApartado> nuevaLista) {
+    setState(() {
+      _items
+        ..clear()
+        ..addAll(nuevaLista);
+    });
+  }
 
   Future<void> _guardar() async {
+    if (_items.isEmpty) {
+      setState(() => _error = 'Agregá al menos un producto');
+      return;
+    }
     final error = _config.validar(_montoTotal);
     if (error != null) {
       setState(() => _error = error);
@@ -68,8 +88,10 @@ class _ApartarCarritoDialogState extends ConsumerState<ApartarCarritoDialog> {
             idCliente: _config.idCliente,
             nombreCliente: _config.nombreCliente,
             montoInicial: _config.montoInicialSobre(_montoTotal),
+            montoInicialReal: _config.montoInicialReal,
+            metodoPagoInicial: _config.montoInicialReal > 0.009 ? _config.metodoPagoInicial : null,
             modalidad: _config.modalidad,
-            items: widget.items,
+            items: _items,
             cuotas: _config.cuotasSobre(_montoTotal),
           );
       if (mounted) Navigator.pop(context, id);
@@ -102,7 +124,7 @@ class _ApartarCarritoDialogState extends ConsumerState<ApartarCarritoDialog> {
           Text('Apartar productos', style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 18)),
           const SizedBox(height: 4),
           Text(
-            'Se reservan los productos del carrito sin registrar una venta: la existencia se descuenta recién al entregar el apartado.',
+            'Se reservan los productos del carrito sin registrar una venta -podés seguir editando precio/cantidad o agregar más antes de confirmar-: la existencia se descuenta recién al entregar el apartado.',
             style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade600),
           ),
         ],
@@ -150,45 +172,7 @@ class _ApartarCarritoDialogState extends ConsumerState<ApartarCarritoDialog> {
     );
   }
 
-  /// Solo lectura: los productos ya se eligieron en el carrito -para cambiar
-  /// algo se cancela, se ajusta el carrito y se vuelve a apartar-.
   Widget _tarjetaProductos() {
-    return tarjetaApartado(
-      titulo: 'Productos del carrito',
-      child: Column(
-        children: [
-          for (var i = 0; i < widget.items.length; i++) ...[
-            if (i > 0) Divider(height: 1, color: Colors.grey.shade200),
-            _filaItem(widget.items[i]),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _filaItem(NuevoItemApartado item) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Text(item.nombreProducto, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
-          ),
-          Expanded(
-            child: Text(
-              'x${item.cantidad.toStringAsFixed(item.cantidad == item.cantidad.roundToDouble() ? 0 : 2)}',
-              style: GoogleFonts.poppins(fontSize: 13),
-            ),
-          ),
-          Expanded(
-            child: Text(formatearMoneda(item.precioUnitario), style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey.shade600)),
-          ),
-          Expanded(
-            child: Text(formatearMoneda(item.subtotal), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
+    return EditorProductosApartado(items: _items, alCambiar: _actualizarItems);
   }
 }

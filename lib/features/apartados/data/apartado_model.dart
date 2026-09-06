@@ -13,6 +13,12 @@ class ApartadoModel {
   // un join en vivo contra 'clientes' para listar apartados.
   final String nombreCliente;
   final double montoTotal;
+  // Monto inicial SUGERIDO/planeado (por % o monto fijo, elegido al armar el
+  // apartado): solo sirve de guía histórica para saber qué se planeó y para
+  // armar las cuotas programadas. Lo que el cliente dio de verdad -que puede
+  // diferir de este- vive como el primer movimiento de apartado_abonos (ver
+  // ApartadoAbonoModel.esInicial), no acá: ESTE campo ya NO participa en
+  // ningún cálculo de saldo (ver saldosApartadosProvider).
   final double montoInicial;
   // 'cuotas_fijas' | 'abonos_libres'.
   final String modalidad;

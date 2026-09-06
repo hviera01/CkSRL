@@ -5,12 +5,14 @@ import 'egreso_model.dart';
 import '../../reportes/data/reporte_repository.dart';
 import '../../ventas_credito/data/venta_credito_repository.dart';
 import '../../compras_credito/data/compra_credito_repository.dart';
+import '../../apartados/data/apartado_repository.dart';
 
 class EgresoRepository with ConRedMixin {
   final _db = Supabase.instance.client;
   final _reporteRepository = ReporteRepository();
   final _ventaCreditoRepository = VentaCreditoRepository();
   final _compraCreditoRepository = CompraCreditoRepository();
+  final _apartadoRepository = ApartadoRepository();
 
   Future<void> crear(EgresoModel egreso) {
     return conRed(() => _db.from('egresos').insert(egreso.toMap()));
@@ -52,6 +54,7 @@ class EgresoRepository with ConRedMixin {
       _tolerante('compras', _reporteRepository.obtenerReporteCompras(inicio, finInclusive)),
       _tolerante('abonos venta crédito', _ventaCreditoRepository.obtenerAbonosPorRango(inicio, finInclusive)),
       _tolerante('abonos compra crédito', _compraCreditoRepository.obtenerAbonosPorRango(inicio, finInclusive)),
+      _tolerante('abonos apartados', _apartadoRepository.obtenerAbonosPorRango(inicio, finInclusive)),
       _tolerante('egresos manuales', obtenerEgresosPorRango(inicio, finInclusive)),
     ]);
 
@@ -59,7 +62,8 @@ class EgresoRepository with ConRedMixin {
     final compras = resultados[1] as List;
     final abonosVenta = resultados[2] as List;
     final abonosCompra = resultados[3] as List;
-    final egresos = resultados[4] as List<EgresoModel>;
+    final abonosApartado = resultados[4] as List;
+    final egresos = resultados[5] as List<EgresoModel>;
 
     final movimientos = <MovimientoFinanciero>[];
 
@@ -120,6 +124,16 @@ class EgresoRepository with ConRedMixin {
         egreso: a.montoAbonado,
         metodoPago: a.metodoPago,
         usuario: a.usuario,
+      ));
+    }
+
+    for (final a in abonosApartado) {
+      movimientos.add(MovimientoFinanciero(
+        fecha: a.fecha ?? DateTime.now(),
+        tipoMovimiento: a.esInicial ? 'Apartado (inicial)' : 'Apartado (abono)',
+        descripcion: a.esInicial ? 'Pago inicial de apartado' : 'Abono de apartado',
+        ingreso: a.montoAbonado,
+        metodoPago: a.metodoPago ?? '',
       ));
     }
 

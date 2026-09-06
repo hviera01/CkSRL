@@ -234,19 +234,28 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
                           child: SingleChildScrollView(
                             child: Consumer(builder: (context, ref, _) {
                               final saldos = ref.watch(saldosApartadosProvider);
-                              final saldoPendiente = saldos[apartado.id] ?? (apartado.montoTotal - apartado.montoInicial);
+                              final saldoPendiente = saldos[apartado.id] ?? apartado.montoTotal;
                               final cuotasAsync = ref.watch(apartadoCuotasProvider(widget.idApartado));
                               final abonosAsync = ref.watch(apartadoAbonosProvider(widget.idApartado));
                               final cuotas = cuotasAsync.value ?? [];
                               final abonos = abonosAsync.value ?? [];
                               final cuotasPendientes = cuotas.where((c) => c.pendiente).toList();
-                              final totalAbonado = abonos.fold<double>(0, (s, a) => s + a.montoAbonado);
-                              final abonadoPorCuota = _abonadoPorCuota(cuotas, totalAbonado);
+                              // El pago inicial (esInicial=true) cuenta para el saldo
+                              // general (ver saldosApartadosProvider) pero NO se reparte
+                              // contra las cuotas -mismo criterio que
+                              // recalcular_cadena_abonos_apartado en supabase/schema.sql,
+                              // que ya lo excluye-: las cuotas se arman sobre el saldo a
+                              // financiar (ya excluye el inicial sugerido), así que
+                              // incluirlo acá también las mostraría cubiertas de más.
+                              final totalAbonadoParaCuotas = abonos.where((a) => !a.esInicial).fold<double>(0, (s, a) => s + a.montoAbonado);
+                              final abonadoPorCuota = _abonadoPorCuota(cuotas, totalAbonadoParaCuotas);
 
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _tarjetaProgreso(apartado, saldoPendiente),
+                                  apartado.cancelado
+                                      ? _tarjetaCancelado(apartado, apartado.montoTotal - saldoPendiente)
+                                      : _tarjetaProgreso(apartado, saldoPendiente),
                                   const SizedBox(height: 14),
                                   _tarjetaResumen(apartado, saldoPendiente, formatoFecha),
                                   const SizedBox(height: 14),
@@ -346,7 +355,10 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
   }
 
   /// Barra de progreso general (pagado / monto total) -pedido explícito del
-  /// dueño, arriba de todo el detalle-.
+  /// dueño, arriba de todo el detalle-. Si el apartado está CANCELADO, no se
+  /// muestra: una barra de progreso ahí daría a entender que todavía hay algo
+  /// en curso o pendiente de terminar, cuando en realidad el apartado ya
+  /// quedó cerrado -ver [_tarjetaCancelado] en su lugar-.
   Widget _tarjetaProgreso(ApartadoModel apartado, double saldoPendiente) {
     final montoPagado = apartado.montoTotal - saldoPendiente;
     final progreso = apartado.montoTotal <= 0 ? 0.0 : (montoPagado / apartado.montoTotal).clamp(0, 1).toDouble();
@@ -380,7 +392,42 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
     );
   }
 
-  Widget _tarjetaResumen(dynamic apartado, double saldoPendiente, DateFormat formatoFecha) {
+  /// Reemplaza a [_tarjetaProgreso] cuando el apartado está CANCELADO: el
+  /// dinero ya cobrado (abonos reales, inicial incluido) NO se borra ni se
+  /// reversa -sigue siendo plata real que ya entró al negocio, ver
+  /// ApartadoRepository.cancelarApartado-, pero mostrar una barra de
+  /// progreso o un "saldo pendiente" acá daría a entender que falta algo por
+  /// cobrar o que hay que devolver algo, cuando en realidad el apartado ya
+  /// quedó cerrado. Se muestra en cambio, como dato histórico, cuánto se
+  /// alcanzó a cobrar antes de cancelar.
+  Widget _tarjetaCancelado(ApartadoModel apartado, double montoCobrado) {
+    return _tarjeta(
+      titulo: 'Apartado cancelado',
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(12)),
+            child: Icon(Icons.cancel_outlined, color: Colors.grey.shade600, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              montoCobrado > 0.009
+                  ? 'Se cobraron ${formatearMoneda(montoCobrado)} de ${formatearMoneda(apartado.montoTotal)} antes de cancelar. Ese dinero ya entró al negocio: no se devuelve ni se reversa por cancelar el apartado.'
+                  : 'No se había cobrado nada de este apartado antes de cancelarlo.',
+              style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade700, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tarjetaResumen(ApartadoModel apartado, double saldoPendiente, DateFormat formatoFecha) {
+    final montoCobrado = apartado.montoTotal - saldoPendiente;
     return _tarjeta(
       titulo: 'Resumen',
       child: Wrap(
@@ -389,10 +436,13 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
         children: [
           _dato('Modalidad', apartado.esCuotasFijas ? 'Cuotas fijas' : 'Abonos libres'),
           _dato('Monto total', formatearMoneda(apartado.montoTotal)),
-          _dato('Pago inicial', formatearMoneda(apartado.montoInicial)),
-          _dato('Saldo pendiente', formatearMoneda(saldoPendiente), destacado: true),
-          _dato('Creado', apartado.fechaCreacion != null ? formatoFecha.format(apartado.fechaCreacion) : '-'),
-          if (apartado.fechaEntrega != null) _dato('Entregado', formatoFecha.format(apartado.fechaEntrega)),
+          _dato('Pago inicial sugerido', formatearMoneda(apartado.montoInicial)),
+          if (apartado.cancelado)
+            _dato('Cobrado antes de cancelar', formatearMoneda(montoCobrado), destacado: true)
+          else
+            _dato('Saldo pendiente', formatearMoneda(saldoPendiente), destacado: true),
+          _dato('Creado', apartado.fechaCreacion != null ? formatoFecha.format(apartado.fechaCreacion!) : '-'),
+          if (apartado.fechaEntrega != null) _dato('Entregado', formatoFecha.format(apartado.fechaEntrega!)),
         ],
       ),
     );
@@ -504,9 +554,10 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
               children: [
                 _encabezadoTabla([
                   _celdaHeaderTabla('CUOTA', 2),
-                  _celdaHeaderTabla('FECHA', 3),
+                  _celdaHeaderTabla('FECHA', 2),
                   _celdaHeaderTabla('PROGRAMADO', 2, align: TextAlign.right),
                   _celdaHeaderTabla('ABONADO', 2, align: TextAlign.right),
+                  _celdaHeaderTabla('SALDO', 2, align: TextAlign.right),
                   _celdaHeaderTabla('ESTADO', 2, align: TextAlign.right),
                 ]),
                 const SizedBox(height: 2),
@@ -518,12 +569,16 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
   }
 
   Widget _filaCuota(ApartadoCuotaModel c, double abonado, DateFormat formatoFecha) {
-    final completa = abonado + 0.01 >= c.montoProgramado;
+    // Consistente SIEMPRE con [_chipCuotaEstado] (que usa c.pagada, el
+    // estado real que ya decidió el servidor): esta cuenta es solo para el
+    // color del monto abonado, nunca decide "pagada" por su cuenta -eso fue
+    // justo el bug reportado (columna Abonado y estado Pagada desalineados)-.
+    final saldoCuota = (c.montoProgramado - abonado).clamp(0, double.infinity);
     return Row(
       children: [
         Expanded(flex: 2, child: Text('Cuota ${c.numeroCuota}', style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600))),
         Expanded(
-          flex: 3,
+          flex: 2,
           child: Text(
             c.pagada && c.fechaPago != null ? 'Pagada ${formatoFecha.format(c.fechaPago!)}' : 'Vence ${formatoFecha.format(c.fechaProgramada)}',
             style: GoogleFonts.poppins(fontSize: 11.5, color: Colors.grey.shade600),
@@ -535,7 +590,15 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
           child: Text(
             formatearMoneda(abonado),
             textAlign: TextAlign.right,
-            style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: completa ? const Color(0xFF16A34A) : const Color(0xFF3B82F6)),
+            style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: c.pagada ? const Color(0xFF16A34A) : const Color(0xFF3B82F6)),
+          ),
+        ),
+        Expanded(
+          flex: 2,
+          child: Text(
+            formatearMoneda(saldoCuota.toDouble()),
+            textAlign: TextAlign.right,
+            style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: saldoCuota <= 0.009 ? Colors.grey.shade400 : const Color(0xFFB91C1C)),
           ),
         ),
         Expanded(flex: 2, child: Align(alignment: Alignment.centerRight, child: _chipCuotaEstado(c))),
@@ -573,6 +636,7 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
               children: [
                 _encabezadoTabla([
                   _celdaHeaderTabla('FECHA', 3),
+                  _celdaHeaderTabla('MÉTODO', 2),
                   _celdaHeaderTabla('MONTO PAGADO', 2, align: TextAlign.right),
                   _celdaHeaderTabla('SALDO ANTES', 2, align: TextAlign.right),
                   _celdaHeaderTabla('SALDO DESPUÉS', 2, align: TextAlign.right),
@@ -584,7 +648,19 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
                     i,
                     Row(
                       children: [
-                        Expanded(flex: 3, child: Text(abonos[i].fecha != null ? formatoFecha.format(abonos[i].fecha!) : '-', style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade600))),
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            abonos[i].fecha != null
+                                ? '${formatoFecha.format(abonos[i].fecha!)}${abonos[i].esInicial ? ' · Inicial' : ''}'
+                                : '-',
+                            style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade600),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(abonos[i].metodoPago ?? '-', style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade500)),
+                        ),
                         Expanded(
                           flex: 2,
                           child: Text(formatearMoneda(abonos[i].montoAbonado), textAlign: TextAlign.right, style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: const Color(0xFF16A34A))),

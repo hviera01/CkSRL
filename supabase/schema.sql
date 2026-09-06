@@ -2160,9 +2160,24 @@ comment on view producto_disponibilidad is 'stock_fisico (productos.stock) vs. c
 -- productos (FOR UPDATE) para que dos apartados concurrentes del mismo
 -- producto no pasen los dos el chequeo a la vez. NO descuenta stock -eso
 -- pasa recién en marcar_apartado_entregado-, esto solo reserva.
--- payload: idCliente, nombreCliente, montoTotal, montoInicial, modalidad,
---   fechaCreacion, items: [{idProducto, nombreProducto, cantidad,
---   precioUnitario, subtotal}], cuotas (solo si modalidad='cuotas_fijas'):
+--
+-- montoInicial (plan) vs. montoInicialReal (real), 2026-09-06: `montoInicial`
+-- es el monto SUGERIDO -por % o monto fijo, calculado en Dart- que sirve
+-- únicamente de guía para armar las cuotas programadas (ya vienen armadas
+-- desde Dart en `cuotas`, esta función no las recalcula) y queda guardado tal
+-- cual en apartados.monto_inicial, como referencia histórica de "qué se
+-- planeó". Lo que el cliente dio de verdad (`montoInicialReal`, puede
+-- diferir del sugerido) se registra como el PRIMER movimiento real de
+-- apartado_abonos (con su propio `metodoPagoInicial`) -mismo ledger que usa
+-- registrar_abono_apartado para el resto de los pagos-, así que el saldo
+-- pendiente de CUALQUIER apartado sale siempre de sumar apartado_abonos,
+-- nunca de restar apartados.monto_inicial (ver recalcular_cadena_abonos_apartado
+-- más abajo, que además de recalcular saldos también decide qué cuotas
+-- quedan cubiertas con este pago inicial real incluido).
+-- payload: idCliente, nombreCliente, montoTotal, montoInicial (sugerido),
+--   montoInicialReal, metodoPagoInicial, modalidad, fechaCreacion,
+--   items: [{idProducto, nombreProducto, cantidad, precioUnitario, subtotal}],
+--   cuotas (solo si modalidad='cuotas_fijas'):
 --   [{numeroCuota, montoProgramado, fechaProgramada}].
 -- ----------------------------------------------------------------------------
 create or replace function crear_apartado(payload jsonb) returns jsonb
@@ -2172,7 +2187,10 @@ declare
   v_id_cliente uuid := nullif(payload->>'idCliente', '')::uuid;
   v_monto_total numeric := (payload->>'montoTotal')::numeric;
   v_monto_inicial numeric := coalesce((payload->>'montoInicial')::numeric, 0);
+  v_monto_inicial_real numeric := coalesce((payload->>'montoInicialReal')::numeric, 0);
+  v_metodo_pago_inicial text := nullif(payload->>'metodoPagoInicial', '');
   v_modalidad text := payload->>'modalidad';
+  v_fecha_creacion timestamptz := coalesce(nullif(payload->>'fechaCreacion', '')::timestamptz, now());
   item jsonb;
   cuota jsonb;
   v_id_producto uuid;
@@ -2184,6 +2202,12 @@ declare
 begin
   if v_monto_inicial > v_monto_total + 0.01 then
     raise exception 'El pago inicial no puede superar el monto total del apartado';
+  end if;
+  if v_monto_inicial_real > v_monto_total + 0.01 then
+    raise exception 'El pago inicial real no puede superar el monto total del apartado';
+  end if;
+  if v_monto_inicial_real < 0 then
+    raise exception 'El pago inicial real no puede ser negativo';
   end if;
 
   -- Chequeo de disponibilidad (con lock) ANTES de insertar nada: si un
@@ -2210,7 +2234,7 @@ begin
   insert into apartados (id, id_cliente, nombre_cliente, monto_total, monto_inicial, modalidad, estado, fecha_creacion)
   values (
     v_id_apartado, v_id_cliente, coalesce(payload->>'nombreCliente', ''), v_monto_total, v_monto_inicial, v_modalidad,
-    'activo', coalesce(nullif(payload->>'fechaCreacion', '')::timestamptz, now())
+    'activo', v_fecha_creacion
   );
 
   for item in select * from jsonb_array_elements(payload->'items') loop
@@ -2231,6 +2255,24 @@ begin
     end loop;
   end if;
 
+  -- Pago inicial REAL (puede ser 0 si el cliente no dio nada de entrada):
+  -- entra como el primer movimiento de apartado_abonos, con su método de
+  -- pago -no como el campo estático apartados.monto_inicial (ese queda solo
+  -- como el monto sugerido/planeado, ver comentario grande arriba)-.
+  -- saldo_anterior/saldo_pendiente se insertan ya calculados para dejar la
+  -- fila consistente incluso antes de recalcular_cadena_abonos_apartado (que
+  -- de todas formas los vuelve a fijar abajo, junto con qué cuotas quedan
+  -- cubiertas con este pago inicial real incluido).
+  if v_monto_inicial_real > 0.01 then
+    insert into apartado_abonos (id_apartado, monto_abonado, fecha, saldo_anterior, saldo_pendiente, metodo_pago, es_inicial)
+    values (
+      v_id_apartado, round(v_monto_inicial_real, 2), v_fecha_creacion,
+      v_monto_total, round(v_monto_total - v_monto_inicial_real, 2), v_metodo_pago_inicial, true
+    );
+  end if;
+
+  perform recalcular_cadena_abonos_apartado(v_id_apartado);
+
   return jsonb_build_object('id', v_id_apartado);
 end;
 $$;
@@ -2244,25 +2286,34 @@ $$;
 -- apartado_abonos queda como el ÚNICO ledger de "cuánto se pagó de verdad"
 -- para las dos modalidades (saldosApartadosProvider y marcar_apartado_entregado
 -- en Dart/acá abajo se apoyan solo en esta tabla, ya no en la suma de
--- apartado_cuotas.monto_programado): evita que un pago parcial que no alcanza
--- a cubrir una cuota completa "desaparezca" del saldo mostrado.
+-- apartado_cuotas.monto_programado, NI en apartados.monto_inicial -ver
+-- comentario grande en crear_apartado-): evita que un pago parcial que no
+-- alcanza a cubrir una cuota completa "desaparezca" del saldo mostrado.
 --
 -- A diferencia de venta_credito_abonos/compra_credito_abonos (que confían en
 -- un saldoAnterior calculado en Dart, porque ahí sí hay una columna
 -- saldo_pendiente en la cabecera que Dart ya leyó de un stream reciente),
 -- apartados NO tiene columna de saldo propia -el saldo siempre se deriva de
--- monto_total/monto_inicial/abonos-, así que acá se recalcula el saldo
--- anterior DE NUEVO server-side (bloqueando la fila de apartados) en vez de
--- confiar en lo que mande Dart: evita que dos abonos concurrentes al mismo
--- apartado lean el mismo "saldo anterior" viejo y ninguno de los dos falle.
+-- monto_total/abonos-, así que acá se recalcula el saldo anterior DE NUEVO
+-- server-side (bloqueando la fila de apartados) en vez de confiar en lo que
+-- mande Dart: evita que dos abonos concurrentes al mismo apartado lean el
+-- mismo "saldo anterior" viejo y ninguno de los dos falle.
 --
--- Para 'cuotas_fijas', además, el pago se "aplica" contra las cuotas
--- pendientes en orden (la más antigua primero) hasta agotar el total pagado
--- hasta ahora: la cuota se marca 'pagada' (con fecha_pago = la misma fecha de
--- este pago) solo si el acumulado alcanza a cubrirla POR COMPLETO. Lo que
--- sobra sin alcanzar para la siguiente cuota completa no se pierde -ya quedó
--- reflejado en el saldo_pendiente de arriba, vía apartado_abonos- y se toma
--- en cuenta solo hasta que un pago futuro la termine de cubrir.
+-- BUG corregido 2026-09-06 (reportado por el dueño: una cuota de L.55
+-- programado con solo L.50 abonado se marcaba "Pagada"): esta función traía
+-- su PROPIA copia -incompleta- de la lógica de "aplicar el pago contra las
+-- cuotas pendientes más antiguas", que arrancaba cada vez desde el total
+-- abonado ACUMULADO de siempre (v_ya_abonado + este pago) en vez de descontar
+-- primero lo que las cuotas YA marcadas 'pagada' se habían llevado: un
+-- segundo pago que por sí solo no alcanzaba a cubrir la cuota siguiente
+-- terminaba marcándola 'pagada' igual, porque el acumulado total (arrastrando
+-- de pagos anteriores) sí superaba el monto programado. En vez de mantener
+-- dos copias de esta lógica que podían desalinearse (esta y
+-- recalcular_cadena_abonos_apartado, la que usan editar/eliminar pago),
+-- ahora solo existe UNA: acá simplemente se inserta el abono y se delega en
+-- recalcular_cadena_abonos_apartado, que recorre TODOS los abonos desde cero
+-- en orden y decide qué cuotas quedan cubiertas -mismo criterio, una sola
+-- fuente de verdad-.
 -- ----------------------------------------------------------------------------
 create or replace function registrar_abono_apartado(payload jsonb) returns jsonb
 language plpgsql as $$
@@ -2270,17 +2321,14 @@ declare
   v_id_apartado uuid := (payload->>'idApartado')::uuid;
   v_monto_abonado numeric := (payload->>'montoAbonado')::numeric;
   v_monto_total numeric;
-  v_monto_inicial numeric;
   v_estado text;
-  v_modalidad text;
   v_ya_abonado numeric;
   v_saldo_anterior numeric;
   v_saldo_pendiente numeric;
   v_fecha timestamptz;
-  v_pagado_hacia_cuotas numeric;
-  cuota record;
+  v_metodo_pago text := nullif(payload->>'metodoPago', '');
 begin
-  select monto_total, monto_inicial, estado, modalidad into v_monto_total, v_monto_inicial, v_estado, v_modalidad
+  select monto_total, estado into v_monto_total, v_estado
     from apartados where id = v_id_apartado for update;
   if not found then
     raise exception 'No se encontró el apartado';
@@ -2293,28 +2341,17 @@ begin
   end if;
 
   select coalesce(sum(monto_abonado), 0) into v_ya_abonado from apartado_abonos where id_apartado = v_id_apartado;
-  v_saldo_anterior := round(v_monto_total - v_monto_inicial - v_ya_abonado, 2);
+  v_saldo_anterior := round(v_monto_total - v_ya_abonado, 2);
   if v_monto_abonado > v_saldo_anterior + 0.01 then
     raise exception 'El pago (%) supera el saldo pendiente (%)', round(v_monto_abonado, 2), v_saldo_anterior;
   end if;
   v_saldo_pendiente := round(greatest(v_saldo_anterior - v_monto_abonado, 0), 2);
   v_fecha := coalesce(nullif(payload->>'fecha', '')::timestamptz, now());
 
-  insert into apartado_abonos (id_apartado, monto_abonado, fecha, saldo_anterior, saldo_pendiente)
-  values (v_id_apartado, round(v_monto_abonado, 2), v_fecha, v_saldo_anterior, v_saldo_pendiente);
+  insert into apartado_abonos (id_apartado, monto_abonado, fecha, saldo_anterior, saldo_pendiente, metodo_pago)
+  values (v_id_apartado, round(v_monto_abonado, 2), v_fecha, v_saldo_anterior, v_saldo_pendiente, v_metodo_pago);
 
-  if v_modalidad = 'cuotas_fijas' then
-    v_pagado_hacia_cuotas := round(v_ya_abonado + v_monto_abonado, 2);
-    for cuota in
-      select id, monto_programado from apartado_cuotas
-      where id_apartado = v_id_apartado and estado = 'pendiente'
-      order by numero_cuota asc
-    loop
-      exit when v_pagado_hacia_cuotas + 0.01 < cuota.monto_programado;
-      update apartado_cuotas set estado = 'pagada', fecha_pago = v_fecha::date where id = cuota.id;
-      v_pagado_hacia_cuotas := round(v_pagado_hacia_cuotas - cuota.monto_programado, 2);
-    end loop;
-  end if;
+  perform recalcular_cadena_abonos_apartado(v_id_apartado);
 
   return jsonb_build_object('saldoAnterior', v_saldo_anterior, 'saldoPendiente', v_saldo_pendiente);
 end;
@@ -2328,8 +2365,11 @@ $$;
 -- -no se puede entregar algo que no se terminó de pagar, es la esencia de
 -- un apartado- y estado 'activo' (no ya entregado/cancelado).
 --
--- v_ya_pagado sale SIEMPRE de apartado_abonos (ya no de la modalidad): desde
--- que registrar_abono_apartado acepta pagos libres también en 'cuotas_fijas',
+-- v_ya_pagado sale SIEMPRE de apartado_abonos (ya no de la modalidad, NI de
+-- apartados.monto_inicial -que desde 2026-09-06 es solo el monto sugerido/
+-- planeado, ver comentario grande en crear_apartado; el pago inicial REAL ya
+-- entró a apartado_abonos como su primer movimiento-): desde que
+-- registrar_abono_apartado acepta pagos libres también en 'cuotas_fijas',
 -- apartado_abonos es el único ledger confiable de "cuánto se pagó de verdad"
 -- para las dos modalidades -sumar apartado_cuotas.monto_programado de las
 -- 'pagada' se quedaría corto si el último pago fue parcial y no alcanzó a
@@ -2340,7 +2380,6 @@ language plpgsql as $$
 declare
   v_estado text;
   v_monto_total numeric;
-  v_monto_inicial numeric;
   v_ya_pagado numeric;
   v_saldo numeric;
   item record;
@@ -2349,7 +2388,7 @@ declare
   v_costo numeric;
   v_stock_nuevo numeric;
 begin
-  select estado, monto_total, monto_inicial into v_estado, v_monto_total, v_monto_inicial
+  select estado, monto_total into v_estado, v_monto_total
     from apartados where id = p_id_apartado for update;
   if not found then
     raise exception 'No se encontró el apartado';
@@ -2359,7 +2398,7 @@ begin
   end if;
 
   select coalesce(sum(monto_abonado), 0) into v_ya_pagado from apartado_abonos where id_apartado = p_id_apartado;
-  v_saldo := round(v_monto_total - v_monto_inicial - v_ya_pagado, 2);
+  v_saldo := round(v_monto_total - v_ya_pagado, 2);
   if v_saldo > 0.01 then
     raise exception 'Este apartado todavía tiene un saldo pendiente de %', v_saldo;
   end if;
@@ -2402,7 +2441,6 @@ create or replace function recalcular_cadena_abonos_apartado(p_id_apartado uuid)
 language plpgsql as $$
 declare
   v_monto_total numeric;
-  v_monto_inicial numeric;
   v_modalidad text;
   v_saldo numeric;
   v_saldo_anterior numeric;
@@ -2416,14 +2454,19 @@ declare
   v_restante_abono numeric;
   v_falta numeric;
 begin
-  select monto_total, monto_inicial, modalidad into v_monto_total, v_monto_inicial, v_modalidad
+  select monto_total, modalidad into v_monto_total, v_modalidad
     from apartados where id = p_id_apartado for update;
   if not found then
     raise exception 'No se encontró el apartado';
   end if;
 
-  -- 1) Saldo de cada abono, en orden de fecha.
-  v_saldo := round(v_monto_total - v_monto_inicial, 2);
+  -- 1) Saldo de cada abono, en orden de fecha. Arranca en monto_total -ya NO
+  -- se resta monto_inicial acá: desde 2026-09-06 el pago inicial REAL (si lo
+  -- hubo) es en sí mismo la primera fila de apartado_abonos -ver comentario
+  -- grande en crear_apartado-, así que restarlo dos veces dejaría el saldo
+  -- de menos. apartados.monto_inicial quedó solo como el monto sugerido/
+  -- planeado (referencia histórica), no participa en ninguna cuenta.
+  v_saldo := round(v_monto_total, 2);
   for rec in select id, monto_abonado from apartado_abonos where id_apartado = p_id_apartado order by fecha, id loop
     v_saldo_anterior := v_saldo;
     v_crudo := v_saldo_anterior - rec.monto_abonado;
@@ -2439,6 +2482,16 @@ begin
   end if;
 
   -- 2) cuotas_fijas: reabre todas y vuelve a cubrirlas desde cero.
+  --
+  -- OJO: el pago inicial (es_inicial = true, ver columna nueva y comentario
+  -- en crear_apartado) NO entra en este reparto contra las cuotas, aunque sí
+  -- contó arriba para el saldo general. Las cuotas se arman en Dart sobre el
+  -- "saldo a financiar" = monto_total - monto_inicial_sugerido -o sea, ya
+  -- vienen calculadas EXCLUYENDO el pago inicial-, así que aplicar también
+  -- el pago inicial acá las cubriría dos veces (se detectó armando este
+  -- mismo fix: un apartado con monto_inicial=110 y 2 cuotas de 55 marcaba
+  -- las DOS cuotas 'pagada' con el solo pago inicial, antes de que se
+  -- abonara un solo lempira de cuota).
   update apartado_cuotas set estado = 'pendiente', fecha_pago = null where id_apartado = p_id_apartado;
 
   open v_cuota_cursor for select id, monto_programado from apartado_cuotas where id_apartado = p_id_apartado order by numero_cuota asc for update;
@@ -2446,7 +2499,11 @@ begin
   v_tiene_cuota := found;
   v_acumulado_cuota := 0;
 
-  for rec in select monto_abonado, fecha from apartado_abonos where id_apartado = p_id_apartado order by fecha, id loop
+  for rec in
+    select monto_abonado, fecha from apartado_abonos
+    where id_apartado = p_id_apartado and not es_inicial
+    order by fecha, id
+  loop
     v_restante_abono := rec.monto_abonado;
     while v_tiene_cuota and v_restante_abono > 0.001 loop
       v_falta := round(v_cuota_monto - v_acumulado_cuota, 2);
@@ -2487,7 +2544,8 @@ begin
   end if;
   update apartado_abonos set
     monto_abonado = round((payload->>'montoAbonado')::numeric, 2),
-    fecha = (payload->>'fecha')::timestamptz
+    fecha = (payload->>'fecha')::timestamptz,
+    metodo_pago = case when payload ? 'metodoPago' then nullif(payload->>'metodoPago', '') else metodo_pago end
   where id = (payload->>'idAbono')::uuid;
   perform recalcular_cadena_abonos_apartado(v_id_apartado);
 end;
@@ -2543,4 +2601,95 @@ alter publication supabase_realtime add table producto_lotes_costo;
 -- fecha/hora editable con recálculo, modo de impresión directo sin diálogos
 -- (ModoImpresion.directo), ticket con ancho dinámico según la impresora- se
 -- hizo en lib/features/caja/ (Dart), sin tocar más columnas.
+-- ============================================================================
+
+-- ============================================================================
+-- 2026-09-06 — Apartados: bug de cuotas "Pagada" con saldo real pendiente +
+-- pago inicial real (con método de pago) separado del sugerido/planeado,
+-- todo probado a fondo por el dueño y reportado con una captura real (Cuota
+-- 2: programado L.55.00, abonado L.50.00, estado "Pagada" -mal, faltaban
+-- L.5.00-).
+--
+-- 1) BUG: registrar_abono_apartado tenía su propia copia -incompleta- de la
+--    lógica de "aplicar el pago contra las cuotas pendientes más antiguas":
+--    arrancaba siempre desde el total abonado ACUMULADO de siempre, sin
+--    descontar primero lo que las cuotas YA marcadas 'pagada' se habían
+--    llevado. Un segundo pago que por sí solo no alcanzaba para cerrar la
+--    cuota siguiente la marcaba 'pagada' igual, porque el acumulado total
+--    (arrastrando pagos anteriores) sí superaba el monto programado.
+--    Corregido quitando esa copia: ahora registrar_abono_apartado solo
+--    inserta el abono y delega en recalcular_cadena_abonos_apartado -que ya
+--    recorría todos los abonos desde cero correctamente y es la que usan
+--    editar/eliminar pago-, dejando una sola fuente de verdad para "qué
+--    cuotas están cubiertas de verdad" (ver los comentarios grandes junto a
+--    cada función, más arriba en este archivo).
+--
+-- 2) Pago inicial: plan vs. real. Antes `apartados.monto_inicial` era el
+--    ÚNICO monto inicial que existía -un número suelto sin método de pago,
+--    usado a la vez como "el monto sugerido para armar cuotas" y "lo que se
+--    resta del saldo pendiente"-. Ahora:
+--    - `apartados.monto_inicial` queda solo como el monto SUGERIDO/planeado
+--      (por % o monto fijo, calculado en Dart) -referencia histórica, ya no
+--      participa en ningún cálculo de saldo-.
+--    - Lo que el cliente dio de verdad (puede diferir del sugerido) se
+--      guarda como el PRIMER movimiento real de `apartado_abonos` -con su
+--      propio `metodo_pago`, columna nueva de esta tabla-, igual que
+--      cualquier otro pago posterior. El saldo pendiente de CUALQUIER
+--      apartado sale siempre de sumar `apartado_abonos` contra
+--      `monto_total`, nunca restando `monto_inicial` (crear_apartado,
+--      registrar_abono_apartado, marcar_apartado_entregado y
+--      recalcular_cadena_abonos_apartado, todas redefinidas más arriba).
+--    - `registrar_abono_apartado`/`editar_abono_apartado` también aceptan
+--      ahora un `metodoPago` opcional -pedido para que TODOS los pagos de
+--      apartados (no solo el inicial) puedan entrar al Cierre de Caja con su
+--      método real (Efectivo/Tarjeta/Transferencia), ver
+--      lib/features/egresos/data/egreso_repository.dart.
+--
+-- es_inicial: distingue el pago inicial (real) del resto de los abonos -sin
+-- esta marca, recalcular_cadena_abonos_apartado no tiene forma de saber que
+-- ese primer movimiento NO debe repartirse contra las cuotas: las cuotas ya
+-- se calculan en Dart sobre el "saldo a financiar" (monto_total menos el
+-- inicial SUGERIDO), o sea que YA excluyen el inicial por construcción, y
+-- aplicarlo también acá las cubriría dos veces (se detectó armando este
+-- mismo fix, ver comentario junto a recalcular_cadena_abonos_apartado).
+-- Solo afecta el reparto contra cuotas (paso 2): el saldo general (paso 1)
+-- sí suma TODOS los abonos, inicial incluido.
+alter table apartado_abonos add column if not exists metodo_pago text;
+alter table apartado_abonos add column if not exists es_inicial boolean not null default false;
+
+-- Backfill necesario: todo apartado creado ANTES de este cambio tenía su
+-- pago inicial guardado SOLO en `apartados.monto_inicial` -un campo estático,
+-- completamente aparte de `apartado_abonos`, para CUALQUIER apartado (tuviera
+-- o no ya otros abonos cargados: las dos cosas siempre fueron independientes
+-- en el sistema viejo, así que el filtro correcto no es "si ya tiene algún
+-- abono" sino "si ya se migró ESTE pago inicial puntual"). Se migra una sola
+-- vez -sin método de pago, porque no se sabe cuál fue el de un pago ya hecho
+-- antes de esta fecha- marcada es_inicial=true, para que quede unificada con
+-- el resto y el saldo/cuotas de esos apartados viejos se recalculen bien con
+-- la fórmula nueva. El filtro de abajo (monto+fecha exactos) hace que sea
+-- seguro volver a correr esta migración sobre una base ya migrada sin
+-- duplicar filas.
+insert into apartado_abonos (id_apartado, monto_abonado, fecha, saldo_anterior, saldo_pendiente, metodo_pago, es_inicial)
+select a.id, a.monto_inicial, a.fecha_creacion, a.monto_total, a.monto_total - a.monto_inicial, null, true
+from apartados a
+where a.monto_inicial > 0.01
+  and not exists (
+    select 1 from apartado_abonos ab
+    where ab.id_apartado = a.id and ab.fecha = a.fecha_creacion and ab.monto_abonado = a.monto_inicial
+  );
+
+-- Con el pago inicial ya adentro de apartado_abonos para todos, se recalcula
+-- de una vez saldo y cuotas de TODOS los apartados existentes con la fórmula
+-- nueva (monto_total - abonos, ya no monto_total - monto_inicial - abonos,
+-- y el inicial excluido del reparto contra cuotas vía es_inicial): de paso,
+-- esto aplica la corrección del bug del punto 1 a cualquier apartado viejo
+-- que ya lo tuviera pisado.
+do $$
+declare
+  r record;
+begin
+  for r in select id from apartados loop
+    perform recalcular_cadena_abonos_apartado(r.id);
+  end loop;
+end $$;
 -- ============================================================================

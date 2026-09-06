@@ -6,6 +6,7 @@ import '../../data/apartado_abono_model.dart';
 import '../../providers/apartados_provider.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
+import 'configuracion_apartado.dart' show metodosPagoApartado;
 
 /// Corrige un pago ya registrado de un apartado (monto y/o fecha) -acción
 /// sensible pensada para arreglar errores de carga, disponible SIEMPRE
@@ -27,6 +28,7 @@ class EditarAbonoApartadoDialog extends ConsumerStatefulWidget {
 class _EditarAbonoApartadoDialogState extends ConsumerState<EditarAbonoApartadoDialog> {
   late final TextEditingController _montoController;
   late DateTime _fecha;
+  late String? _metodoPago;
   bool _guardando = false;
   String? _error;
 
@@ -35,6 +37,7 @@ class _EditarAbonoApartadoDialogState extends ConsumerState<EditarAbonoApartadoD
     super.initState();
     _montoController = TextEditingController(text: widget.abono.montoAbonado.toStringAsFixed(2));
     _fecha = widget.abono.fecha ?? DateTime.now();
+    _metodoPago = widget.abono.metodoPago;
   }
 
   @override
@@ -67,7 +70,7 @@ class _EditarAbonoApartadoDialogState extends ConsumerState<EditarAbonoApartadoD
       _error = null;
     });
     try {
-      await ref.read(apartadoRepositoryProvider).editarAbono(idAbono: widget.abono.id, montoAbonado: monto, fecha: _fecha);
+      await ref.read(apartadoRepositoryProvider).editarAbono(idAbono: widget.abono.id, montoAbonado: monto, fecha: _fecha, metodoPago: _metodoPago);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() {
@@ -139,6 +142,20 @@ class _EditarAbonoApartadoDialogState extends ConsumerState<EditarAbonoApartadoD
                       decoration: _decoracion('Monto pagado'),
                       onChanged: (_) => setState(() {}),
                     ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text('Método de pago', style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade600)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final metodo in metodosPagoApartado)
+                        ChoiceChip(
+                          label: Text(metodo, style: GoogleFonts.poppins(fontSize: 12.5)),
+                          selected: _metodoPago == metodo,
+                          onSelected: (v) => setState(() => _metodoPago = metodo),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 14),
                   InkWell(

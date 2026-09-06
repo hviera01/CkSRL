@@ -9,6 +9,7 @@ import '../../../auth/providers/auth_provider.dart';
 import '../../../../core/utils/formato_moneda.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
+import 'configuracion_apartado.dart' show metodosPagoApartado;
 
 /// Registra un pago sobre un apartado activo -de CUALQUIER modalidad-: el
 /// monto es SIEMPRE libre (igual que ya era en abonos_libres; antes, en
@@ -38,6 +39,7 @@ class RegistrarPagoApartadoDialog extends ConsumerStatefulWidget {
 class _RegistrarPagoApartadoDialogState extends ConsumerState<RegistrarPagoApartadoDialog> {
   final _montoController = TextEditingController();
   DateTime _fecha = DateTime.now();
+  String _metodoPago = 'Efectivo';
   bool _guardando = false;
   String? _error;
 
@@ -83,7 +85,7 @@ class _RegistrarPagoApartadoDialogState extends ConsumerState<RegistrarPagoApart
     });
     try {
       final repo = ref.read(apartadoRepositoryProvider);
-      await repo.registrarAbono(idApartado: widget.apartado.id, montoAbonado: monto, fecha: _fecha);
+      await repo.registrarAbono(idApartado: widget.apartado.id, montoAbonado: monto, fecha: _fecha, metodoPago: _metodoPago);
       // Si este pago dejó el saldo en 0 -no puede quedar en negativo, ya se
       // validó arriba que no supere el saldo pendiente-, se ofrece de una
       // vez marcar el apartado como entregado (mismo flujo que el botón
@@ -213,6 +215,20 @@ class _RegistrarPagoApartadoDialogState extends ConsumerState<RegistrarPagoApart
                         decoration: _decoracion('Monto pagado'),
                         onChanged: (_) => setState(() {}),
                       ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text('Método de pago', style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.grey.shade600)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final metodo in metodosPagoApartado)
+                          ChoiceChip(
+                            label: Text(metodo, style: GoogleFonts.poppins(fontSize: 12.5)),
+                            selected: _metodoPago == metodo,
+                            onSelected: (v) => setState(() => _metodoPago = metodo),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 14),
                     InkWell(

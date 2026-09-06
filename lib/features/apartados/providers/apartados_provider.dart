@@ -86,11 +86,11 @@ final apartadosActivosPorProductoProvider = Provider.family<List<ApartadoConCant
   ];
 });
 
-/// Saldo pendiente de CADA apartado (monto_total - monto_inicial - lo ya
-/// pagado) -calculado acá, en vez de guardado en la tabla `apartados` (que a
-/// propósito no tiene columna de saldo, ver comentario en
-/// supabase/schema.sql), para que el listado (ApartadosScreen) muestre el
-/// saldo de todos sin abrir el detalle de cada uno.
+/// Saldo pendiente de CADA apartado (monto_total - lo ya pagado) -calculado
+/// acá, en vez de guardado en la tabla `apartados` (que a propósito no tiene
+/// columna de saldo, ver comentario en supabase/schema.sql), para que el
+/// listado (ApartadosScreen) muestre el saldo de todos sin abrir el detalle
+/// de cada uno.
 ///
 /// "Lo ya pagado" sale SIEMPRE de `apartado_abonos`, para las dos
 /// modalidades -desde que `registrar_abono_apartado` acepta pagos libres
@@ -100,6 +100,12 @@ final apartadosActivosPorProductoProvider = Provider.family<List<ApartadoConCant
 /// se quedaría corto apenas un pago parcial no alcance a cerrar una cuota
 /// completa: quedaría reflejado en la fila del abono pero desaparecido del
 /// saldo mostrado.
+///
+/// OJO 2026-09-06: `a.montoInicial` YA NO se resta acá -desde que el pago
+/// inicial REAL entra como el primer movimiento de `apartado_abonos` (ver
+/// crear_apartado en supabase/schema.sql), `montoInicial` quedó solo como el
+/// monto SUGERIDO/planeado (referencia histórica), y restarlo de nuevo acá
+/// contaría el pago inicial dos veces.
 final saldosApartadosProvider = Provider<Map<String, double>>((ref) {
   final apartados = ref.watch(apartadosStreamProvider).value ?? const <ApartadoModel>[];
   final abonos = ref.watch(todosLosApartadoAbonosProvider).value ?? const <ApartadoAbonoModel>[];
@@ -111,7 +117,7 @@ final saldosApartadosProvider = Provider<Map<String, double>>((ref) {
 
   final mapa = <String, double>{};
   for (final a in apartados) {
-    final pagado = a.montoInicial + (abonadoPorApartado[a.id] ?? 0);
+    final pagado = abonadoPorApartado[a.id] ?? 0;
     final saldo = a.montoTotal - pagado;
     mapa[a.id] = saldo < 0 ? 0 : saldo;
   }

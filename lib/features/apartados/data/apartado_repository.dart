@@ -143,14 +143,25 @@ class ApartadoRepository with ConRedMixin {
     });
   }
 
-  /// Crea el apartado completo (cabecera + items + cuotas si aplica) de
-  /// forma atómica -ver función `crear_apartado` en supabase/schema.sql-,
-  /// que además valida (con lock) que cada producto tenga existencia
-  /// disponible de verdad antes de insertar nada.
+  /// Crea el apartado completo (cabecera + items + cuotas si aplica + el
+  /// pago inicial REAL como primer abono) de forma atómica -ver función
+  /// `crear_apartado` en supabase/schema.sql-, que además valida (con lock)
+  /// que cada producto tenga existencia disponible de verdad antes de
+  /// insertar nada.
+  ///
+  /// [montoInicial] es el monto SUGERIDO/planeado (por % o monto fijo,
+  /// calculado en Dart -ver ConfiguracionApartadoController-), que solo sirve
+  /// de guía para armar [cuotas] y queda como referencia histórica en
+  /// apartados.monto_inicial. [montoInicialReal] es lo que el cliente dio de
+  /// verdad (puede diferir del sugerido, incluso ser 0) y [metodoPagoInicial]
+  /// con qué método -entra como el PRIMER movimiento real de
+  /// apartado_abonos, no como un campo estático separado-.
   Future<String> crearApartado({
     String? idCliente,
     required String nombreCliente,
     required double montoInicial,
+    required double montoInicialReal,
+    String? metodoPagoInicial,
     required String modalidad,
     required List<NuevoItemApartado> items,
     List<NuevaCuota> cuotas = const [],
@@ -165,6 +176,8 @@ class ApartadoRepository with ConRedMixin {
             'nombreCliente': nombreCliente,
             'montoTotal': montoTotal,
             'montoInicial': montoInicial,
+            'montoInicialReal': montoInicialReal,
+            'metodoPagoInicial': metodoPagoInicial,
             'modalidad': modalidad,
             'fechaCreacion': (fechaCreacion ?? DateTime.now()).toIso8601String(),
             'items': items.map((i) => i.toMap()).toList(),
@@ -188,8 +201,10 @@ class ApartadoRepository with ConRedMixin {
   /// efectivamente cubre por completo (ver el comentario grande de esa
   /// función en supabase/schema.sql). [fecha] es la fecha que el usuario
   /// eligió para el registro (hoy por defecto, pero editable), no
-  /// necesariamente el instante en que se guardó.
-  Future<void> registrarAbono({required String idApartado, required double montoAbonado, DateTime? fecha}) {
+  /// necesariamente el instante en que se guardó. [metodoPago] entra en el
+  /// mismo ledger que después alimenta el Cierre de Caja (ver
+  /// EgresoRepository.obtenerLibroFinanciero).
+  Future<void> registrarAbono({required String idApartado, required double montoAbonado, DateTime? fecha, String? metodoPago}) {
     return conRed(() async {
       try {
         await _db.rpc('registrar_abono_apartado', params: {
@@ -197,6 +212,7 @@ class ApartadoRepository with ConRedMixin {
             'idApartado': idApartado,
             'montoAbonado': montoAbonado,
             'fecha': (fecha ?? DateTime.now()).toIso8601String(),
+            'metodoPago': metodoPago,
           },
         });
       } on PostgrestException catch (e) {
@@ -230,7 +246,7 @@ class ApartadoRepository with ConRedMixin {
   /// posteriores y -si la modalidad es cuotas_fijas- vuelve a aplicar el
   /// total abonado contra las cuotas programadas desde cero: no son varios
   /// round-trips desde acá.
-  Future<void> editarAbono({required String idAbono, required double montoAbonado, required DateTime fecha}) {
+  Future<void> editarAbono({required String idAbono, required double montoAbonado, required DateTime fecha, String? metodoPago}) {
     return conRed(() async {
       try {
         await _db.rpc('editar_abono_apartado', params: {
@@ -238,6 +254,7 @@ class ApartadoRepository with ConRedMixin {
             'idAbono': idAbono,
             'montoAbonado': montoAbonado,
             'fecha': fecha.toIso8601String(),
+            'metodoPago': metodoPago,
           },
         });
       } on PostgrestException catch (e) {
@@ -256,6 +273,24 @@ class ApartadoRepository with ConRedMixin {
       } on PostgrestException catch (e) {
         throw Exception(e.message);
       }
+    });
+  }
+
+  /// Todos los abonos de apartados (inicial + regulares, de CUALQUIER
+  /// apartado) registrados dentro de [inicio]/[finInclusive] -mismo patrón
+  /// que VentaCreditoRepository.obtenerAbonosPorRango/
+  /// CompraCreditoRepository.obtenerAbonosPorRango-, para que el Cierre de
+  /// Caja (ver EgresoRepository.obtenerLibroFinanciero) sume el efectivo/
+  /// tarjeta/transferencia que entra por apartados igual que ya suma el de
+  /// ventas a crédito.
+  Future<List<ApartadoAbonoModel>> obtenerAbonosPorRango(DateTime inicio, DateTime finInclusive) {
+    return conRed(() async {
+      final filas = await _db
+          .from('apartado_abonos')
+          .select()
+          .gte('fecha', inicio.toIso8601String())
+          .lte('fecha', finInclusive.toIso8601String());
+      return filas.map((d) => ApartadoAbonoModel.fromMap(d['id'] as String, d)).toList();
     });
   }
 
