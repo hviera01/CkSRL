@@ -63,6 +63,17 @@ class _TutorialOverlayState extends State<_TutorialOverlay> {
   Timer? _sondeo;
   bool _avanzandoPorToque = false;
   bool _terminado = false;
+  // El campo real del paso actual está tapado por una pantalla/diálogo
+  // nuevo que se abrió ENCIMA (ej. tocar "Agregar Producto" empuja una
+  // pantalla completa de búsqueda) -bug real reportado por el dueño: el
+  // tutorial avanzaba igual 450ms después de cualquier toque, sin esperar a
+  // que el usuario terminara esa pantalla nueva y volviera, así que
+  // terminaba resaltando campos de ESTA pantalla mientras seguía tapada por
+  // la de encima, en cualquier posición rara-. Mientras está tapada no se
+  // dibuja nada (la pantalla nueva queda 100% limpia y usable) y no se
+  // avanza hasta volver.
+  bool _rutaTapada = false;
+  bool _esperandoQueVuelva = false;
 
   TutorialPaso get _paso => widget.pasos[_indice];
 
@@ -86,6 +97,23 @@ class _TutorialOverlayState extends State<_TutorialOverlay> {
     if (_terminado || _indice >= widget.pasos.length) return;
     final ctx = _paso.key.currentContext;
     if (ctx == null) return;
+    // El widget real sigue existiendo (montado) pero puede estar tapado por
+    // una pantalla/diálogo nuevo que se abrió encima -ModalRoute.isCurrent
+    // es false mientras algo más arriba en el Navigator sea lo activo-.
+    final ruta = ModalRoute.of(ctx);
+    final tapadaAhora = ruta != null && !ruta.isCurrent;
+    if (tapadaAhora != _rutaTapada) {
+      if (_rutaTapada && !tapadaAhora && _esperandoQueVuelva) {
+        // Estaba esperando -el usuario terminó con la pantalla de encima y
+        // volvió- así que ahora sí se avanza al siguiente paso.
+        _esperandoQueVuelva = false;
+        setState(() => _rutaTapada = false);
+        _siguiente();
+        return;
+      }
+      setState(() => _rutaTapada = tapadaAhora);
+    }
+    if (tapadaAhora) return;
     final caja = ctx.findRenderObject();
     if (caja is! RenderBox || !caja.attached) return;
     // Coordenadas relativas al propio RenderBox de este overlay -no a la
@@ -128,6 +156,8 @@ class _TutorialOverlayState extends State<_TutorialOverlay> {
         setState(() {
           _indice = i;
           _rect = null;
+          _rutaTapada = false;
+          _esperandoQueVuelva = false;
         });
         await _asegurarVisible(widget.pasos[i].key);
         if (!mounted) return;
@@ -191,12 +221,28 @@ class _TutorialOverlayState extends State<_TutorialOverlay> {
     _avanzandoPorToque = true;
     Future.delayed(const Duration(milliseconds: 450), () {
       _avanzandoPorToque = false;
-      if (mounted && !_terminado) _siguiente();
+      if (!mounted || _terminado) return;
+      final ctx = _paso.key.currentContext;
+      final ruta = ctx == null ? null : ModalRoute.of(ctx);
+      if (ruta != null && !ruta.isCurrent) {
+        // Ese toque real abrió una pantalla/diálogo nuevo encima (ej.
+        // "Agregar Producto" empuja la pantalla de búsqueda completa): no
+        // se avanza todavía -_actualizarRect sigue sondeando y avanza solo
+        // apenas el usuario vuelva a esta pantalla-.
+        _esperandoQueVuelva = true;
+        setState(() => _rutaTapada = true);
+        return;
+      }
+      _siguiente();
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Mientras la pantalla/diálogo nuevo de encima está abierto, no se
+    // dibuja nada -ni oscurecido ni tarjeta-: esa pantalla queda 100%
+    // limpia y usable, sin ningún resabio del paso anterior encima.
+    if (_rutaTapada) return const SizedBox.shrink();
     final rect = _rect;
     // Tamaño del propio overlay (no MediaQuery.of, que da el de TODA la
     // ventana): cada pestaña tiene su Navigator/Overlay propio que puede

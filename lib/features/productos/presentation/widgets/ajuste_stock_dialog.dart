@@ -10,6 +10,7 @@ import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
 import '../../../../core/tutorial/tutorial_modelos.dart';
 import '../../../../core/tutorial/tutorial_boton.dart';
+import '../../../../core/tutorial/tutorial_motor.dart';
 
 enum _ModoAjuste { ingreso, salida }
 
@@ -33,6 +34,14 @@ class AjusteStockDialog extends ConsumerStatefulWidget {
   // actual" (ver AuditoriaInventarioScreen: ahí va "Conteo físico: X ·
   // Diferencia: ±Y").
   final Widget? notaSuperior;
+  // Si viene en true, apenas se abre este diálogo arranca solo su propio
+  // tutorial (_temaAjustarExistencias, más abajo) -pedido explícito del
+  // dueño: que el tutorial de "Ajustar Existencias" de Inventario, al
+  // llegar acá guiando al usuario, siga de largo explicando Ingreso/Salida,
+  // Cantidad, Costo, Lote y Motivo, en vez de cortarse justo cuando se abre
+  // este diálogo y dejar que el usuario tenga que buscar el ícono de ayuda
+  // de acá adentro por su cuenta-. Ver InventarioScreen._abrirAjusteStock.
+  final bool iniciarTutorialAlAbrir;
 
   const AjusteStockDialog({
     super.key,
@@ -41,6 +50,7 @@ class AjusteStockDialog extends ConsumerStatefulWidget {
     this.cantidadInicial,
     this.motivoInicial,
     this.notaSuperior,
+    this.iniciarTutorialAlAbrir = false,
   });
 
   @override
@@ -84,6 +94,13 @@ class _AjusteStockDialogState extends ConsumerState<AjusteStockDialog> {
     // fue distinto (por ejemplo, encontró más de un lote viejo a otro costo).
     if (_modo == _ModoAjuste.ingreso && widget.producto.precioCompra > 0) {
       _costoController.text = _formatoCantidad(widget.producto.precioCompra);
+    }
+    if (widget.iniciarTutorialAlAbrir) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          iniciarRecorridoTutorial(context, _temaAjustarExistencias.pasos(), onFinish: () {});
+        }
+      });
     }
   }
 

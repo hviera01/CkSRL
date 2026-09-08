@@ -61,6 +61,12 @@ class TutorialTema {
   final IconData icono;
   final List<TutorialPaso> Function() pasos;
   final String? bienvenida;
+  // Se llama justo cuando el recorrido arranca de verdad (después de la
+  // bienvenida, si tiene) -pedido explícito del dueño: encadenar el
+  // tutorial de una pantalla con el de un diálogo que abre desde ahí (ver
+  // AjusteStockDialog/InventarioScreen), para que se sienta un solo
+  // recorrido continuo en vez de dos tutoriales separados-.
+  final VoidCallback? alEmpezar;
 
   const TutorialTema({
     required this.titulo,
@@ -68,5 +74,6 @@ class TutorialTema {
     required this.icono,
     required this.pasos,
     this.bienvenida,
+    this.alEmpezar,
   });
 }

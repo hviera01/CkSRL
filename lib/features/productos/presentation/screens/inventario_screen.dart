@@ -103,6 +103,12 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     return esMovil || (esTablet && _vistaTablet == 'tarjetas');
   }
 
+  // Se pone en true justo cuando arranca el tutorial de "Ajustar
+  // Existencias" (ver _temaAjustarExistencias.alEmpezar); _abrirAjusteStock
+  // lo lee y apaga para decirle a AjusteStockDialog si tiene que seguir de
+  // largo con SU PROPIO tutorial apenas se abra.
+  bool _tutorialAjustarStockPendiente = false;
+
   GlobalKey get _keyAccionesSegunVista =>
       _seVenTarjetas ? _keyPrimeraTarjetaAcciones : _keyColumnaAcciones;
   // Cuando la búsqueda viene de escanear un código de barras se filtra por
@@ -338,14 +344,21 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     descripcion: 'Cambiar nombre, precio, foto, etc. de un producto que ya existe',
     icono: Icons.edit_outlined,
     bienvenida:
-        'Te muestro cómo abrir un producto que ya existe para cambiarle algún dato (nombre, precio, foto, categoría, etc.).',
+        'Te muestro cómo abrir un producto que ya existe para cambiarle algún dato (nombre, precio, foto, categoría, etc.). Primero lo buscás, después lo editás.',
     pasos: () => [
+      TutorialPaso(
+        key: _keySelectorVista,
+        titulo: 'Primero, buscá el producto',
+        avance: TutorialAvance.manual,
+        explicacion:
+            'Si Inventario te aparece vacío al entrar, es porque por defecto solo muestra "Productos filtrados" (los que buscaste). Tocá acá y elegí "Mostrar todos" para ver la lista completa -o si preferís, escribí el nombre del producto en el buscador de arriba-. Cuando ya veas el producto que querés editar, tocá "Siguiente".',
+      ),
       TutorialPaso(
         key: _keyAccionesSegunVista,
         titulo: _seVenTarjetas ? 'Tres puntitos de la tarjeta' : 'Columna Acciones',
         explicacion: _seVenTarjetas
-            ? 'En cada tarjeta de producto, arriba a la derecha, tocá los tres puntitos (⋮) y elegí "Editar producto". Se abre el mismo formulario que al crear uno nuevo, pero con todos los datos actuales ya cargados — cambiá solo lo que necesites y tocá Guardar. Ahí adentro también hay un ícono de ayuda (birrete) con el detalle de cada campo.'
-            : 'En cada producto, del lado derecho, tocá los tres puntitos (⋮) y elegí "Editar producto". Se abre el mismo formulario que al crear uno nuevo, pero con todos los datos actuales ya cargados — cambiá solo lo que necesites y tocá Guardar. Ahí adentro también hay un ícono de ayuda (birrete) con el detalle de cada campo.',
+            ? 'Ya con el producto a la vista: en su tarjeta, arriba a la derecha, tocá los tres puntitos (⋮) y elegí "Editar producto". Se abre el mismo formulario que al crear uno nuevo, pero con todos los datos actuales ya cargados — cambiá solo lo que necesites y tocá Guardar. Ahí adentro también hay un ícono de ayuda (birrete) con el detalle de cada campo.'
+            : 'Ya con el producto a la vista: en esa fila, del lado derecho, tocá los tres puntitos (⋮) y elegí "Editar producto". Se abre el mismo formulario que al crear uno nuevo, pero con todos los datos actuales ya cargados — cambiá solo lo que necesites y tocá Guardar. Ahí adentro también hay un ícono de ayuda (birrete) con el detalle de cada campo.',
         obligatorio: false,
       ),
     ],
@@ -356,14 +369,32 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     descripcion: 'Sumar o restar unidades de un producto',
     icono: Icons.tune,
     bienvenida:
-        'Te voy a mostrar cómo corregir la cantidad de un producto cuando hacés un conteo físico, encontrás algo dañado, o simplemente el número no cuadra.',
+        'Te voy a mostrar cómo corregir la cantidad de un producto cuando hacés un conteo físico, encontrás algo dañado, o simplemente el número no cuadra. Primero buscás el producto, después le ajustás la existencia -y ahí te voy a explicar cada campo, si tenés que sumar o restar y por qué-.',
+    // Se pone el aviso ANTES de armar los pasos: si Inventario recién se
+    // abrió, la lista arranca vacía a propósito (filtro "Productos
+    // filtrados", ver _selectorVista) y ningún producto tiene todavía sus
+    // "⋮" en pantalla -bug real reportado por el dueño: tocaba "Empezar" y
+    // no pasaba nada, porque el paso de los tres puntitos no encontraba
+    // ningún producto al cual apuntar-. Por eso el primer paso, abajo,
+    // manda a buscar/mostrar productos ANTES del paso de los tres puntitos.
+    alEmpezar: () => _tutorialAjustarStockPendiente = true,
     pasos: () => [
+      TutorialPaso(
+        key: _keySelectorVista,
+        titulo: 'Primero, buscá el producto',
+        // avance manual (no automático al tocar): elegir una opción de este
+        // desplegable son dos toques seguidos (abrirlo, después elegir la
+        // opción), así que no hay un solo toque que marque "ya terminé" acá.
+        avance: TutorialAvance.manual,
+        explicacion:
+            'Si Inventario te aparece vacío al entrar, es porque por defecto solo muestra "Productos filtrados" (los que buscaste). Tocá acá y elegí "Mostrar todos" para ver la lista completa -o si preferís, escribí el nombre del producto en el buscador de arriba-. Cuando ya veas el producto que querés ajustar, tocá "Siguiente".',
+      ),
       TutorialPaso(
         key: _keyAccionesSegunVista,
         titulo: _seVenTarjetas ? 'Tres puntitos de la tarjeta' : 'Columna Acciones',
         explicacion: _seVenTarjetas
-            ? 'En cada tarjeta de producto, arriba a la derecha, tocá los tres puntitos (⋮) y elegí "Ajustar existencia" para sumar o restar unidades de ese producto — ahí adentro hay un ícono de ayuda (birrete) que te explica cada campo del ajuste (cantidad, costo o de qué lote sale, motivo). También podés elegir "Historial de existencia" para revisar los cambios que se hicieron antes.'
-            : 'En cada producto, del lado derecho, tocá los tres puntitos (⋮) y elegí "Ajustar existencia" para sumar o restar unidades de ese producto — ahí adentro hay un ícono de ayuda (birrete) que te explica cada campo del ajuste (cantidad, costo o de qué lote sale, motivo). También podés elegir "Historial de existencia" para revisar los cambios que se hicieron antes.',
+            ? 'Ya con el producto a la vista: en su tarjeta, arriba a la derecha, tocá los tres puntitos (⋮) y elegí "Ajustar existencia". Ahí adentro te voy a seguir explicando cada campo -si sumar o restar, el costo, de qué lote sale, el motivo- para que sepas exactamente qué hacer.'
+            : 'Ya con el producto a la vista: en esa fila, del lado derecho, tocá los tres puntitos (⋮) y elegí "Ajustar existencia". Ahí adentro te voy a seguir explicando cada campo -si sumar o restar, el costo, de qué lote sale, el motivo- para que sepas exactamente qué hacer.',
       ),
     ],
   );
@@ -516,10 +547,19 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
       PermisosEspeciales.inventarioAjustarStock,
     )).autorizado;
     if (!autorizado || !mounted) return;
+    // Se consume (lee y apaga) acá, no antes: solo importa la PRÓXIMA vez
+    // que se abre este diálogo justo después de que arrancó el tutorial de
+    // "Ajustar Existencias" (ver _temaAjustarExistencias.alEmpezar) -así una
+    // apertura normal y manual más adelante no dispara el tutorial solo.
+    final continuarTutorial = _tutorialAjustarStockPendiente;
+    _tutorialAjustarStockPendiente = false;
     showDialog(
       useRootNavigator: false,
       context: context,
-      builder: (context) => AjusteStockDialog(producto: producto),
+      builder: (context) => AjusteStockDialog(
+        producto: producto,
+        iniciarTutorialAlAbrir: continuarTutorial,
+      ),
     );
   }
 

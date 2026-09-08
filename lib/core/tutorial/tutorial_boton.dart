@@ -204,6 +204,7 @@ class TutorialBoton extends StatelessWidget {
 
   void _iniciarTutorial(BuildContext context, TutorialTema tema) {
     void arrancarRecorrido() {
+      tema.alEmpezar?.call();
       final pasos = tema.pasos();
       // Ver tutorial_motor.dart: el recorrido en sí (resaltar cada paso sin
       // bloquear el toque real, seguir al campo si la pantalla scrollea,
