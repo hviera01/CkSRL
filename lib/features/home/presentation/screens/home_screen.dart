@@ -3,11 +3,13 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../auth/data/usuario_model.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../../core/constants/roles.dart';
 import '../../../../core/data/modulos_menu.dart';
 import '../../../../core/utils/abrir_submodulo.dart';
 import '../../../../core/utils/formato_moneda.dart';
+import '../../../../core/utils/permisos_modulo.dart';
 import '../../providers/resumen_ventas_provider.dart';
 import '../widgets/dashboard_admin.dart';
 
@@ -27,10 +29,10 @@ class HomeScreen extends ConsumerWidget {
     BuildContext contextPantalla,
     WidgetRef ref,
     ModuloMenu modulo,
-    bool esAdmin,
+    UsuarioModel? usuario,
   ) {
     final disponibles = modulo.subModulos
-        .where((s) => esAdmin || !s.soloAdmin)
+        .where((s) => puedeVerSubModulo(usuario, s))
         .toList();
     if (disponibles.isEmpty) return;
     if (disponibles.length == 1) {
@@ -96,7 +98,7 @@ class HomeScreen extends ConsumerWidget {
     final esAdmin = usuario?.rol == Roles.administrador;
 
     final modulosVisibles = obtenerModulos().where((m) {
-      return m.subModulos.any((s) => esAdmin || !s.soloAdmin);
+      return m.subModulos.any((s) => puedeVerSubModulo(usuario, s));
     }).toList();
 
     return Container(
@@ -156,7 +158,7 @@ class HomeScreen extends ConsumerWidget {
                         context,
                         ref,
                         modulo,
-                        esAdmin,
+                        usuario,
                         esMovil,
                       );
                     },
@@ -439,7 +441,7 @@ class HomeScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     ModuloMenu modulo,
-    bool esAdmin,
+    UsuarioModel? usuario,
     bool esMovil,
   ) {
     return Material(
@@ -447,7 +449,7 @@ class HomeScreen extends ConsumerWidget {
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: () => _manejarTap(context, ref, modulo, esAdmin),
+        onTap: () => _manejarTap(context, ref, modulo, usuario),
         child: Container(
           padding: EdgeInsets.all(esMovil ? 14 : 22),
           decoration: BoxDecoration(
@@ -491,7 +493,7 @@ class HomeScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '${modulo.subModulos.where((s) => esAdmin || !s.soloAdmin).length} opciones',
+                '${modulo.subModulos.where((s) => puedeVerSubModulo(usuario, s)).length} opciones',
                 style: GoogleFonts.poppins(
                   fontSize: 10.5,
                   color: Colors.grey.shade500,

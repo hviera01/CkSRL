@@ -5,10 +5,15 @@ class UsuarioModel {
   final String correo;
   final String rol;
   final bool estado;
-  // Solo se usan (y se persisten) cuando rol == Roles.encargado: qué
-  // pantallas (SubModulo.moduleKey) y qué acciones (PermisosEspeciales.*)
-  // tiene habilitadas este usuario en particular. Para cualquier otro rol
-  // quedan vacíos.
+  // Solo se usan (y se persisten) cuando rol == Roles.encargado o
+  // Roles.empleado: qué pantallas (SubModulo.moduleKey) y qué acciones
+  // (PermisosEspeciales.*) tiene habilitadas este usuario en particular.
+  // Para cualquier otro rol quedan vacíos. Para Empleado, si el mapa viene
+  // vacío (usuario creado antes de este cambio, o al que nunca se le tocó
+  // nada) NO significa "sin acceso a nada": el menú aplica como respaldo
+  // `pantallasPermitidasEmpleadoPorDefecto` (ver core/utils/permisos_modulo
+  // .dart); para Encargado un mapa vacío sí significa "sin acceso a nada",
+  // tal cual funcionaba antes.
   final Map<String, bool> pantallasPermitidas;
   final Map<String, bool> accionesPermitidas;
 

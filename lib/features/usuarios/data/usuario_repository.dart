@@ -50,9 +50,10 @@ class UsuarioRepository with ConRedMixin {
       }
       final sal = ClaveHash.generarSal();
       // Los mapas de permisos ad-hoc solo tienen sentido (y solo se guardan)
-      // para el rol Encargado: para cualquier otro rol se persisten vacíos,
-      // así los registros no se ensucian con datos que no aplican.
-      final esEncargado = rol == Roles.encargado;
+      // para los roles Encargado y Empleado: para cualquier otro rol se
+      // persisten vacíos, así los registros no se ensucian con datos que no
+      // aplican.
+      final aplicaPermisos = rol == Roles.encargado || rol == Roles.empleado;
       await _db.from('usuarios').insert({
         'documento': documento,
         'nombre_completo': nombreCompleto,
@@ -62,8 +63,8 @@ class UsuarioRepository with ConRedMixin {
         'rol': rol,
         'estado': estado,
         'intentos_fallidos': 0,
-        'pantallas_permitidas': esEncargado ? pantallasPermitidas : {},
-        'acciones_permitidas': esEncargado ? accionesPermitidas : {},
+        'pantallas_permitidas': aplicaPermisos ? pantallasPermitidas : {},
+        'acciones_permitidas': aplicaPermisos ? accionesPermitidas : {},
       });
     });
   }
@@ -85,15 +86,15 @@ class UsuarioRepository with ConRedMixin {
       if (duplicado) {
         throw Exception('El número de documento ya existe');
       }
-      final esEncargado = rol == Roles.encargado;
+      final aplicaPermisos = rol == Roles.encargado || rol == Roles.empleado;
       final data = <String, dynamic>{
         'documento': documento,
         'nombre_completo': nombreCompleto,
         'correo': correo,
         'rol': rol,
         'estado': estado,
-        'pantallas_permitidas': esEncargado ? pantallasPermitidas : {},
-        'acciones_permitidas': esEncargado ? accionesPermitidas : {},
+        'pantallas_permitidas': aplicaPermisos ? pantallasPermitidas : {},
+        'acciones_permitidas': aplicaPermisos ? accionesPermitidas : {},
       };
       if (clave != null && clave.trim().isNotEmpty) {
         // Cambiar la clave desbloquea al usuario y reinicia los intentos

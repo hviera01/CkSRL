@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../constants/roles.dart';
 import '../data/modulos_menu.dart';
 import '../providers/actualizacion_provider.dart';
 import '../services/actualizacion_service.dart';
 import '../utils/abrir_submodulo.dart';
+import '../utils/permisos_modulo.dart';
 import '../widgets/actualizacion_dialog.dart';
 import '../widgets/actualizacion_respaldo_dialog.dart';
 import '../../features/auth/providers/auth_provider.dart';
@@ -60,17 +60,10 @@ class SideMenu extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final usuario = authState.usuario;
-    final esAdmin = usuario?.rol == Roles.administrador;
-    final esEncargado = usuario?.rol == Roles.encargado;
-    // Administrador siempre ve todo. Encargado ve únicamente lo que el
-    // Administrador le marcó en `pantallasPermitidas` al crearlo (ver
-    // usuario_form_dialog.dart). Empleado/Semi Administrador siguen
-    // exactamente igual que antes, evaluados con `soloAdmin`.
-    bool puedeVer(SubModulo s) {
-      if (esAdmin) return true;
-      if (esEncargado) return usuario?.pantallasPermitidas[s.moduleKey] == true;
-      return !s.soloAdmin;
-    }
+    // La regla de quién ve qué vive en un único lugar compartido con
+    // HomeScreen -ver puedeVerSubModulo-, para que ambos menús (el lateral
+    // de acá y la grilla de Inicio) no vuelvan a desincronizarse.
+    bool puedeVer(SubModulo s) => puedeVerSubModulo(usuario, s);
 
     final modulos = obtenerModulos().where((m) {
       return m.subModulos.any(puedeVer);
