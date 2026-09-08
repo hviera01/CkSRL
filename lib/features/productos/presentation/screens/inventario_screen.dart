@@ -74,6 +74,13 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
   final _keyBotonNuevoProducto = GlobalKey();
   final _keyColumnaExistencia = GlobalKey();
   final _keyColumnaAcciones = GlobalKey();
+  // "⋮" de la PRIMERA tarjeta en la vista de tarjetas (celular, o tablet
+  // angosto con "Tarjetas" elegido) -bug real reportado por el dueño: los
+  // tutoriales de "Editar Producto"/"Ajustar Existencias" apuntaban SIEMPRE
+  // a _keyColumnaAcciones, que es el encabezado de la TABLA y en celular
+  // jamás se dibuja (esMovil fuerza tarjetas siempre, ver "usarTarjetas" en
+  // build()), así que tocar "Empezar" no mostraba nada. Ver _keyAccionesTema.
+  final _keyPrimeraTarjetaAcciones = GlobalKey();
   String? _filaSeleccionada;
   String? _columnaOrden;
   bool _ordenAscendente = false;
@@ -82,6 +89,22 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
   // _selectorVistaTabletChico. No aplica en celular (siempre tarjetas) ni en
   // escritorio ancho (siempre tabla) -ver esTablet en build()-.
   String _vistaTablet = 'tabla';
+
+  // Misma cuenta que "usarTarjetas" en build() (ver el comentario grande de
+  // _keyPrimeraTarjetaAcciones): a qué vista apuntar en los tutoriales que
+  // señalan el "⋮" de acciones, según el tamaño real de pantalla ahora
+  // mismo. MediaQuery en vez de LayoutBuilder porque estos temas de
+  // tutorial son getters de la pantalla, no tienen las constraints del
+  // LayoutBuilder a mano.
+  bool get _seVenTarjetas {
+    final ancho = MediaQuery.of(context).size.width;
+    final esMovil = ancho < 720;
+    final esTablet = !esMovil && ancho < 1100;
+    return esMovil || (esTablet && _vistaTablet == 'tarjetas');
+  }
+
+  GlobalKey get _keyAccionesSegunVista =>
+      _seVenTarjetas ? _keyPrimeraTarjetaAcciones : _keyColumnaAcciones;
   // Cuando la búsqueda viene de escanear un código de barras se filtra por
   // coincidencia exacta de código, no con el buscador difuso (que con
   // códigos largos puede "acercarse" a varios productos distintos).
@@ -318,10 +341,11 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
         'Te muestro cómo abrir un producto que ya existe para cambiarle algún dato (nombre, precio, foto, categoría, etc.).',
     pasos: () => [
       TutorialPaso(
-        key: _keyColumnaAcciones,
-        titulo: 'Columna Acciones',
-        explicacion:
-            'En cada producto, del lado derecho, tocá los tres puntitos (⋮) y elegí "Editar producto". Se abre el mismo formulario que al crear uno nuevo, pero con todos los datos actuales ya cargados — cambiá solo lo que necesites y tocá Guardar. Ahí adentro también hay un ícono de ayuda (birrete) con el detalle de cada campo.',
+        key: _keyAccionesSegunVista,
+        titulo: _seVenTarjetas ? 'Tres puntitos de la tarjeta' : 'Columna Acciones',
+        explicacion: _seVenTarjetas
+            ? 'En cada tarjeta de producto, arriba a la derecha, tocá los tres puntitos (⋮) y elegí "Editar producto". Se abre el mismo formulario que al crear uno nuevo, pero con todos los datos actuales ya cargados — cambiá solo lo que necesites y tocá Guardar. Ahí adentro también hay un ícono de ayuda (birrete) con el detalle de cada campo.'
+            : 'En cada producto, del lado derecho, tocá los tres puntitos (⋮) y elegí "Editar producto". Se abre el mismo formulario que al crear uno nuevo, pero con todos los datos actuales ya cargados — cambiá solo lo que necesites y tocá Guardar. Ahí adentro también hay un ícono de ayuda (birrete) con el detalle de cada campo.',
         obligatorio: false,
       ),
     ],
@@ -335,10 +359,11 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
         'Te voy a mostrar cómo corregir la cantidad de un producto cuando hacés un conteo físico, encontrás algo dañado, o simplemente el número no cuadra.',
     pasos: () => [
       TutorialPaso(
-        key: _keyColumnaAcciones,
-        titulo: 'Columna Acciones',
-        explicacion:
-            'En cada producto, del lado derecho, tocá los tres puntitos (⋮) y elegí "Ajustar existencia" para sumar o restar unidades de ese producto — ahí adentro hay un ícono de ayuda (birrete) que te explica cada campo del ajuste (cantidad, costo o de qué lote sale, motivo). También podés elegir "Historial de existencia" para revisar los cambios que se hicieron antes.',
+        key: _keyAccionesSegunVista,
+        titulo: _seVenTarjetas ? 'Tres puntitos de la tarjeta' : 'Columna Acciones',
+        explicacion: _seVenTarjetas
+            ? 'En cada tarjeta de producto, arriba a la derecha, tocá los tres puntitos (⋮) y elegí "Ajustar existencia" para sumar o restar unidades de ese producto — ahí adentro hay un ícono de ayuda (birrete) que te explica cada campo del ajuste (cantidad, costo o de qué lote sale, motivo). También podés elegir "Historial de existencia" para revisar los cambios que se hicieron antes.'
+            : 'En cada producto, del lado derecho, tocá los tres puntitos (⋮) y elegí "Ajustar existencia" para sumar o restar unidades de ese producto — ahí adentro hay un ícono de ayuda (birrete) que te explica cada campo del ajuste (cantidad, costo o de qué lote sale, motivo). También podés elegir "Historial de existencia" para revisar los cambios que se hicieron antes.',
       ),
     ],
   );
@@ -1689,6 +1714,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
               mapaCategorias,
               mapaProductos,
               cantidadesApartadas,
+              esPrimera: index == 0,
             ),
           ),
         ),
@@ -1728,8 +1754,9 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     ProductoModel p,
     Map<String, String> mapaCategorias,
     Map<String, ProductoModel> mapaProductos,
-    Map<String, double> cantidadesApartadas,
-  ) {
+    Map<String, double> cantidadesApartadas, {
+    bool esPrimera = false,
+  }) {
     final existencia = p.esCombo
         ? p.stockDisponibleCombo(mapaProductos)
         : p.stock;
@@ -1861,7 +1888,10 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                             ],
                           ),
                         ),
-                        _celdaAccionesMovil(p),
+                        _celdaAccionesMovil(
+                          p,
+                          key: esPrimera ? _keyPrimeraTarjetaAcciones : null,
+                        ),
                       ],
                     ),
                   ),
@@ -2219,8 +2249,9 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     );
   }
 
-  Widget _celdaAccionesMovil(ProductoModel producto) {
+  Widget _celdaAccionesMovil(ProductoModel producto, {Key? key}) {
     return Listener(
+      key: key,
       onPointerDown: (_) => _seleccionarFila(producto.id),
       child: Row(
         mainAxisSize: MainAxisSize.min,
