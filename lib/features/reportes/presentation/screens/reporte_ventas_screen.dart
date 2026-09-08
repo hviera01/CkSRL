@@ -14,6 +14,8 @@ import '../../../usuarios/providers/usuarios_provider.dart';
 import '../../../ventas/presentation/screens/detalle_venta_screen.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
+import '../../../../core/tutorial/tutorial_modelos.dart';
+import '../../../../core/tutorial/tutorial_boton.dart';
 
 class ReporteVentasScreen extends ConsumerStatefulWidget {
   const ReporteVentasScreen({super.key});
@@ -26,6 +28,19 @@ class ReporteVentasScreen extends ConsumerStatefulWidget {
 class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
   final _busquedaController = TextEditingController();
   final _servicioExport = ReporteExportService();
+
+  // Claves para el tutorial guiado: cada una apunta al widget real que se
+  // resalta al explicar ese paso.
+  final _keyChipsRango = GlobalKey();
+  final _keyFechaDesde = GlobalKey();
+  final _keyFechaHasta = GlobalKey();
+  final _keyMetodoPago = GlobalKey();
+  final _keyCondicion = GlobalKey();
+  final _keyEstado = GlobalKey();
+  final _keyTipoDocumento = GlobalKey();
+  final _keyExcel = GlobalKey();
+  final _keyPdf = GlobalKey();
+
   late DateTime _fechaInicio;
   late DateTime _fechaFin;
   String _busqueda = '';
@@ -178,6 +193,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
 
   Widget _chipsRangoRapido() {
     return Wrap(
+      key: _keyChipsRango,
       spacing: 8,
       runSpacing: 8,
       children: [
@@ -275,14 +291,16 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
         .where((v) => v.esActiva && !v.esCotizacion)
         .fold<double>(0, (s, v) => s + v.totalAPagar);
 
-    return Container(
-      color: const Color(0xFFF2F3F7),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final esMovil = constraints.maxWidth < 760;
-          return Padding(
-            padding: EdgeInsets.all(esMovil ? 14 : 26),
-            // NestedScrollView (en vez de CustomScrollView + SliverFillRemaining)
+    return Stack(
+      children: [
+        Container(
+          color: const Color(0xFFF2F3F7),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final esMovil = constraints.maxWidth < 760;
+              return Padding(
+                padding: EdgeInsets.all(esMovil ? 14 : 26),
+                // NestedScrollView (en vez de CustomScrollView + SliverFillRemaining)
             // coordina el scroll del encabezado/filtros con el de la lista de
             // abajo: sin esto, la lista tiene su propio scroll independiente y,
             // en móvil, al bajar del todo dentro de ella no había forma de
@@ -322,12 +340,14 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
                         _fechaInicio,
                         () => _seleccionarFecha(true),
                         esMovil,
+                        key: _keyFechaDesde,
                       ),
                       _campoFecha(
                         'Hasta',
                         _fechaFin,
                         () => _seleccionarFecha(false),
                         esMovil,
+                        key: _keyFechaHasta,
                       ),
                       SizedBox(
                         width: esMovil ? constraints.maxWidth : 280,
@@ -372,6 +392,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
                         ),
                       ),
                       OutlinedButton.icon(
+                        key: _keyExcel,
                         onPressed: _exportarExcel,
                         icon: const Icon(Icons.grid_on_outlined, size: 18),
                         label: Text(
@@ -391,6 +412,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
                         ),
                       ),
                       OutlinedButton.icon(
+                        key: _keyPdf,
                         onPressed: _exportarPdf,
                         icon: const Icon(
                           Icons.picture_as_pdf_outlined,
@@ -422,6 +444,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
                     runSpacing: 10,
                     children: [
                       SizedBox(
+                        key: _keyMetodoPago,
                         width: esMovil ? constraints.maxWidth : 190,
                         child: _selectorGenerico(
                           'Método de pago',
@@ -431,6 +454,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
                         ),
                       ),
                       SizedBox(
+                        key: _keyCondicion,
                         width: esMovil ? constraints.maxWidth : 190,
                         child: _selectorGenerico(
                           'Condición',
@@ -440,6 +464,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
                         ),
                       ),
                       SizedBox(
+                        key: _keyEstado,
                         width: esMovil ? constraints.maxWidth : 190,
                         child: _selectorGenerico(
                           'Estado',
@@ -449,6 +474,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
                         ),
                       ),
                       SizedBox(
+                        key: _keyTipoDocumento,
                         width: esMovil ? constraints.maxWidth : 190,
                         child: _selectorGenerico(
                           'Tipo de documento',
@@ -529,13 +555,116 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
                         ),
                       )
                     : (esMovil ? _tarjetas(lista) : _tabla(lista)),
-              ),
-            ),
-          );
-        },
-      ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        // Fuera del área que scrollea (NestedScrollView de arriba), para que
+        // el botón de tutorial quede siempre visible sin importar el scroll.
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: TutorialBoton(temas: _temasTutorial),
+        ),
+      ],
     );
   }
+
+  List<TutorialTema> get _temasTutorial => [
+    TutorialTema(
+      titulo: 'Cómo ver mis ventas de un período',
+      descripcion: 'Filtrar y revisar las ventas de unos días',
+      icono: Icons.point_of_sale_outlined,
+      bienvenida:
+          'Esta pantalla te muestra todas las ventas que hiciste en un '
+          'período de tiempo, con el total facturado. Sin tocar nada, ya '
+          'ves las ventas de HOY. Te voy mostrando cada parte para que '
+          'puedas buscar lo que necesites.',
+      pasos: () => [
+        TutorialPaso(
+          key: _keyChipsRango,
+          titulo: 'Atajos rápidos',
+          explicacion:
+              'Estos botones son para no tener que elegir las fechas a '
+              'mano: tocá "Hoy", "Ayer", "Semana", "Mes" o "Trimestre" y el '
+              'reporte se actualiza solo con esas fechas.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyFechaDesde,
+          titulo: 'Fecha Desde',
+          explicacion:
+              'Acá elegís desde qué día querés ver las ventas. Tocá el '
+              'recuadro y elegí la fecha en el calendario que aparece. Si '
+              'usás uno de los atajos de arriba, esto se llena solo.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyFechaHasta,
+          titulo: 'Fecha Hasta',
+          explicacion:
+              'Acá elegís hasta qué día querés ver las ventas. Junto con '
+              '"Desde" forman el período que se va a mostrar.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyMetodoPago,
+          titulo: 'Filtrar por método de pago',
+          explicacion:
+              'Si querés ver solo las ventas que se pagaron, por ejemplo, '
+              'en Efectivo o con Tarjeta, elegilo acá. Si no elegís nada, '
+              'se muestran todas sin importar cómo se pagaron.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyCondicion,
+          titulo: 'Filtrar por condición',
+          explicacion:
+              'Acá elegís si querés ver solo las ventas al Contado (se '
+              'pagaron completas) o solo las de Crédito (se están pagando '
+              'de a poco). Si no elegís nada, se muestran las dos.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyEstado,
+          titulo: 'Filtrar por estado',
+          explicacion:
+              'Acá elegís si querés ver solo las ventas Activas (las que '
+              'valen) o también las Anuladas (las que se cancelaron). Si no '
+              'elegís nada, se muestran las dos.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyTipoDocumento,
+          titulo: 'Filtrar por tipo de documento',
+          explicacion:
+              'Acá elegís si querés ver solo Facturas, Boletas, '
+              'Cotizaciones, o ventas sin facturar. Si no elegís nada, se '
+              'muestran todos los tipos juntos.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyExcel,
+          titulo: 'Descargar Excel',
+          explicacion:
+              'Este botón descarga en un archivo de Excel las ventas que '
+              'estás viendo ahora mismo en la pantalla (con los filtros que '
+              'hayas elegido), para guardarlas o mandarlas a alguien.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyPdf,
+          titulo: 'Descargar PDF',
+          explicacion:
+              'Este botón te muestra una vista previa en PDF de las ventas '
+              'que estás viendo ahora mismo, lista para imprimir o guardar.',
+          obligatorio: false,
+        ),
+      ],
+    ),
+  ];
 
   Widget _statTotalFacturado(double total) {
     return Container(
@@ -592,10 +721,12 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
     String label,
     DateTime fecha,
     VoidCallback onTap,
-    bool esMovil,
-  ) {
+    bool esMovil, {
+    Key? key,
+  }) {
     final formato = DateFormat('dd/MM/yyyy');
     return SizedBox(
+      key: key,
       width: esMovil ? double.infinity : 200,
       child: InkWell(
         onTap: onTap,

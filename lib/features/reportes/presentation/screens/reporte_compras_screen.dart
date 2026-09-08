@@ -14,6 +14,8 @@ import '../../../usuarios/providers/usuarios_provider.dart';
 import '../../../compras/presentation/screens/detalle_compra_screen.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
+import '../../../../core/tutorial/tutorial_modelos.dart';
+import '../../../../core/tutorial/tutorial_boton.dart';
 
 class ReporteComprasScreen extends ConsumerStatefulWidget {
   const ReporteComprasScreen({super.key});
@@ -26,6 +28,18 @@ class ReporteComprasScreen extends ConsumerStatefulWidget {
 class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
   final _busquedaController = TextEditingController();
   final _servicioExport = ReporteExportService();
+
+  // Claves para el tutorial guiado: cada una apunta al widget real que se
+  // resalta al explicar ese paso.
+  final _keyChipsRango = GlobalKey();
+  final _keyFechaDesde = GlobalKey();
+  final _keyFechaHasta = GlobalKey();
+  final _keyProveedor = GlobalKey();
+  final _keyMetodoPago = GlobalKey();
+  final _keyCondicion = GlobalKey();
+  final _keyExcel = GlobalKey();
+  final _keyPdf = GlobalKey();
+
   late DateTime _fechaInicio;
   late DateTime _fechaFin;
   String? _idProveedorFiltro;
@@ -168,6 +182,7 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
 
   Widget _chipsRangoRapido() {
     return Wrap(
+      key: _keyChipsRango,
       spacing: 8,
       runSpacing: 8,
       children: [
@@ -256,14 +271,16 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
     final totalFacturado = lista.fold<double>(0, (s, c) => s + c.montoTotal);
     final proveedoresAsync = ref.watch(proveedoresStreamProvider);
 
-    return Container(
-      color: const Color(0xFFF2F3F7),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final esMovil = constraints.maxWidth < 760;
-          return Padding(
-            padding: EdgeInsets.all(esMovil ? 14 : 26),
-            child: NestedScrollView(
+    return Stack(
+      children: [
+        Container(
+          color: const Color(0xFFF2F3F7),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final esMovil = constraints.maxWidth < 760;
+              return Padding(
+                padding: EdgeInsets.all(esMovil ? 14 : 26),
+                child: NestedScrollView(
               headerSliverBuilder: (context, innerBoxIsScrolled) => [
                 SliverToBoxAdapter(
                   child: Wrap(
@@ -297,14 +314,17 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
                         _fechaInicio,
                         () => _seleccionarFecha(true),
                         esMovil,
+                        key: _keyFechaDesde,
                       ),
                       _campoFecha(
                         'Hasta',
                         _fechaFin,
                         () => _seleccionarFecha(false),
                         esMovil,
+                        key: _keyFechaHasta,
                       ),
                       SizedBox(
+                        key: _keyProveedor,
                         width: esMovil ? constraints.maxWidth : 220,
                         child: proveedoresAsync.when(
                           data: (proveedores) =>
@@ -356,6 +376,7 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
                         ),
                       ),
                       OutlinedButton.icon(
+                        key: _keyExcel,
                         onPressed: _exportarExcel,
                         icon: const Icon(Icons.grid_on_outlined, size: 18),
                         label: Text(
@@ -375,6 +396,7 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
                         ),
                       ),
                       OutlinedButton.icon(
+                        key: _keyPdf,
                         onPressed: _exportarPdf,
                         icon: const Icon(
                           Icons.picture_as_pdf_outlined,
@@ -406,6 +428,7 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
                     runSpacing: 10,
                     children: [
                       SizedBox(
+                        key: _keyMetodoPago,
                         width: esMovil ? constraints.maxWidth : 190,
                         child: _selectorGenerico(
                           'Método de pago',
@@ -415,6 +438,7 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
                         ),
                       ),
                       SizedBox(
+                        key: _keyCondicion,
                         width: esMovil ? constraints.maxWidth : 190,
                         child: _selectorGenerico(
                           'Condición',
@@ -494,13 +518,107 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
                         ),
                       )
                     : (esMovil ? _tarjetas(lista) : _tabla(lista)),
-              ),
-            ),
-          );
-        },
-      ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        // Fuera del área que scrollea (NestedScrollView de arriba), para que
+        // el botón de tutorial quede siempre visible sin importar el scroll.
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: TutorialBoton(temas: _temasTutorial),
+        ),
+      ],
     );
   }
+
+  List<TutorialTema> get _temasTutorial => [
+    TutorialTema(
+      titulo: 'Cómo ver mis compras de un período',
+      descripcion: 'Filtrar y revisar las compras de unos días',
+      icono: Icons.shopping_cart_outlined,
+      bienvenida:
+          'Esta pantalla te muestra todas las compras que hiciste en un '
+          'período de tiempo, con el total facturado. Sin tocar nada, ya '
+          'ves las compras de HOY. Te voy mostrando cada parte para que '
+          'puedas buscar lo que necesites.',
+      pasos: () => [
+        TutorialPaso(
+          key: _keyChipsRango,
+          titulo: 'Atajos rápidos',
+          explicacion:
+              'Estos botones son para no tener que elegir las fechas a '
+              'mano: tocá "Hoy", "Ayer", "Semana", "Mes" o "Trimestre" y el '
+              'reporte se actualiza solo con esas fechas.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyFechaDesde,
+          titulo: 'Fecha Desde',
+          explicacion:
+              'Acá elegís desde qué día querés ver las compras. Tocá el '
+              'recuadro y elegí la fecha en el calendario que aparece. Si '
+              'usás uno de los atajos de arriba, esto se llena solo.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyFechaHasta,
+          titulo: 'Fecha Hasta',
+          explicacion:
+              'Acá elegís hasta qué día querés ver las compras. Junto con '
+              '"Desde" forman el período que se va a mostrar.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyProveedor,
+          titulo: 'Filtrar por proveedor',
+          explicacion:
+              'Si querés ver solo lo que le compraste a un proveedor en '
+              'particular, elegilo acá. Si dejás "Todos los proveedores", '
+              'se muestran las compras de todos.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyMetodoPago,
+          titulo: 'Filtrar por método de pago',
+          explicacion:
+              'Si querés ver solo las compras que se pagaron, por ejemplo, '
+              'en Efectivo o con Tarjeta, elegilo acá. Si no elegís nada, '
+              'se muestran todas sin importar cómo se pagaron.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyCondicion,
+          titulo: 'Filtrar por condición',
+          explicacion:
+              'Acá elegís si querés ver solo las compras al Contado (se '
+              'pagaron completas) o solo las de Crédito (se están pagando '
+              'de a poco). Si no elegís nada, se muestran las dos.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyExcel,
+          titulo: 'Descargar Excel',
+          explicacion:
+              'Este botón descarga en un archivo de Excel las compras que '
+              'estás viendo ahora mismo en la pantalla (con los filtros que '
+              'hayas elegido), para guardarlas o mandarlas a alguien.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyPdf,
+          titulo: 'Descargar PDF',
+          explicacion:
+              'Este botón te muestra una vista previa en PDF de las compras '
+              'que estás viendo ahora mismo, lista para imprimir o guardar.',
+          obligatorio: false,
+        ),
+      ],
+    ),
+  ];
 
   Widget _statTotalFacturado(double total) {
     return Container(
@@ -557,10 +675,12 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
     String label,
     DateTime fecha,
     VoidCallback onTap,
-    bool esMovil,
-  ) {
+    bool esMovil, {
+    Key? key,
+  }) {
     final formato = DateFormat('dd/MM/yyyy');
     return SizedBox(
+      key: key,
       width: esMovil ? double.infinity : 200,
       child: InkWell(
         onTap: onTap,

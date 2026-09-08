@@ -6,6 +6,8 @@ import '../../data/reporte_financiero_model.dart';
 import '../../data/reporte_financiero_export_service.dart';
 import '../../providers/reportes_provider.dart';
 import '../../../../core/widgets/pdf_preview_dialog.dart';
+import '../../../../core/tutorial/tutorial_modelos.dart';
+import '../../../../core/tutorial/tutorial_boton.dart';
 import '../widgets/reporte_financiero_secciones.dart';
 
 typedef _SeccionBuilder =
@@ -56,6 +58,15 @@ class ReporteFinancieroScreen extends ConsumerStatefulWidget {
 class _ReporteFinancieroScreenState
     extends ConsumerState<ReporteFinancieroScreen> {
   final _servicioExport = ReporteFinancieroExportService();
+
+  // Claves para el tutorial guiado: cada una apunta al widget real que se
+  // resalta al explicar ese paso.
+  final _keyFechaDesde = GlobalKey();
+  final _keyFechaHasta = GlobalKey();
+  final _keyChipsRango = GlobalKey();
+  final _keyPdf = GlobalKey();
+  final _keyTabs = GlobalKey();
+
   late DateTime _fechaInicio;
   late DateTime _fechaFin;
   bool _cargando = false;
@@ -122,6 +133,7 @@ class _ReporteFinancieroScreenState
 
   Widget _chipsRangoRapido() {
     return Wrap(
+      key: _keyChipsRango,
       spacing: 8,
       runSpacing: 8,
       children: [
@@ -222,11 +234,13 @@ class _ReporteFinancieroScreenState
     for (final tabla in _tablasQueAfectanReporte) {
       _escucharCambios(tabla);
     }
-    return Container(
-      color: const Color(0xFFF2F3F7),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final esMovil = constraints.maxWidth < 900;
+    return Stack(
+      children: [
+        Container(
+          color: const Color(0xFFF2F3F7),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final esMovil = constraints.maxWidth < 900;
           // Todo el contenido -encabezado, chips de rango rápido y las
           // pestañas con sus resultados- vive dentro de este único ListView
           // (una sola superficie de scroll, sin nada fijo arriba): pedido
@@ -269,12 +283,91 @@ class _ReporteFinancieroScreenState
                 ),
               if (!_cargando && _error == null && _data != null)
                 _tabsYContenido(_data!, esMovil),
-            ],
-          );
-        },
-      ),
+                ],
+              );
+            },
+          ),
+        ),
+        // Fuera del ListView de arriba (que scrollea toda la pantalla junta),
+        // para que el botón de tutorial quede siempre visible fijo en la
+        // esquina sin importar cuánto se baje el scroll.
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: TutorialBoton(temas: _temasTutorial),
+        ),
+      ],
     );
   }
+
+  List<TutorialTema> get _temasTutorial => [
+    TutorialTema(
+      titulo: 'Cómo ver mis ganancias',
+      descripcion: 'Entender la utilidad, el flujo de dinero y más',
+      icono: Icons.trending_up_outlined,
+      bienvenida:
+          'Esta pantalla te muestra si de verdad estás ganando dinero, no '
+          'solo cuánto vendiste. Sin tocar nada, ya ves la información de '
+          'HOY. Lo más importante para entender es la "Utilidad": es lo '
+          'que ganaste DE VERDAD, después de restarle a lo que vendiste lo '
+          'que gastaste comprando mercadería y pagando otros gastos. Por '
+          'ejemplo: si vendiste L. 1,000 pero esa mercadería te costó L. '
+          '600 y gastaste L. 100 en otras cosas, tu utilidad real es L. '
+          '300, no L. 1,000.',
+      pasos: () => [
+        TutorialPaso(
+          key: _keyChipsRango,
+          titulo: 'Atajos rápidos',
+          explicacion:
+              'Estos botones son para no tener que elegir las fechas a '
+              'mano: tocá "Hoy", "Ayer", "Semana", "Mes" o "Trimestre" y el '
+              'reporte se vuelve a generar solo con esas fechas.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyFechaDesde,
+          titulo: 'Fecha Desde',
+          explicacion:
+              'Acá elegís desde qué día querés calcular la utilidad y los '
+              'demás números. Tocá el recuadro y elegí la fecha en el '
+              'calendario. Si usás uno de los atajos de arriba, esto se '
+              'llena solo.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyFechaHasta,
+          titulo: 'Fecha Hasta',
+          explicacion:
+              'Acá elegís hasta qué día querés calcular. Junto con '
+              '"Desde" forman el período que se va a analizar.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyTabs,
+          titulo: 'Las pestañas de información',
+          explicacion:
+              'Acá arriba hay varias pestañas: "Utilidad" (lo que ganaste '
+              'de verdad), "Flujo de Efectivo" (el dinero que entró y '
+              'salió), "Comparación Mensual", "Ranking de Productos" (lo '
+              'que más se vendió), y varias más. Tocá cualquiera para ver '
+              'esa información, o usá las flechitas de los costados si no '
+              'ves todas. Todas usan el mismo período de fechas que '
+              'elegiste arriba.',
+          obligatorio: false,
+        ),
+        TutorialPaso(
+          key: _keyPdf,
+          titulo: 'Descargar PDF completo',
+          explicacion:
+              'Este botón te muestra una vista previa en PDF con todo el '
+              'reporte financiero del período que elegiste, lista para '
+              'imprimir o guardar. Se activa apenas termina de generarse '
+              'el reporte.',
+          obligatorio: false,
+        ),
+      ],
+    ),
+  ];
 
   // Ya no usa TabBarView (un PageView, que necesita una altura acotada:
   // Expanded dentro de un Column con altura fija) porque ahora esta sección
@@ -289,6 +382,7 @@ class _ReporteFinancieroScreenState
       child: Column(
         children: [
           Container(
+            key: _keyTabs,
             color: Colors.white,
             child: Builder(
               builder: (context) {
@@ -382,12 +476,14 @@ class _ReporteFinancieroScreenState
           _fechaInicio,
           () => _seleccionarFecha(true),
           formato,
+          key: _keyFechaDesde,
         ),
         _campoFecha(
           'Hasta',
           _fechaFin,
           () => _seleccionarFecha(false),
           formato,
+          key: _keyFechaHasta,
         ),
         OutlinedButton.icon(
           onPressed: _cargando ? null : _generar,
@@ -403,6 +499,7 @@ class _ReporteFinancieroScreenState
           ),
         ),
         FilledButton.icon(
+          key: _keyPdf,
           onPressed: _data == null ? null : _descargarPdf,
           icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
           label: Text(
@@ -428,9 +525,11 @@ class _ReporteFinancieroScreenState
     String label,
     DateTime fecha,
     VoidCallback onTap,
-    DateFormat formato,
-  ) {
+    DateFormat formato, {
+    Key? key,
+  }) {
     return InkWell(
+      key: key,
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
