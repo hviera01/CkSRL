@@ -2,11 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 export 'package:tutorial_coach_mark/tutorial_coach_mark.dart' show ContentAlign;
 
+/// Cómo se avanza al siguiente paso de un tutorial -ver TutorialMotor,
+/// pedido explícito del dueño: "quiero que el cliente vaya tocando haciendo
+/// mientras lo van guiando", no solo lea texto y apriete "Siguiente"-.
+enum TutorialAvance {
+  /// El paso avanza solo cuando el usuario toca de verdad el campo/botón
+  /// real resaltado -el toque SÍ llega al widget real (abre el diálogo,
+  /// guarda, etc.), el tutorial no lo bloquea-. Este es el modo normal:
+  /// casi todo paso apunta a algo que se puede tocar. "Siguiente" sigue
+  /// disponible igual, por si el usuario prefiere solo leer y avanzar.
+  tocar,
+
+  /// No hay ninguna acción real que hacer en este paso (es un dato
+  /// informativo, ej. "acá se ve el total" sobre un texto de solo lectura):
+  /// se avanza solo con el botón "Siguiente" de la tarjeta.
+  manual,
+}
+
 /// Un paso de un tutorial guiado: resalta el widget real de [key] (con el
-/// resto de la pantalla oscurecido) y explica qué es/para qué sirve en
-/// lenguaje bien simple -pedido explícito del dueño: "explicado como si
-/// fuera un tonto", pensado para alguien que recién está aprendiendo a usar
-/// una computadora, no solo el sistema-.
+/// resto de la pantalla oscurecido, pero sin bloquear el toque real -ver
+/// TutorialMotor-) y explica qué es/para qué sirve en lenguaje bien simple
+/// -pedido explícito del dueño: "explicado como si fuera un tonto", pensado
+/// para alguien que recién está aprendiendo a usar una computadora, no solo
+/// el sistema-.
 ///
 /// [obligatorio] marca en el texto si ese campo es obligatorio o se puede
 /// dejar vacío -otro pedido explícito: que el tutorial aclare esto siempre-.
@@ -18,6 +36,7 @@ class TutorialPaso {
   final String explicacion;
   final bool? obligatorio;
   final ContentAlign alineacion;
+  final TutorialAvance avance;
 
   const TutorialPaso({
     required this.key,
@@ -25,6 +44,7 @@ class TutorialPaso {
     required this.explicacion,
     this.obligatorio,
     this.alineacion = ContentAlign.bottom,
+    this.avance = TutorialAvance.tocar,
   });
 }
 
