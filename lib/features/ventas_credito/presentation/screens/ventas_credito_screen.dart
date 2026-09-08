@@ -23,6 +23,8 @@ import '../widgets/importar_creditos_venta_dialog.dart';
 import '../../../ventas/presentation/screens/detalle_venta_screen.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
+import '../../../../core/tutorial/tutorial_modelos.dart';
+import '../../../../core/tutorial/tutorial_boton.dart';
 
 class VentasCreditoScreen extends ConsumerStatefulWidget {
   const VentasCreditoScreen({super.key});
@@ -39,6 +41,85 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
   final Set<String> _seleccionadosParaUnir = {};
   List<VentaCreditoModel> _listaCompleta = [];
   List<VentaCreditoModel> _listaActual = [];
+
+  // Claves del tutorial guiado (ver core/tutorial) -solo se resaltan los
+  // widgets reales de esta pantalla, no hay ninguno "de mentira" creado
+  // aparte para esto-.
+  final _keyStatTotal = GlobalKey();
+  final _keyBuscador = GlobalKey();
+  final _keySelectorVista = GlobalKey();
+  final _keyPrimeraAccion = GlobalKey();
+
+  TutorialTema get _temaAbonoCredito => TutorialTema(
+    titulo: 'Cómo registrar un abono a un crédito',
+    descripcion: 'Anotar un pago que te hace un cliente',
+    icono: Icons.payments_outlined,
+    bienvenida:
+        'Un "crédito" es cuando un cliente ya se llevó su producto pero '
+        'todavía no lo pagó completo, y te va pagando de a poco. Cada '
+        'vez que te paga una parte, eso se llama "abono". Te voy a '
+        'mostrar cómo ver cuánto te debe cada cliente y cómo anotar un '
+        'abono nuevo cuando te paga.',
+    pasos: () => [
+      TutorialPaso(
+        key: _keyStatTotal,
+        titulo: '¿Cuánto te deben en total?',
+        explicacion:
+            'Acá arriba ves la suma de todo lo que te deben todos tus '
+            'clientes juntos, sumando los créditos que todavía no están '
+            'pagados por completo.',
+        alineacion: ContentAlign.bottom,
+      ),
+      TutorialPaso(
+        key: _keyBuscador,
+        titulo: 'Buscar un crédito',
+        explicacion:
+            'Escribí el nombre del cliente o el número de factura acá '
+            'y tocá la flecha (o Enter) para encontrarlo rápido.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keySelectorVista,
+        titulo: 'Filtrar la lista',
+        explicacion:
+            'Con este menú elegís qué créditos ver: "Deben" (todavía te '
+            'falta cobrar), "Liquidadas" (ya te pagaron todo) o "Todas".',
+      ),
+      TutorialPaso(
+        key: _keyPrimeraAccion,
+        titulo: 'Más acciones de un crédito',
+        explicacion:
+            'Tocá este botón (los tres puntitos) en la fila de un '
+            'cliente. Ahí aparece "Registrar abono" -para anotar que te '
+            'pagó una parte- y "Ver historial de abonos" -para ver '
+            'todos los pagos que ya te hizo antes-.',
+      ),
+      TutorialPaso(
+        key: tutorialKeyMontoAbono,
+        titulo: 'Monto del abono',
+        explicacion:
+            'Escribí acá cuánto dinero te está pagando el cliente en '
+            'este momento. El saldo pendiente se recalcula solo.',
+        obligatorio: true,
+      ),
+      TutorialPaso(
+        key: tutorialKeyFechaAbono,
+        titulo: 'Fecha del abono',
+        explicacion:
+            'Por defecto queda puesto hoy. Si el pago fue otro día, '
+            'tocá acá y elegí la fecha correcta.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: tutorialKeyConfirmarAbono,
+        titulo: 'Guardar el abono',
+        explicacion:
+            'Cuando ya pusiste el monto, tocá este botón para guardar '
+            'el pago. El saldo pendiente del cliente baja automáticamente.',
+        obligatorio: true,
+      ),
+    ],
+  );
 
   @override
   void dispose() {
@@ -469,243 +550,266 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
       _listaActual = lista;
     }
 
-    return Container(
-      color: const Color(0xFFF2F3F7),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final esMovil = constraints.maxWidth < 760;
-          return Padding(
-            padding: EdgeInsets.all(esMovil ? 14 : 26),
-            child: NestedScrollView(
-              headerSliverBuilder: (context, innerBoxIsScrolled) => [
-                SliverToBoxAdapter(
-                  child: Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 12,
-                    runSpacing: 10,
-                    children: [
-                      Text(
-                        'Ventas a Crédito',
-                        style: GoogleFonts.poppins(
-                          fontSize: esMovil ? 19 : 22,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      if (listaFiltrada != null)
-                        _statTotalPendiente(listaFiltrada),
-                    ],
-                  ),
-                ),
-                SliverToBoxAdapter(child: const SizedBox(height: 16)),
-                SliverToBoxAdapter(
-                  child: Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      SizedBox(
-                        width: esMovil ? constraints.maxWidth : 200,
-                        child: _selectorVista(vista),
-                      ),
-                      SizedBox(
-                        width: esMovil ? constraints.maxWidth : 300,
-                        child: _buscador(busqueda),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () =>
-                            ref.invalidate(ventasCreditoStreamProvider),
-                        icon: const Icon(Icons.refresh, size: 18),
-                        label: Text(
-                          'Refrescar',
-                          style: GoogleFonts.poppins(fontSize: 13),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF1A1A1A),
-                          side: const BorderSide(color: Color(0xFFB6BCC7)),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _abrirImportar,
-                        icon: const Icon(Icons.upload_file_outlined, size: 18),
-                        label: Text(
-                          'Importar',
-                          style: GoogleFonts.poppins(fontSize: 13),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF1A1A1A),
-                          side: const BorderSide(color: Color(0xFFB6BCC7)),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _exportarExcel,
-                        icon: const Icon(Icons.grid_on_outlined, size: 18),
-                        label: Text(
-                          'Descargar Excel',
-                          style: GoogleFonts.poppins(fontSize: 13),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF1A1A1A),
-                          side: const BorderSide(color: Color(0xFFB6BCC7)),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _exportarPdf,
-                        icon: const Icon(
-                          Icons.picture_as_pdf_outlined,
-                          size: 18,
-                        ),
-                        label: Text(
-                          'Descargar PDF',
-                          style: GoogleFonts.poppins(fontSize: 13),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF1A1A1A),
-                          side: const BorderSide(color: Color(0xFFB6BCC7)),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _seleccionadosParaUnir.length >= 2
-                            ? _unirFacturas
-                            : null,
-                        icon: const Icon(Icons.call_merge_outlined, size: 18),
-                        label: Text(
-                          _seleccionadosParaUnir.isEmpty
-                              ? 'Unir Facturas'
-                              : 'Unir Facturas (${_seleccionadosParaUnir.length})',
-                          style: GoogleFonts.poppins(fontSize: 13),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF1A1A1A),
-                          side: const BorderSide(color: Color(0xFFB6BCC7)),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                      FilledButton.icon(
-                        onPressed: _abrirRegistrarCredito,
-                        icon: const Icon(Icons.add, size: 18),
-                        label: Text(
-                          'Registrar Crédito',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F1B3D),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SliverToBoxAdapter(child: const SizedBox(height: 18)),
-              ],
-              body: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(0xFFAEB4C0),
-                    width: 1.3,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.14),
-                      blurRadius: 26,
-                      offset: const Offset(0, 12),
-                    ),
-                  ],
-                ),
-                child: creditosAsync.when(
-                  data: (creditos) {
-                    final lista = listaFiltrada!;
-
-                    if (lista.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.credit_score_outlined,
-                              size: 56,
-                              color: Colors.grey.shade300,
+    return Stack(
+      children: [
+        Container(
+          color: const Color(0xFFF2F3F7),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final esMovil = constraints.maxWidth < 760;
+              return Padding(
+                padding: EdgeInsets.all(esMovil ? 14 : 26),
+                child: NestedScrollView(
+                  headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                    SliverToBoxAdapter(
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 12,
+                        runSpacing: 10,
+                        children: [
+                          Text(
+                            'Ventas a Crédito',
+                            style: GoogleFonts.poppins(
+                              fontSize: esMovil ? 19 : 22,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1A1A1A),
                             ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'No hay créditos para mostrar',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(
-                                color: Colors.grey.shade500,
+                          ),
+                          if (listaFiltrada != null)
+                            _statTotalPendiente(
+                              listaFiltrada,
+                              key: _keyStatTotal,
+                            ),
+                        ],
+                      ),
+                    ),
+                    SliverToBoxAdapter(child: const SizedBox(height: 16)),
+                    SliverToBoxAdapter(
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          SizedBox(
+                            key: _keySelectorVista,
+                            width: esMovil ? constraints.maxWidth : 200,
+                            child: _selectorVista(vista),
+                          ),
+                          SizedBox(
+                            key: _keyBuscador,
+                            width: esMovil ? constraints.maxWidth : 300,
+                            child: _buscador(busqueda),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () =>
+                                ref.invalidate(ventasCreditoStreamProvider),
+                            icon: const Icon(Icons.refresh, size: 18),
+                            label: Text(
+                              'Refrescar',
+                              style: GoogleFonts.poppins(fontSize: 13),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF1A1A1A),
+                              side: const BorderSide(color: Color(0xFFB6BCC7)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                          ],
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _abrirImportar,
+                            icon: const Icon(
+                              Icons.upload_file_outlined,
+                              size: 18,
+                            ),
+                            label: Text(
+                              'Importar',
+                              style: GoogleFonts.poppins(fontSize: 13),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF1A1A1A),
+                              side: const BorderSide(color: Color(0xFFB6BCC7)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _exportarExcel,
+                            icon: const Icon(Icons.grid_on_outlined, size: 18),
+                            label: Text(
+                              'Descargar Excel',
+                              style: GoogleFonts.poppins(fontSize: 13),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF1A1A1A),
+                              side: const BorderSide(color: Color(0xFFB6BCC7)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _exportarPdf,
+                            icon: const Icon(
+                              Icons.picture_as_pdf_outlined,
+                              size: 18,
+                            ),
+                            label: Text(
+                              'Descargar PDF',
+                              style: GoogleFonts.poppins(fontSize: 13),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF1A1A1A),
+                              side: const BorderSide(color: Color(0xFFB6BCC7)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _seleccionadosParaUnir.length >= 2
+                                ? _unirFacturas
+                                : null,
+                            icon: const Icon(
+                              Icons.call_merge_outlined,
+                              size: 18,
+                            ),
+                            label: Text(
+                              _seleccionadosParaUnir.isEmpty
+                                  ? 'Unir Facturas'
+                                  : 'Unir Facturas (${_seleccionadosParaUnir.length})',
+                              style: GoogleFonts.poppins(fontSize: 13),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF1A1A1A),
+                              side: const BorderSide(color: Color(0xFFB6BCC7)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          FilledButton.icon(
+                            onPressed: _abrirRegistrarCredito,
+                            icon: const Icon(Icons.add, size: 18),
+                            label: Text(
+                              'Registrar Crédito',
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F1B3D),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SliverToBoxAdapter(child: const SizedBox(height: 18)),
+                  ],
+                  body: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFFAEB4C0),
+                        width: 1.3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.14),
+                          blurRadius: 26,
+                          offset: const Offset(0, 12),
                         ),
-                      );
-                    }
+                      ],
+                    ),
+                    child: creditosAsync.when(
+                      data: (creditos) {
+                        final lista = listaFiltrada!;
 
-                    return esMovil ? _tarjetas(lista) : _tabla(lista);
-                  },
-                  loading: () => const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
-                  ),
-                  error: (e, st) => Center(
-                    child: Text(
-                      'Error: $e',
-                      style: GoogleFonts.poppins(color: Colors.red),
+                        if (lista.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.credit_score_outlined,
+                                  size: 56,
+                                  color: Colors.grey.shade300,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No hay créditos para mostrar',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return esMovil ? _tarjetas(lista) : _tabla(lista);
+                      },
+                      loading: () => const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF0F1B3D),
+                        ),
+                      ),
+                      error: (e, st) => Center(
+                        child: Text(
+                          'Error: $e',
+                          style: GoogleFonts.poppins(color: Colors.red),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-          );
-        },
-      ),
+              );
+            },
+          ),
+        ),
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: TutorialBoton(temas: [_temaAbonoCredito]),
+        ),
+      ],
     );
   }
 
-  Widget _statTotalPendiente(List<VentaCreditoModel> lista) {
+  Widget _statTotalPendiente(List<VentaCreditoModel> lista, {Key? key}) {
     final total = lista.fold<double>(0, (s, c) => s + c.saldoPendiente);
     return Container(
+      key: key,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
         color: const Color(0xFF0F1B3D),
@@ -998,7 +1102,13 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
                           gris: true,
                         ),
                         Expanded(flex: 2, child: _chipEstado(credito)),
-                        SizedBox(width: 56, child: _celdaAcciones(credito)),
+                        SizedBox(
+                          width: 56,
+                          child: _celdaAcciones(
+                            credito,
+                            key: index == 1 ? _keyPrimeraAccion : null,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1119,8 +1229,9 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
     );
   }
 
-  Widget _celdaAcciones(VentaCreditoModel credito) {
+  Widget _celdaAcciones(VentaCreditoModel credito, {Key? key}) {
     return PopupMenuButton<String>(
+      key: key,
       tooltip: 'Más acciones',
       padding: EdgeInsets.zero,
       icon: Container(
@@ -1203,7 +1314,10 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
                         ],
                       ),
                     ),
-                    _celdaAcciones(credito),
+                    _celdaAcciones(
+                      credito,
+                      key: index == 0 ? _keyPrimeraAccion : null,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
