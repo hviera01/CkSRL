@@ -162,51 +162,6 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
     super.dispose();
   }
 
-  /// Pregunta en qué formato guardar la foto elegida -pedido explícito del
-  /// dueño-. null si el usuario cierra el diálogo sin elegir (se cancela la
-  /// subida). PNG solo tiene sentido de verdad si después se le va a quitar
-  /// el fondo (ver _quitarFondo) — sin eso, PNG de una foto común no se ve
-  /// distinto a JPG, solo pesa más.
-  Future<String?> _elegirFormatoImagen() {
-    return showDialog<String>(
-      useRootNavigator: false,
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          '¿Guardar la foto como?',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15),
-        ),
-        content: Text(
-          'PNG permite fondo transparente (útil si después vas a usar "Quitar fondo"); JPG pesa menos.',
-          style: GoogleFonts.poppins(
-            fontSize: 12.5,
-            color: Colors.grey.shade600,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'jpg'),
-            child: Text(
-              'JPG',
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-            ),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF0F1B3D),
-            ),
-            onPressed: () => Navigator.pop(context, 'png'),
-            child: Text(
-              'PNG',
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _elegirImagen() async {
     final resultado = await FilePicker.pickFiles(
       type: FileType.custom,
@@ -218,22 +173,20 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
     final bytesOriginales = archivo.bytes;
     if (bytesOriginales == null) return;
 
-    final formato = await _elegirFormatoImagen();
-    if (formato == null || !mounted) return;
+    if (!mounted) return;
 
-    // Reencodea al formato elegido (paquete `image`, ya usado en el proyecto
-    // para los logos de tickets) — si por algún motivo no se puede decodificar
-    // la imagen (archivo corrupto/formato raro), se sube tal cual vino en vez
-    // de fallar la subida entera.
+    // Siempre se reencoda a JPG (paquete `image`, ya usado en el proyecto
+    // para los logos de tickets) — PNG solo tenía sentido si después se le
+    // iba a quitar el fondo (ver _quitarFondo, que ya sube su propio PNG con
+    // transparencia aparte), así que preguntar el formato en cada foto común
+    // era una pregunta de más sin necesidad real. Si por algún motivo no se
+    // puede decodificar la imagen (archivo corrupto/formato raro), se sube
+    // tal cual vino en vez de fallar la subida entera.
     final decodificada = img.decodeImage(bytesOriginales);
     final bytes = decodificada == null
         ? bytesOriginales
-        : Uint8List.fromList(
-            formato == 'png'
-                ? img.encodePng(decodificada)
-                : img.encodeJpg(decodificada, quality: 90),
-          );
-    final nombreArchivo = '${archivo.name.split('.').first}.$formato';
+        : Uint8List.fromList(img.encodeJpg(decodificada, quality: 90));
+    final nombreArchivo = '${archivo.name.split('.').first}.jpg';
 
     setState(() {
       _imagenPreviewBytes = bytes;

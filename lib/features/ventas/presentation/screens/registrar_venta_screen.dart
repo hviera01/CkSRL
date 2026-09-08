@@ -3005,17 +3005,26 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
           '¿Qué querés hacer con el ticket?',
           style: GoogleFonts.poppins(fontSize: 13),
         ),
+        actionsOverflowButtonSpacing: 4,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, 'pendiente'),
             child: Text('Dejar pendiente', style: GoogleFonts.poppins()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'sistema'),
+            child: Text(
+              'Impresora del sistema',
+              style: GoogleFonts.poppins(),
+              textAlign: TextAlign.center,
+            ),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF0F1B3D),
             ),
             onPressed: () => Navigator.pop(context, 'imprimir'),
-            child: Text('Imprimir', style: GoogleFonts.poppins()),
+            child: Text('Bluetooth/red', style: GoogleFonts.poppins()),
           ),
         ],
       ),
@@ -3023,10 +3032,39 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
     if (!mounted) return;
     if (opcion == 'imprimir') {
       await _imprimirEscPosRed(venta, negocio);
+    } else if (opcion == 'sistema') {
+      await _imprimirConDialogoSistema(venta, negocio);
     } else {
       await ref
           .read(ventaRepositoryProvider)
           .marcarPendienteImpresion(venta.id, true);
+    }
+  }
+
+  // Alternativa a Bluetooth/red: usa el diálogo nativo de impresión de
+  // Android (mismo mecanismo que ya se usaba para el navegador móvil, ver la
+  // rama kIsWeb && esMovil más abajo) en vez de mandar bytes ESC/POS a mano.
+  // Pensada para cuando la impresora está conectada por CABLE (USB) y se
+  // imprime mediante un "servicio de impresión" instalado por el fabricante
+  // -ej. el mPOP de Star Micronics soporta USB con Android Open Accessory
+  // justo para este caso-: ese servicio ya sabe hablar el protocolo real de
+  // la impresora (no hace falta que este sistema adivine si es ESC/POS
+  // genérico o el StarPRNT propio de Star), Android solo necesita el PDF.
+  Future<void> _imprimirConDialogoSistema(
+    VentaModel venta,
+    NegocioModel negocio,
+  ) async {
+    try {
+      await Printing.layoutPdf(
+        onLayout: (formato) =>
+            _servicioExport.generarPdfFactura(venta, negocio),
+        name: 'venta_${venta.numeroDocumento}.pdf',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _mostrarMensaje(
+        'No se pudo abrir el diálogo de impresión. La venta se guardó de todas formas.',
+      );
     }
   }
 
