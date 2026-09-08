@@ -13,7 +13,7 @@
 ; ActualizacionService y version_app.dart-.
 
 #define MyAppName "Ck S de R.L. de C.V."
-#define MyAppVersion "5"
+#define MyAppVersion "6"
 #define MyAppExeName "ck_srl.exe"
 #define MyReleaseDir "..\..\build\windows\x64\runner\Release"
 
