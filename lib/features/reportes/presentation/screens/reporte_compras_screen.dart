@@ -37,10 +37,6 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
   String? _error;
   List<ReporteCompraModel>? _compras;
 
-  // Tablas cuyo primer evento de Realtime (el snapshot inicial de la
-  // suscripción, no un cambio real) ya se descartó -ver _escucharCambios-.
-  final _tablasConSnapshotInicialListo = <String>{};
-
   static const _metodosPago = [
     'Efectivo',
     'Transferencia',
@@ -102,7 +98,6 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
       next,
     ) {
       if (!next.hasValue || !mounted) return;
-      if (_tablasConSnapshotInicialListo.add(tabla)) return;
       if (!_cargando) _buscar();
     });
   }

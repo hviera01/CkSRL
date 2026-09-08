@@ -62,10 +62,6 @@ class _ReporteFinancieroScreenState
   String? _error;
   ReporteFinancieroData? _data;
 
-  // Tablas cuyo primer evento de Realtime (el snapshot inicial de la
-  // suscripción, no un cambio real) ya se descartó -ver _escucharCambios-.
-  final _tablasConSnapshotInicialListo = <String>{};
-
   // Tablas que alimentan el reporte financiero y, al cambiar, deben
   // re-disparar _generar() -mismo rango de fecha ya elegido, sin resetear
   // nada- para que el reporte no quede desactualizado si el dueño lo deja
@@ -177,14 +173,15 @@ class _ReporteFinancieroScreenState
   // Re-dispara _generar() (mismo rango de fecha ya elegido, sin resetear
   // nada) cuando algo cambia en [tabla] -mismo mecanismo que
   // ReporteVentasScreen/ReporteComprasScreen, ver ese comentario para el
-  // detalle-.
+  // detalle-. cambiosEnTablaProvider ya solo emite ante un INSERT/UPDATE/
+  // DELETE real (ver ReporteRepository.observarCambiosEnTabla), así que acá
+  // no hace falta descartar ningún "primer evento".
   void _escucharCambios(String tabla) {
     ref.listen<AsyncValue<void>>(cambiosEnTablaProvider(tabla), (
       previous,
       next,
     ) {
       if (!next.hasValue || !mounted) return;
-      if (_tablasConSnapshotInicialListo.add(tabla)) return;
       if (!_cargando) _generar();
     });
   }
@@ -230,8 +227,15 @@ class _ReporteFinancieroScreenState
       child: LayoutBuilder(
         builder: (context, constraints) {
           final esMovil = constraints.maxWidth < 900;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // Todo el contenido -encabezado, chips de rango rápido y las
+          // pestañas con sus resultados- vive dentro de este único ListView
+          // (una sola superficie de scroll, sin nada fijo arriba): pedido
+          // explícito del dueño para que al bajar el scroll los filtros
+          // también se desplacen y quede más espacio limpio para ver las
+          // utilidades/números. Antes el encabezado y los chips vivían en un
+          // Column afuera de cualquier área scrolleable.
+          return ListView(
+            padding: EdgeInsets.zero,
             children: [
               Padding(
                 padding: EdgeInsets.all(esMovil ? 14 : 24),
@@ -247,25 +251,24 @@ class _ReporteFinancieroScreenState
                 child: _chipsRangoRapido(),
               ),
               if (_cargando)
-                const Expanded(
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 80),
                   child: Center(
                     child: CircularProgressIndicator(color: Color(0xFF0F1B3D)),
                   ),
                 ),
               if (_error != null)
-                Expanded(
+                Padding(
+                  padding: const EdgeInsets.all(20),
                   child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Text(
-                        _error!,
-                        style: GoogleFonts.poppins(color: Colors.red),
-                      ),
+                    child: Text(
+                      _error!,
+                      style: GoogleFonts.poppins(color: Colors.red),
                     ),
                   ),
                 ),
               if (!_cargando && _error == null && _data != null)
-                Expanded(child: _tabsYContenido(_data!, esMovil)),
+                _tabsYContenido(_data!, esMovil),
             ],
           );
         },
@@ -273,6 +276,13 @@ class _ReporteFinancieroScreenState
     );
   }
 
+  // Ya no usa TabBarView (un PageView, que necesita una altura acotada:
+  // Expanded dentro de un Column con altura fija) porque ahora esta sección
+  // vive dentro del ListView de build(), donde la altura no está acotada.
+  // El TabBar sigue sirviendo para elegir la pestaña -tap y flechitas, como
+  // antes-, pero el contenido de abajo ya no es deslizable con el dedo/mouse
+  // entre pestañas: solo se muestra la de la pestaña activa, igual que antes
+  // pero fluyendo en el mismo scroll que el resto de la pantalla.
   Widget _tabsYContenido(ReporteFinancieroData data, bool esMovil) {
     return DefaultTabController(
       length: _tabs.length,
@@ -332,16 +342,20 @@ class _ReporteFinancieroScreenState
               },
             ),
           ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                for (final t in _tabs)
-                  SingleChildScrollView(
+          Builder(
+            builder: (context) {
+              final controlador = DefaultTabController.of(context);
+              return AnimatedBuilder(
+                animation: controlador,
+                builder: (context, _) {
+                  final t = _tabs[controlador.index];
+                  return Padding(
                     padding: EdgeInsets.all(esMovil ? 14 : 24),
                     child: t.$3(data, esMovil),
-                  ),
-              ],
-            ),
+                  );
+                },
+              );
+            },
           ),
         ],
       ),

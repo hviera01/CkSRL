@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/data/base_repository.dart';
 import 'reporte_venta_model.dart';
@@ -67,10 +68,49 @@ class ReporteRepository with ConRedMixin {
   /// dueño registra/anula algo en otra pestaña mientras el reporte sigue
   /// abierto en esta -pedido explícito: "entro a ver el reporte y la venta
   /// que acabo de hacer no aparece hasta que lo busco de nuevo a mano"-.
+  ///
+  /// Escucha directo los eventos de Postgres Changes (INSERT/UPDATE/DELETE)
+  /// -a propósito, NO usa `.from(tabla).stream()`-: ese `.stream()` mantiene
+  /// una copia completa de la tabla y la re-emite entera no solo cuando algo
+  /// cambia sino también cada vez que el canal de Realtime se reconecta (un
+  /// blip de red, la pestaña quedó en segundo plano, etc. -algo que puede
+  /// pasar sin que el dueño toque nada-), y esa re-emisión de reconexión
+  /// llega al código de arriba indistinguible de un cambio real, disparando
+  /// una recarga espontánea del reporte. Con Postgres Changes puro, una
+  /// reconexión no emite nada por sí sola -solo un INSERT/UPDATE/DELETE de
+  /// verdad dispara [callback]-, así que ya no hace falta descartar "el
+  /// primer evento" a mano en la pantalla.
   Stream<void> observarCambiosEnTabla(String tabla) {
-    return conRedStream(
-      () => _db.from(tabla).stream(primaryKey: ['id']),
-    ).map((_) {});
+    return conRedStream(() => _streamCambiosPostgres(tabla));
+  }
+
+  Stream<void> _streamCambiosPostgres(String tabla) {
+    RealtimeChannel? canal;
+    late final StreamController<void> controller;
+    controller = StreamController<void>.broadcast(
+      onListen: () {
+        canal = _db.channel('reporte_cambios_$tabla')
+          ..onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: tabla,
+            callback: (payload) {
+              if (!controller.isClosed) controller.add(null);
+            },
+          )
+          ..subscribe((status, [error]) {
+            if (controller.isClosed) return;
+            if (status == RealtimeSubscribeStatus.channelError ||
+                status == RealtimeSubscribeStatus.timedOut) {
+              controller.addError(
+                error ?? Exception('No se pudo suscribir a cambios de $tabla'),
+              );
+            }
+          });
+      },
+      onCancel: () => canal?.unsubscribe(),
+    );
+    return controller.stream;
   }
 
   Future<List<ReporteCompraModel>> obtenerReporteCompras(
