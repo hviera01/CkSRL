@@ -56,60 +56,83 @@ class TutorialBoton extends StatelessWidget {
     );
   }
 
+  // Antes era un showModalBottomSheet con una Column sin scroll -pedido
+  // explícito del dueño tras ver que en pantallas con muchos temas (o poca
+  // altura, típico en un celular apaisado) las últimas opciones quedaban
+  // recortadas, invisibles e imposibles de alcanzar-. Ahora es un diálogo
+  // centrado con una lista que si no cabe entera, se puede desplazar.
   void _mostrarMenu(BuildContext context) {
-    showModalBottomSheet(
+    showDialog(
       context: context,
       useRootNavigator: false,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      builder: (contextMenu) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8EAF0),
-                      borderRadius: BorderRadius.circular(10),
+      builder: (contextMenu) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 420,
+            maxHeight: MediaQuery.of(contextMenu).size.height * 0.8,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8EAF0),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.school_rounded,
+                        color: _azulMarca,
+                        size: 20,
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.school_rounded,
-                      color: _azulMarca,
-                      size: 20,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '¿Qué querés aprender a hacer?',
+                        style: GoogleFonts.poppins(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1A1A1A),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    '¿Qué querés aprender a hacer?',
-                    style: GoogleFonts.poppins(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF1A1A1A),
+                    IconButton(
+                      onPressed: () => Navigator.pop(contextMenu),
+                      icon: const Icon(Icons.close, size: 20),
+                      color: Colors.grey.shade500,
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Elegí una opción y te voy guiando paso a paso.',
-                style: GoogleFonts.poppins(
-                  fontSize: 12.5,
-                  color: Colors.grey.shade600,
+                  ],
                 ),
-              ),
-              const SizedBox(height: 10),
-              ...temas.map(
-                (tema) => _filaTema(context, contextMenu, tema),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  'Elegí una opción y te voy guiando paso a paso.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: temas
+                          .map((tema) => _filaTema(context, contextMenu, tema))
+                          .toList(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -179,7 +202,7 @@ class TutorialBoton extends StatelessWidget {
   }
 
   void _iniciarTutorial(BuildContext context, TutorialTema tema) {
-    void arrancarRecorrido() {
+    Future<void> arrancarRecorrido() async {
       final pasos = tema.pasos();
       final targets = <TargetFocus>[];
       for (var i = 0; i < pasos.length; i++) {
@@ -194,13 +217,22 @@ class TutorialBoton extends StatelessWidget {
             keyTarget: paso.key,
             shape: ShapeLightFocus.RRect,
             radius: 12,
+            // La superposición oscura del tutorial se queda encima de TODA
+            // la pantalla incluso del campo resaltado -pedido explícito del
+            // dueño: antes tocar el campo real "de mentiras" solo avanzaba
+            // el tutorial sin hacer la acción real, lo que parecía "solo una
+            // explicación sin práctica"-. Se desactiva ese toque fantasma:
+            // el usuario avanza siempre con el botón "Siguiente" de la
+            // tarjeta, y recién cuando cierra o termina el tutorial puede
+            // tocar el campo real para hacer la acción de verdad.
+            enableTargetTab: false,
+            enableOverlayTab: false,
             contents: [
               TargetContent(
                 align: paso.alineacion,
                 builder: (context, controller) => _tarjetaExplicacion(
-                  paso,
+                  pasos,
                   i,
-                  pasos.length,
                   controller,
                 ),
               ),
@@ -209,6 +241,16 @@ class TutorialBoton extends StatelessWidget {
         );
       }
       if (targets.isEmpty) return;
+      // El overlay del tutorial ocupa el tamaño fijo de la pantalla (no
+      // scrollea) y ubica cada tarjeta a la altura exacta donde esté su
+      // campo real -si ese campo está más abajo de lo que se ve ahora
+      // mismo, la tarjeta se dibuja fuera de esa altura fija y queda
+      // invisible/inalcanzable, sin forma de bajar a mano porque el overlay
+      // no deja pasar el gesto de scroll a la pantalla real de abajo-. Por
+      // eso, antes de arrancar, se desplaza la pantalla real para que el
+      // primer campo del recorrido ya esté a la vista.
+      await _asegurarVisible(pasos[0].key);
+      if (!context.mounted) return;
       TutorialCoachMark(
         targets: targets,
         colorShadow: _azulMarca,
@@ -282,12 +324,42 @@ class TutorialBoton extends StatelessWidget {
     );
   }
 
+  // Desplaza la pantalla real (si está dentro de algo scrolleable) para que
+  // [key] quede a la vista, centrado -sin esto el usuario no tiene forma de
+  // alcanzar un campo que esté más abajo del scroll actual, ver el
+  // comentario grande en arrancarRecorrido-. Si esa pantalla no tiene scroll
+  // (o el campo ya está a la vista), no hace nada.
+  Future<void> _asegurarVisible(GlobalKey key) async {
+    final ctx = key.currentContext;
+    if (ctx == null) return;
+    await Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      alignment: 0.5,
+    );
+  }
+
+  // Busca, a partir de [desde] y moviéndose de a [paso] (1 para adelante, -1
+  // para atrás), el próximo TutorialPaso de la lista completa cuyo widget
+  // real siga existiendo -puede haber pasos de por medio que se saltaron al
+  // armar el recorrido (ver arrancarRecorrido)-.
+  GlobalKey? _proximaKeyVisible(List<TutorialPaso> pasos, int desde, int paso) {
+    var i = desde;
+    while (i >= 0 && i < pasos.length) {
+      if (pasos[i].key.currentContext != null) return pasos[i].key;
+      i += paso;
+    }
+    return null;
+  }
+
   Widget _tarjetaExplicacion(
-    TutorialPaso paso,
+    List<TutorialPaso> pasos,
     int indice,
-    int total,
     TutorialCoachMarkController controller,
   ) {
+    final paso = pasos[indice];
+    final total = pasos.length;
     return Container(
       constraints: const BoxConstraints(maxWidth: 320),
       padding: const EdgeInsets.all(16),
@@ -368,7 +440,14 @@ class TutorialBoton extends StatelessWidget {
               const Spacer(),
               if (indice > 0)
                 TextButton(
-                  onPressed: () => controller.previous(),
+                  onPressed: () async {
+                    // Antes de retroceder, aseguramos que el paso anterior
+                    // esté a la vista -mismo motivo que al arrancar el
+                    // recorrido: el overlay no deja scrollear a mano.
+                    final key = _proximaKeyVisible(pasos, indice - 1, -1);
+                    if (key != null) await _asegurarVisible(key);
+                    controller.previous();
+                  },
                   child: Text('Atrás', style: GoogleFonts.poppins(fontSize: 13)),
                 ),
               const SizedBox(width: 4),
@@ -380,7 +459,14 @@ class TutorialBoton extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                onPressed: () => controller.next(),
+                onPressed: () async {
+                  // Mismo mecanismo: antes de avanzar, se desplaza la
+                  // pantalla real para que el próximo campo del recorrido
+                  // ya esté a la vista cuando el tutorial lo resalte.
+                  final key = _proximaKeyVisible(pasos, indice + 1, 1);
+                  if (key != null) await _asegurarVisible(key);
+                  controller.next();
+                },
                 child: Text(
                   indice + 1 >= total ? 'Terminar' : 'Siguiente',
                   style: GoogleFonts.poppins(
