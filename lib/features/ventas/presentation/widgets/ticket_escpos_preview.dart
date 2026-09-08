@@ -123,7 +123,7 @@ class TicketEscPosPreview extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 2),
               child: Center(child: Image.memory(logoBytes, width: 170)),
             ),
-          if (negocio.nombre.isNotEmpty) linea(negocio.nombre.toUpperCase(), centrado: true, negrita: true, tamano: 15),
+          if (negocio.nombre.isNotEmpty) ..._encabezadoNombreNegocio(negocio.nombre, linea),
           if (negocio.eslogan.isNotEmpty) linea(negocio.eslogan, centrado: true),
           if (negocio.direccion.isNotEmpty) linea('Dirección: ${negocio.direccion}', centrado: true),
           if (negocio.rtn.isNotEmpty) linea('RTN: ${negocio.rtn}', centrado: true),
@@ -188,11 +188,10 @@ class TicketEscPosPreview extends StatelessWidget {
           if (negocio.rangoPrefijo.isNotEmpty || negocio.rangoDesde.isNotEmpty)
             linea('Rango Aut.: ${negocio.rangoPrefijo}${negocio.rangoDesde} al ${negocio.rangoPrefijo}${negocio.rangoHasta}'),
           if (negocio.fechaLimiteEmision != null) linea('Fecha Límite: ${formatoDia.format(negocio.fechaLimiteEmision!)}'),
-          const SizedBox(height: 6),
-          linea('ORIGINAL: CLIENTE'),
-          linea('COPIA: OBLIGADO TRIBUTARIO EMISOR'),
-          const SizedBox(height: 8),
-          linea('LA FACTURA ES BENEFICIO DE TODOS, ¡EXÍJALA!', centrado: true, negrita: true),
+          // Pedido explícito del dueño: quitar el resto del pie legal
+          // ("ORIGINAL: CLIENTE"/"COPIA: OBLIGADO TRIBUTARIO EMISOR"/"LA
+          // FACTURA ES BENEFICIO DE TODOS"), dejando solo el agradecimiento
+          // y el ORIGINAL/COPIA de más abajo.
           const SizedBox(height: 6),
           linea('¡GRACIAS POR SU COMPRA!', centrado: true, negrita: true),
           const SizedBox(height: 10),
@@ -205,5 +204,21 @@ class TicketEscPosPreview extends StatelessWidget {
   String _formatoCantidad(double cantidad) {
     if (cantidad == cantidad.roundToDouble()) return cantidad.toInt().toString();
     return cantidad.toStringAsFixed(2);
+  }
+
+  // Ver el mismo comentario/pedido en venta_export_service.dart: si el
+  // nombre del negocio tiene más de una palabra, la primera va sola en su
+  // propia línea (la marca corta, "CK") y el resto abajo (la razón social
+  // completa, "S DE R.L. DE C.V."), igual que en el ticket real.
+  List<Widget> _encabezadoNombreNegocio(String nombre, Widget Function(String, {bool centrado, bool negrita, double tamano}) linea) {
+    final nombreMayus = nombre.toUpperCase().trim();
+    final espacio = nombreMayus.indexOf(' ');
+    if (espacio == -1) {
+      return [linea(nombreMayus, centrado: true, negrita: true, tamano: 15)];
+    }
+    return [
+      linea(nombreMayus.substring(0, espacio), centrado: true, negrita: true, tamano: 15),
+      linea(nombreMayus.substring(espacio + 1).trim(), centrado: true, negrita: true, tamano: 15),
+    ];
   }
 }

@@ -426,8 +426,16 @@ class VentaExportService {
   pw.Page _construirPaginaTicket(VentaModel venta, NegocioModel negocio, pw.MemoryImage? logo, {required bool esCopia, double? anchoMm}) {
     final formatoFecha = DateFormat('dd/MM/yyyy HH:mm');
     final formatoDia = DateFormat('dd/MM/yyyy');
-    const fSmall = 7.5;
-    const fNormal = 8.0;
+    // Ancho real de la impresora (ver _anchoValidoDesdeFormato) si vino uno
+    // que parece de rollo térmico; si no, el fijo de siempre.
+    final anchoPaginaMm = anchoMm ?? 80.0;
+    // En 58mm la letra se achica más -pedido explícito del dueño mostrando
+    // un ticket de referencia de un POS de tarjeta bien aprovechado: "si hay
+    // que hacer la letra más pequeña no importa, quiero todo claro y
+    // ordenado"-. En 80mm queda igual que siempre.
+    final esAngosto = anchoPaginaMm <= 58;
+    final fSmall = esAngosto ? 6.5 : 7.5;
+    final fNormal = esAngosto ? 7.0 : 8.0;
     final alturaMm = _estimarAlturaTicketMm(venta, negocio, tieneLogo: logo != null, anchoMm: anchoMm);
 
     // Este negocio no cobra ISV en su venta normal (VentaSinFacturar): solo
@@ -457,10 +465,13 @@ class VentaExportService {
     // tal cual. La solución robusta sin poder probar en la impresora real es
     // darle más margen de sobra SOLO en Windows nativo, dejando la web y el
     // APK exactamente como están (que ya imprimen bien).
-    final margenMm = (!kIsWeb && Platform.isWindows) ? 9.0 : 5.0;
-    // Ancho real de la impresora (ver _anchoValidoDesdeFormato) si vino uno
-    // que parece de rollo térmico; si no, el fijo de siempre.
-    final anchoPaginaMm = anchoMm ?? 80.0;
+    // En un rollo angosto (58mm) 9mm de margen a cada lado se come casi un
+    // tercio del papel -pedido explícito del dueño tras ver el ticket real
+    // "amontonado": las columnas (CANT/DESCRIPCIÓN/IMPORTE, TOTAL A PAGAR)
+    // terminaban con tan poco ancho disponible que el texto se pegaba entre
+    // sí-. En 80mm el margen grande sigue igual que antes (defensivo contra
+    // drivers de Windows que recortan el área imprimible real).
+    final margenMm = (!kIsWeb && Platform.isWindows) ? (anchoPaginaMm <= 58 ? 4.0 : 9.0) : 5.0;
 
     return pw.MultiPage(
       pageFormat: PdfPageFormat(anchoPaginaMm * PdfPageFormat.mm, alturaMm * PdfPageFormat.mm, marginAll: margenMm * PdfPageFormat.mm),
@@ -498,44 +509,41 @@ class VentaExportService {
             // limitaba el alto a 50pt.
             if (logo != null) pw.Center(child: pw.Image(logo, width: 140)),
             if (negocio.nombre.isNotEmpty)
-              pw.Center(child: pw.Text(negocio.nombre.toUpperCase(), style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold))),
+              ..._encabezadoNombreNegocio(negocio.nombre),
             if (negocio.eslogan.isNotEmpty)
               pw.Center(child: pw.Text(negocio.eslogan, style: const pw.TextStyle(fontSize: 9))),
             if (negocio.direccion.isNotEmpty)
-              pw.Center(child: pw.Text('Dirección: ${negocio.direccion}', style: const pw.TextStyle(fontSize: fSmall), textAlign: pw.TextAlign.center)),
-            if (negocio.rtn.isNotEmpty) pw.Center(child: pw.Text('RTN: ${negocio.rtn}', style: const pw.TextStyle(fontSize: fSmall))),
-            if (negocio.telefono.isNotEmpty) pw.Center(child: pw.Text('Tel: ${negocio.telefono}', style: const pw.TextStyle(fontSize: fSmall))),
-            if (negocio.correo.isNotEmpty) pw.Center(child: pw.Text('Email: ${negocio.correo}', style: const pw.TextStyle(fontSize: fSmall))),
-            if (negocio.cai.isNotEmpty) pw.Center(child: pw.Text('CAI: ${negocio.cai}', style: const pw.TextStyle(fontSize: fSmall))),
+              pw.Center(child: pw.Text('Dirección: ${negocio.direccion}', style: pw.TextStyle(fontSize: fSmall), textAlign: pw.TextAlign.center)),
+            if (negocio.rtn.isNotEmpty) pw.Center(child: pw.Text('RTN: ${negocio.rtn}', style: pw.TextStyle(fontSize: fSmall))),
+            if (negocio.telefono.isNotEmpty) pw.Center(child: pw.Text('Tel: ${negocio.telefono}', style: pw.TextStyle(fontSize: fSmall))),
+            if (negocio.correo.isNotEmpty) pw.Center(child: pw.Text('Email: ${negocio.correo}', style: pw.TextStyle(fontSize: fSmall))),
+            if (negocio.cai.isNotEmpty) pw.Center(child: pw.Text('CAI: ${negocio.cai}', style: pw.TextStyle(fontSize: fSmall))),
             pw.SizedBox(height: 6),
             _separador(),
-            pw.Text('${(tiposDocumento[venta.tipoDocumento] ?? venta.tipoDocumento).toUpperCase()} ${negocio.rangoPrefijo}${venta.numeroDocumento}', style: const pw.TextStyle(fontSize: fNormal)),
-            pw.Text('Fecha: ${venta.fechaRegistro != null ? formatoFecha.format(venta.fechaRegistro!) : '-'}', style: const pw.TextStyle(fontSize: fNormal)),
-            pw.Text('Atendido por: ${venta.usuarioRegistro}', style: const pw.TextStyle(fontSize: fNormal)),
-            pw.Text('Condición: ${venta.condicion}', style: const pw.TextStyle(fontSize: fNormal)),
+            pw.Text('${(tiposDocumento[venta.tipoDocumento] ?? venta.tipoDocumento).toUpperCase()} ${negocio.rangoPrefijo}${venta.numeroDocumento}', style: pw.TextStyle(fontSize: fNormal)),
+            pw.Text('Fecha: ${venta.fechaRegistro != null ? formatoFecha.format(venta.fechaRegistro!) : '-'}', style: pw.TextStyle(fontSize: fNormal)),
+            pw.Text('Atendido por: ${venta.usuarioRegistro}', style: pw.TextStyle(fontSize: fNormal)),
+            pw.Text('Condición: ${venta.condicion}', style: pw.TextStyle(fontSize: fNormal)),
             if (venta.condicion == 'Credito' && venta.fechaVencimiento != null)
-              pw.Text('Fecha de vencimiento: ${formatoDia.format(venta.fechaVencimiento!)}', style: const pw.TextStyle(fontSize: fNormal)),
+              pw.Text('Fecha de vencimiento: ${formatoDia.format(venta.fechaVencimiento!)}', style: pw.TextStyle(fontSize: fNormal)),
             _separador(),
-            pw.Text('Cliente: ${venta.nombreCliente.isEmpty ? 'CONSUMIDOR FINAL' : venta.nombreCliente}', style: const pw.TextStyle(fontSize: fNormal)),
-            pw.Text('ID/RTN Cliente: ${venta.documentoCliente.isEmpty ? 'N/A' : venta.documentoCliente}', style: const pw.TextStyle(fontSize: fNormal)),
-            if (venta.oc.isNotEmpty) pw.Text('No. O/C exenta: ${venta.oc}', style: const pw.TextStyle(fontSize: fNormal)),
-            if (venta.regExonerado.isNotEmpty) pw.Text('No. Reg de exonerado: ${venta.regExonerado}', style: const pw.TextStyle(fontSize: fNormal)),
-            if (venta.regSag.isNotEmpty) pw.Text('No. De reg de la SAG: ${venta.regSag}', style: const pw.TextStyle(fontSize: fNormal)),
+            pw.Text('Cliente: ${venta.nombreCliente.isEmpty ? 'CONSUMIDOR FINAL' : venta.nombreCliente}', style: pw.TextStyle(fontSize: fNormal)),
+            pw.Text('ID/RTN Cliente: ${venta.documentoCliente.isEmpty ? 'N/A' : venta.documentoCliente}', style: pw.TextStyle(fontSize: fNormal)),
+            if (venta.oc.isNotEmpty) pw.Text('No. O/C exenta: ${venta.oc}', style: pw.TextStyle(fontSize: fNormal)),
+            if (venta.regExonerado.isNotEmpty) pw.Text('No. Reg de exonerado: ${venta.regExonerado}', style: pw.TextStyle(fontSize: fNormal)),
+            if (venta.regSag.isNotEmpty) pw.Text('No. De reg de la SAG: ${venta.regSag}', style: pw.TextStyle(fontSize: fNormal)),
             if (venta.observaciones.isNotEmpty) ...[
               _separador(),
-              pw.Text('Observaciones: ${venta.observaciones}', style: const pw.TextStyle(fontSize: fNormal)),
+              pw.Text('Observaciones: ${venta.observaciones}', style: pw.TextStyle(fontSize: fNormal)),
             ],
             _separador(),
-            // Fila con spaceBetween (no texto con espacios a mano) para que
-            // "IMPORTE" quede alineado de verdad arriba del monto de cada
-            // línea, que también se dibuja pegado a la derecha.
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text('CANT  DESCRIPCIÓN', style: const pw.TextStyle(fontSize: fSmall)),
-                pw.Text('IMPORTE', style: const pw.TextStyle(fontSize: fSmall)),
-              ],
-            ),
+            // _filaFlex (no Row+spaceBetween a secas) para que "IMPORTE"/el
+            // monto de cada línea NUNCA se apachurre contra la columna de la
+            // izquierda ni se envuelva -pedido explícito del dueño tras ver
+            // un ticket real con "DESCRIPCIÓNIMPORTE" pegado-: el texto de
+            // la izquierda es el que cede espacio (Expanded) si hace falta,
+            // el de la derecha siempre se dibuja completo, a su ancho real.
+            _filaFlex('CANT  DESCRIPCIÓN', 'IMPORTE', style: pw.TextStyle(fontSize: fSmall)),
             _separador(),
             ...venta.detalle.map((item) => pw.Padding(
                   padding: const pw.EdgeInsets.only(bottom: 3),
@@ -545,69 +553,57 @@ class VentaExportService {
                       // Sin negrita: en la impresora térmica el texto en
                       // negrita se ve más "manchado" y termina siendo menos
                       // claro que el peso normal, sobre todo en letra chica.
-                      pw.Text(item.nombreProducto, style: const pw.TextStyle(fontSize: fSmall)),
-                      pw.Row(
-                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                        children: [
-                          pw.Text(
-                            '${_formatoCantidad(item.cantidad)} x ${formatearMoneda(precioMostrado(item))}${item.descuentoPorcentaje > 0 ? ' (-${_formatoCantidad(item.descuentoPorcentaje)}%)' : ''}',
-                            style: const pw.TextStyle(fontSize: fSmall),
-                          ),
-                          pw.Text(formatearMoneda(importeMostrado(item)), style: const pw.TextStyle(fontSize: fSmall)),
-                        ],
+                      pw.Text(item.nombreProducto, style: pw.TextStyle(fontSize: fSmall)),
+                      _filaFlex(
+                        '${_formatoCantidad(item.cantidad)} x ${formatearMoneda(precioMostrado(item))}${item.descuentoPorcentaje > 0 ? ' (-${_formatoCantidad(item.descuentoPorcentaje)}%)' : ''}',
+                        formatearMoneda(importeMostrado(item)),
+                        style: pw.TextStyle(fontSize: fSmall),
                       ),
                     ],
                   ),
                 )),
             _separador(),
-            _filaTotal('SUBTOTAL:', venta.subtotal),
-            if (venta.descuentoGlobal > 0) pw.Text('Descuento global: ${_formatoCantidad(venta.descuentoGlobal)}%', style: const pw.TextStyle(fontSize: fSmall)),
-            if (descuentosYRebajas > 0) _filaTotal('Descuentos y rebajas:', descuentosYRebajas),
+            _filaTotal('SUBTOTAL:', venta.subtotal, angosto: esAngosto),
+            if (venta.descuentoGlobal > 0) pw.Text('Descuento global: ${_formatoCantidad(venta.descuentoGlobal)}%', style: pw.TextStyle(fontSize: fSmall)),
+            if (descuentosYRebajas > 0) _filaTotal('Descuentos y rebajas:', descuentosYRebajas, angosto: esAngosto),
             if (esFacturable) ...[
-              _filaTotal('Gravado 15%:', venta.subtotal),
-              _filaTotal('Gravado 18%:', 0),
-              _filaTotal('ISV 15%:', venta.impuesto),
+              _filaTotal('Gravado 15%:', venta.subtotal, angosto: esAngosto),
+              _filaTotal('Gravado 18%:', 0, angosto: esAngosto),
+              _filaTotal('ISV 15%:', venta.impuesto, angosto: esAngosto),
             ],
-            _filaTotal('TOTAL A PAGAR:', venta.totalAPagar, negrita: true),
+            _filaTotal('TOTAL A PAGAR:', venta.totalAPagar, negrita: true, angosto: esAngosto),
             pw.SizedBox(height: 6),
             _separador(),
-            pw.Text('Son: ${convertirNumeroALetras(venta.totalAPagar)}', style: const pw.TextStyle(fontSize: fNormal)),
+            pw.Text('Son: ${convertirNumeroALetras(venta.totalAPagar)}', style: pw.TextStyle(fontSize: fNormal)),
             if (venta.condicion != 'Credito') ...[
               if (venta.metodoPago == 'Efectivo') ...[
-                pw.Text('Efectivo: ${formatearMoneda(venta.montoPago)}', style: const pw.TextStyle(fontSize: fNormal)),
-                pw.Text('Cambio: ${formatearMoneda(venta.montoCambio)}', style: const pw.TextStyle(fontSize: fNormal)),
+                pw.Text('Efectivo: ${formatearMoneda(venta.montoPago)}', style: pw.TextStyle(fontSize: fNormal)),
+                pw.Text('Cambio: ${formatearMoneda(venta.montoCambio)}', style: pw.TextStyle(fontSize: fNormal)),
               ] else if (venta.metodoPago == 'Tarjeta')
-                pw.Text('Pago con tarjeta: ${formatearMoneda(venta.totalAPagar)}', style: const pw.TextStyle(fontSize: fNormal))
+                pw.Text('Pago con tarjeta: ${formatearMoneda(venta.totalAPagar)}', style: pw.TextStyle(fontSize: fNormal))
               else if (venta.metodoPago == 'Transferencia')
-                pw.Text('Transferencia', style: const pw.TextStyle(fontSize: fNormal))
+                pw.Text('Transferencia', style: pw.TextStyle(fontSize: fNormal))
               else if (venta.metodoPago == 'Cheque')
-                pw.Text('Pago con cheque: ${formatearMoneda(venta.totalAPagar)}', style: const pw.TextStyle(fontSize: fNormal))
+                pw.Text('Pago con cheque: ${formatearMoneda(venta.totalAPagar)}', style: pw.TextStyle(fontSize: fNormal))
               else if (venta.metodoPago == 'Mixto')
                 for (final pago in venta.pagosMixtos)
-                  pw.Text('${pago.metodoPago}: ${formatearMoneda(pago.monto)}', style: const pw.TextStyle(fontSize: fNormal)),
+                  pw.Text('${pago.metodoPago}: ${formatearMoneda(pago.monto)}', style: pw.TextStyle(fontSize: fNormal)),
             ],
             _separador(),
             if (negocio.rangoPrefijo.isNotEmpty || negocio.rangoDesde.isNotEmpty)
-              pw.Text('Rango Aut.: ${negocio.rangoPrefijo}${negocio.rangoDesde} al ${negocio.rangoPrefijo}${negocio.rangoHasta}', style: const pw.TextStyle(fontSize: fSmall)),
+              pw.Text('Rango Aut.: ${negocio.rangoPrefijo}${negocio.rangoDesde} al ${negocio.rangoPrefijo}${negocio.rangoHasta}', style: pw.TextStyle(fontSize: fSmall)),
             if (negocio.fechaLimiteEmision != null)
-              pw.Text('Fecha Límite: ${formatoDia.format(negocio.fechaLimiteEmision!)}', style: const pw.TextStyle(fontSize: fSmall)),
+              pw.Text('Fecha Límite: ${formatoDia.format(negocio.fechaLimiteEmision!)}', style: pw.TextStyle(fontSize: fSmall)),
+            // Pedido explícito del dueño: quitar el resto del pie legal
+            // ("ORIGINAL: CLIENTE"/"COPIA: OBLIGADO TRIBUTARIO EMISOR"/"LA
+            // FACTURA ES BENEFICIO DE TODOS"), dejando solo el agradecimiento
+            // y el ORIGINAL/COPIA de más abajo.
             pw.SizedBox(height: 4),
-            pw.Text('ORIGINAL: CLIENTE', style: const pw.TextStyle(fontSize: fSmall)),
-            pw.Text('COPIA: OBLIGADO TRIBUTARIO EMISOR', style: const pw.TextStyle(fontSize: fSmall)),
-            pw.SizedBox(height: 8),
-            pw.Center(
-              child: pw.Text(
-                'LA FACTURA ES BENEFICIO DE TODOS, ¡EXÍJALA!',
-                textAlign: pw.TextAlign.center,
-                style: const pw.TextStyle(fontSize: fSmall),
-              ),
-            ),
-            pw.SizedBox(height: 6),
-            pw.Text('¡GRACIAS POR SU COMPRA!', style: const pw.TextStyle(fontSize: fNormal)),
+            pw.Center(child: pw.Text('¡GRACIAS POR SU COMPRA!', style: pw.TextStyle(fontSize: fNormal))),
             pw.SizedBox(height: 10),
             pw.Align(
               alignment: pw.Alignment.centerRight,
-              child: pw.Text(esCopia ? 'COPIA' : 'ORIGINAL', style: const pw.TextStyle(fontSize: fNormal)),
+              child: pw.Text(esCopia ? 'COPIA' : 'ORIGINAL', style: pw.TextStyle(fontSize: fNormal)),
             ),
           ];
       },
@@ -698,7 +694,7 @@ class VentaExportService {
     );
   }
 
-  pw.Widget _filaTotal(String etiqueta, double valor, {bool negrita = false}) {
+  pw.Widget _filaTotal(String etiqueta, double valor, {bool negrita = false, bool angosto = false}) {
     // Nada de FontWeight.bold acá: el negrito real (Helvetica-Bold) se ve
     // "manchado" en la impresora térmica, los trazos gruesos casi se tocan
     // entre sí a esa resolución (mismo problema que ya se evitó para los
@@ -706,20 +702,51 @@ class VentaExportService {
     // con trazo normal pero un poco más grande y con letras más separadas,
     // que a esta resolución se lee más claro que el negrito real.
     final estilo = pw.TextStyle(
-      fontSize: negrita ? 9 : 8,
+      fontSize: negrita ? (angosto ? 8.0 : 9.0) : (angosto ? 7.0 : 8.0),
       fontWeight: pw.FontWeight.normal,
       letterSpacing: negrita ? 0.4 : null,
     );
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 1),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(etiqueta, style: estilo),
-          pw.Text(formatearMoneda(valor), style: estilo),
-        ],
-      ),
+      child: _filaFlex(etiqueta, formatearMoneda(valor), style: estilo),
     );
+  }
+
+  // Fila de dos columnas que NUNCA deja que [derecha] se corte, se envuelva
+  // a una segunda línea, ni se apachurre contra [izquierda] -pedido
+  // explícito del dueño tras ver "TOTAL A PAGAR:L.100.0" cortado en un
+  // ticket real-: a diferencia de Row+spaceBetween (que reparte el espacio
+  // sobrante pero deja que cualquiera de los dos textos se envuelva si no
+  // caben ambos), acá [izquierda] va en un Expanded (absorbe el wrap si
+  // hace falta) e [derecha] va sin restricción de ancho, así que siempre se
+  // dibuja completo en una sola línea con su ancho real.
+  pw.Widget _filaFlex(String izquierda, String derecha, {required pw.TextStyle style}) {
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Expanded(child: pw.Text(izquierda, style: style)),
+        pw.SizedBox(width: 4),
+        pw.Text(derecha, style: style),
+      ],
+    );
+  }
+
+  // Ver el pedido explícito del dueño con el ticket real "CK S DE R.L. / DE
+  // C.V." partido en un lugar raro: si el nombre del negocio tiene más de
+  // una palabra, la primera va sola en su propia línea (la marca corta,
+  // "CK") y el resto abajo (la razón social completa, "S DE R.L. DE C.V."),
+  // en vez de dejar que el motor de PDF lo envuelva donde le quede.
+  List<pw.Widget> _encabezadoNombreNegocio(String nombre) {
+    final nombreMayus = nombre.toUpperCase().trim();
+    final estilo = pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold);
+    final espacio = nombreMayus.indexOf(' ');
+    if (espacio == -1) {
+      return [pw.Center(child: pw.Text(nombreMayus, style: estilo))];
+    }
+    return [
+      pw.Center(child: pw.Text(nombreMayus.substring(0, espacio), style: estilo)),
+      pw.Center(child: pw.Text(nombreMayus.substring(espacio + 1).trim(), style: estilo)),
+    ];
   }
 
   String _formatoCantidad(double cantidad) {

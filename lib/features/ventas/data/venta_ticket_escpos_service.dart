@@ -362,7 +362,7 @@ class VentaTicketEscPosService {
 
     if (logo != null) bytes += generador.image(logo);
     if (negocio.nombre.isNotEmpty) {
-      bytes += _texto(generador, negocio.nombre.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2), maxAncho: anchoTexto ~/ 2);
+      bytes += _encabezadoNombreNegocio(generador, negocio.nombre, anchoTexto);
     }
     if (negocio.eslogan.isNotEmpty) bytes += _texto(generador, negocio.eslogan, styles: const PosStyles(align: PosAlign.center), maxAncho: anchoTexto);
     if (negocio.direccion.isNotEmpty) bytes += _texto(generador, 'Direccion: ${negocio.direccion}', styles: const PosStyles(align: PosAlign.center), maxAncho: anchoTexto);
@@ -462,17 +462,34 @@ class VentaTicketEscPosService {
     if (negocio.fechaLimiteEmision != null) {
       bytes += _texto(generador, 'Fecha Limite: ${formatoDia.format(negocio.fechaLimiteEmision!)}', maxAncho: anchoTexto);
     }
-    bytes += generador.emptyLines(1);
-    bytes += _texto(generador, 'ORIGINAL: CLIENTE', maxAncho: anchoTexto);
-    bytes += _texto(generador, 'COPIA: OBLIGADO TRIBUTARIO EMISOR', maxAncho: anchoTexto);
-    bytes += generador.emptyLines(1);
-    bytes += _texto(generador, 'LA FACTURA ES BENEFICIO DE TODOS, EXIJALA!', styles: const PosStyles(align: PosAlign.center, bold: true), maxAncho: anchoTexto);
+    // Pedido explícito del dueño: quitar el resto del pie legal ("ORIGINAL:
+    // CLIENTE"/"COPIA: OBLIGADO TRIBUTARIO EMISOR"/"LA FACTURA ES BENEFICIO
+    // DE TODOS"), dejando solo el agradecimiento y el ORIGINAL/COPIA de
+    // más abajo.
     bytes += generador.emptyLines(1);
     bytes += _texto(generador, 'GRACIAS POR SU COMPRA!', styles: const PosStyles(align: PosAlign.center, bold: true), maxAncho: anchoTexto);
     bytes += generador.emptyLines(1);
     bytes += _texto(generador, esCopia ? 'COPIA' : 'ORIGINAL', styles: const PosStyles(align: PosAlign.right, bold: true));
     bytes += generador.cut();
 
+    return bytes;
+  }
+
+  // Ver el mismo comentario/pedido en venta_export_service.dart: si el
+  // nombre del negocio tiene más de una palabra, la primera va sola en su
+  // propia línea (la marca corta, "CK") y el resto abajo (la razón social
+  // completa, "S DE R.L. DE C.V."), en vez de dejar que se envuelva donde
+  // caiga por ancho de columna.
+  List<int> _encabezadoNombreNegocio(Generator g, String nombre, int anchoTexto) {
+    final nombreMayus = nombre.toUpperCase().trim();
+    const styles = PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2);
+    final espacio = nombreMayus.indexOf(' ');
+    if (espacio == -1) {
+      return _texto(g, nombreMayus, styles: styles, maxAncho: anchoTexto ~/ 2);
+    }
+    List<int> bytes = [];
+    bytes += _texto(g, nombreMayus.substring(0, espacio), styles: styles, maxAncho: anchoTexto ~/ 2);
+    bytes += _texto(g, nombreMayus.substring(espacio + 1).trim(), styles: styles, maxAncho: anchoTexto ~/ 2);
     return bytes;
   }
 
