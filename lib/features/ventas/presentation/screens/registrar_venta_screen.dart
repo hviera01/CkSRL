@@ -6124,7 +6124,16 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                       children: [
                         Expanded(
                           child: FilledButton.icon(
-                            key: _keyAgregarProducto,
+                            // SIN key acá a propósito: este es el botón de la
+                            // rama MÓVIL (esMovil==true) de este mismo widget,
+                            // y el tutorial guiado apunta solo a la rama de
+                            // escritorio (ver _keyAgregarProducto, más abajo
+                            // en la rama esMovil==false) -tener la MISMA
+                            // GlobalKey en dos widgets reales rompía el
+                            // tutorial en release (Flutter no avisa con un
+                            // error visible ahí, solo deja de poder resaltar
+                            // nada bien, reportado por el dueño: la pantalla
+                            // se oscurecía entera sin mostrar ningún paso)-.
                             onPressed: _agregarProductoDesdeBusqueda,
                             icon: const Icon(Icons.add, size: 18),
                             // En móvil este botón comparte fila con
