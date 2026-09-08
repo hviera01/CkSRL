@@ -21,15 +21,15 @@ class DashboardAdmin extends ConsumerWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: _azulMarca,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: _azulMarca.withOpacity(0.25),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+            color: _azulMarca.withOpacity(0.20),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -39,26 +39,26 @@ class DashboardAdmin extends ConsumerWidget {
           Row(
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: 26,
+                height: 26,
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.insights_rounded, color: Colors.white, size: 18),
+                child: const Icon(Icons.insights_rounded, color: Colors.white, size: 14),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Text(
                 'Panel del dueño',
                 style: GoogleFonts.poppins(
-                  fontSize: 15,
+                  fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
           estado.when(
             data: (d) => _contenido(context, d),
             loading: () => const Padding(
@@ -85,8 +85,8 @@ class DashboardAdmin extends ConsumerWidget {
       builder: (context, constraints) {
         final apilado = constraints.maxWidth < 620;
         final tarjetas = Wrap(
-          spacing: 12,
-          runSpacing: 12,
+          spacing: 8,
+          runSpacing: 8,
           children: [
             _kpi(
               ancho: constraints.maxWidth,
@@ -119,14 +119,14 @@ class DashboardAdmin extends ConsumerWidget {
 
         if (apilado) {
           return Column(
-            children: [tarjetas, const SizedBox(height: 16), grafico],
+            children: [tarjetas, const SizedBox(height: 10), grafico],
           );
         }
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(flex: 3, child: tarjetas),
-            const SizedBox(width: 16),
+            const SizedBox(width: 10),
             Expanded(flex: 2, child: grafico),
           ],
         );
@@ -144,33 +144,32 @@ class DashboardAdmin extends ConsumerWidget {
   }) {
     // 3 tarjetas por fila cuando hay espacio (escritorio), 1 por fila en
     // celular/tablet angosto (apilado, ver _contenido).
-    final anchoTarjeta = apilado ? ancho : (ancho - 24) / 3;
+    final anchoTarjeta = apilado ? ancho : (ancho - 16) / 3;
     return Container(
-      width: anchoTarjeta.clamp(140, 400),
-      padding: const EdgeInsets.all(14),
+      width: anchoTarjeta.clamp(120, 400),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white.withOpacity(0.10)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icono, color: Colors.white.withOpacity(0.85), size: 18),
-          const SizedBox(height: 10),
+          Icon(icono, color: Colors.white.withOpacity(0.85), size: 14),
+          const SizedBox(height: 6),
           Text(
             valor,
-            style: GoogleFonts.poppins(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white),
+            style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
           ),
-          const SizedBox(height: 2),
           Text(
             etiqueta,
-            style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.85)),
+            style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.85)),
           ),
           Text(
             subtitulo,
-            style: GoogleFonts.poppins(fontSize: 10.5, color: Colors.white.withOpacity(0.60)),
+            style: GoogleFonts.poppins(fontSize: 9, color: Colors.white.withOpacity(0.60)),
           ),
         ],
       ),
@@ -182,10 +181,10 @@ class DashboardAdmin extends ConsumerWidget {
     final techo = maximo <= 0 ? 1.0 : maximo * 1.2;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white.withOpacity(0.10)),
       ),
       child: Column(
@@ -194,11 +193,11 @@ class DashboardAdmin extends ConsumerWidget {
         children: [
           Text(
             'Últimos 7 días',
-            style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.85)),
+            style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.85)),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           SizedBox(
-            height: 110,
+            height: 70,
             child: BarChart(
               BarChartData(
                 maxY: techo,

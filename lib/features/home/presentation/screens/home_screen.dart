@@ -133,13 +133,6 @@ class HomeScreen extends ConsumerWidget {
                     _accesosDirectos(context, ref),
                     const SizedBox(height: 20),
                   ],
-                  // Dashboard "de un vistazo" -pedido explícito del dueño-:
-                  // solo el Administrador lo ve, el resto de roles sigue
-                  // viendo Inicio igual que siempre.
-                  if (esAdmin) ...[
-                    const DashboardAdmin(),
-                    const SizedBox(height: 24),
-                  ],
                   _resumenVentas(ref, esMovil),
                   const SizedBox(height: 24),
                   GridView.builder(
@@ -163,6 +156,14 @@ class HomeScreen extends ConsumerWidget {
                       );
                     },
                   ),
+                  // Dashboard "de un vistazo" -pedido explícito del dueño,
+                  // movido abajo del menú y achicado porque estorbaba arriba-:
+                  // solo el Administrador lo ve, el resto de roles sigue
+                  // viendo Inicio igual que siempre.
+                  if (esAdmin) ...[
+                    const SizedBox(height: 24),
+                    const DashboardAdmin(),
+                  ],
                 ],
               ),
             ),
