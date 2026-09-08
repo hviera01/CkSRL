@@ -24,8 +24,11 @@ import 'configuracion_apartado.dart' show tarjetaApartado;
 class EditorProductosApartado extends ConsumerStatefulWidget {
   final List<NuevoItemApartado> items;
   final ValueChanged<List<NuevoItemApartado>> alCambiar;
+  // Clave opcional del tutorial guiado (ver crear_apartado_screen.dart) para
+  // el botón "Agregar producto".
+  final GlobalKey? claveAgregarProducto;
 
-  const EditorProductosApartado({super.key, required this.items, required this.alCambiar});
+  const EditorProductosApartado({super.key, required this.items, required this.alCambiar, this.claveAgregarProducto});
 
   @override
   ConsumerState<EditorProductosApartado> createState() => _EditorProductosApartadoState();
@@ -188,6 +191,7 @@ class _EditorProductosApartadoState extends ConsumerState<EditorProductosApartad
     return tarjetaApartado(
       titulo: 'Productos',
       accion: OutlinedButton.icon(
+        key: widget.claveAgregarProducto,
         onPressed: _agregarProducto,
         icon: const Icon(Icons.add, size: 18),
         label: Text('Agregar producto', style: GoogleFonts.poppins(fontSize: 13)),

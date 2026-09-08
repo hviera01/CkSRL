@@ -294,12 +294,28 @@ class ConfiguracionApartadoForm extends StatelessWidget {
   final VoidCallback alCambiar;
   final Widget? seccionProductos;
 
+  // Claves opcionales del tutorial guiado (ver crear_apartado_screen.dart) -
+  // null en el resto de los usos (ej. ApartarCarritoDialog), que no muestran
+  // este tutorial.
+  final GlobalKey? claveCliente;
+  final GlobalKey? claveTogglePagoInicial;
+  final GlobalKey? claveMontoInicialReal;
+  final GlobalKey? claveToggleModalidad;
+  final GlobalKey? claveNumeroCuotas;
+  final GlobalKey? claveFechaPrimerPago;
+
   const ConfiguracionApartadoForm({
     super.key,
     required this.controller,
     required this.montoTotal,
     required this.alCambiar,
     this.seccionProductos,
+    this.claveCliente,
+    this.claveTogglePagoInicial,
+    this.claveMontoInicialReal,
+    this.claveToggleModalidad,
+    this.claveNumeroCuotas,
+    this.claveFechaPrimerPago,
   });
 
   Future<void> _buscarCliente(BuildContext context) async {
@@ -331,6 +347,7 @@ class ConfiguracionApartadoForm extends StatelessWidget {
             children: [
               Expanded(
                 child: CampoTecladoCompacto(
+                  key: claveCliente,
                   controller: controller.clienteController,
                   numerico: false,
                   child: TextField(
@@ -375,6 +392,7 @@ class ConfiguracionApartadoForm extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                key: claveTogglePagoInicial,
                 children: [
                   ChoiceChip(
                     label: Text('Porcentaje', style: GoogleFonts.poppins(fontSize: 12.5)),
@@ -438,6 +456,7 @@ class ConfiguracionApartadoForm extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               CampoTecladoCompacto(
+                key: claveMontoInicialReal,
                 controller: controller.montoInicialRealController,
                 numerico: true,
                 child: TextField(
@@ -480,6 +499,7 @@ class ConfiguracionApartadoForm extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                key: claveToggleModalidad,
                 children: [
                   ChoiceChip(
                     label: Text('Abonos libres', style: GoogleFonts.poppins(fontSize: 12.5)),
@@ -511,6 +531,7 @@ class ConfiguracionApartadoForm extends StatelessWidget {
                   children: [
                     Expanded(
                       child: CampoTecladoCompacto(
+                        key: claveNumeroCuotas,
                         controller: controller.numeroCuotasController,
                         numerico: true,
                         child: TextField(
@@ -543,7 +564,10 @@ class ConfiguracionApartadoForm extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _filaFechaPrimerPago(context, controller, formatoFecha, alCambiar),
+                KeyedSubtree(
+                  key: claveFechaPrimerPago,
+                  child: _filaFechaPrimerPago(context, controller, formatoFecha, alCambiar),
+                ),
                 const SizedBox(height: 6),
                 for (final cuota in controller.cuotasSobre(montoTotal))
                   Padding(

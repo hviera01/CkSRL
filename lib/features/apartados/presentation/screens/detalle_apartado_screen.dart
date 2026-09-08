@@ -10,6 +10,8 @@ import '../../../auth/providers/auth_provider.dart';
 import '../../../negocio/data/negocio_model.dart';
 import '../../../negocio/presentation/widgets/acceso_especial.dart';
 import '../../../../core/utils/formato_moneda.dart';
+import '../../../../core/tutorial/tutorial_modelos.dart';
+import '../../../../core/tutorial/tutorial_boton.dart';
 import '../widgets/registrar_pago_apartado_dialog.dart';
 import '../widgets/editar_abono_apartado_dialog.dart';
 
@@ -29,6 +31,81 @@ class DetalleApartadoScreen extends ConsumerStatefulWidget {
 class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
   bool _procesando = false;
   String? _error;
+
+  // Claves del tutorial guiado -pedido explícito del dueño: la persona que
+  // va a usar el sistema no es muy ágil con computadoras-. Los tres botones
+  // de acción y la tarjeta de progreso solo existen si el apartado sigue
+  // activo (ver build): si se abre este tutorial sobre uno ya entregado o
+  // cancelado, esos pasos se saltan solos (TutorialBoton ya maneja eso).
+  final _keyProgreso = GlobalKey();
+  final _keyCuotas = GlobalKey();
+  final _keyHistorial = GlobalKey();
+  final _keyRegistrarPago = GlobalKey();
+  final _keyMarcarEntregado = GlobalKey();
+  final _keyCancelarApartado = GlobalKey();
+
+  TutorialTema get _temaDetalle => TutorialTema(
+        titulo: 'Cómo ver el estado de un apartado',
+        descripcion: 'Progreso, cuotas/pagos, y cuándo se entrega',
+        icono: Icons.receipt_long_outlined,
+        bienvenida:
+            'Acá se ve todo lo que pasó con este apartado: cuánto lleva '
+            'pagado, qué falta, y el historial completo de pagos. Recordá: '
+            'el producto NO se descuenta del inventario hasta que el '
+            'apartado se marca como "Entregado" -eso recién pasa cuando el '
+            'saldo llega a \$0-.',
+        pasos: () => [
+          TutorialPaso(
+            key: _keyProgreso,
+            titulo: 'Progreso de pago',
+            explicacion:
+                'Esta barra muestra qué porcentaje del total ya se pagó y '
+                'cuánto falta.',
+          ),
+          TutorialPaso(
+            key: _keyCuotas,
+            titulo: 'Cuotas programadas',
+            explicacion:
+                'Si el apartado es de "Cuotas fijas", acá se ve cada cuota: '
+                'cuánto le corresponde, cuánto se le abonó de verdad, y si '
+                'ya está pagada o todavía pendiente.',
+          ),
+          TutorialPaso(
+            key: _keyHistorial,
+            titulo: 'Historial de pagos',
+            explicacion:
+                'Acá aparece cada pago que se registró, con su fecha, '
+                'método, y el saldo antes/después de ese pago. Tocando los '
+                'tres puntitos de una fila podés editar o eliminar ese pago '
+                '-por si se cargó algo mal-.',
+          ),
+          TutorialPaso(
+            key: _keyRegistrarPago,
+            titulo: 'Registrar Pago',
+            explicacion:
+                'Anota acá un nuevo pago del cliente. El monto es LIBRE: el '
+                'cliente puede dar lo que pueda, no tiene que coincidir '
+                'exactamente con ninguna cuota.',
+          ),
+          TutorialPaso(
+            key: _keyMarcarEntregado,
+            titulo: 'Marcar Entregado',
+            explicacion:
+                'Se activa recién cuando el saldo llega a \$0. Al tocarlo, '
+                'el producto se descuenta de verdad del inventario y el '
+                'apartado queda como entregado -recién ahí el cliente se '
+                'lleva el producto-.',
+          ),
+          TutorialPaso(
+            key: _keyCancelarApartado,
+            titulo: 'Cancelar Apartado',
+            explicacion:
+                'Si el cliente ya no va a seguir pagando, cancelalo acá: el '
+                'producto queda libre para vendérselo a otro cliente. Ojo, '
+                'esta acción no se puede deshacer.',
+          ),
+        ],
+      );
 
   Future<void> _registrarPago(double saldoPendiente, List<ApartadoCuotaModel> cuotasPendientes) async {
     final apartado = ref.read(apartadosStreamProvider).value?.where((a) => a.id == widget.idApartado).firstOrNull;
@@ -200,7 +277,26 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F3F7),
-      body: SafeArea(
+      body: Stack(
+        children: [
+          _cuerpo(apartadosAsync, apartado, itemsAsync, formatoFecha),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: TutorialBoton(temas: [_temaDetalle]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cuerpo(
+    AsyncValue<List<ApartadoModel>> apartadosAsync,
+    ApartadoModel? apartado,
+    AsyncValue<List<dynamic>> itemsAsync,
+    DateFormat formatoFecha,
+  ) {
+    return SafeArea(
         child: apartadosAsync.isLoading && apartado == null
             ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F1B3D)))
             : apartado == null
@@ -282,6 +378,7 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
                                       runSpacing: 10,
                                       children: [
                                         FilledButton.icon(
+                                          key: _keyRegistrarPago,
                                           onPressed: _procesando ? null : () => _registrarPago(saldoPendiente, cuotasPendientes),
                                           icon: const Icon(Icons.payments_outlined, size: 18),
                                           label: Text('Registrar Pago', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
@@ -292,6 +389,7 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
                                           ),
                                         ),
                                         FilledButton.icon(
+                                          key: _keyMarcarEntregado,
                                           onPressed: (_procesando || saldoPendiente > 0.01) ? null : _marcarEntregado,
                                           icon: const Icon(Icons.check_circle_outline, size: 18),
                                           label: Text('Marcar Entregado', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
@@ -302,6 +400,7 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
                                           ),
                                         ),
                                         OutlinedButton.icon(
+                                          key: _keyCancelarApartado,
                                           onPressed: _procesando ? null : _cancelar,
                                           icon: const Icon(Icons.cancel_outlined, size: 18, color: Color(0xFFB91C1C)),
                                           label: Text('Cancelar Apartado', style: GoogleFonts.poppins(color: const Color(0xFFB91C1C))),
@@ -321,8 +420,7 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
                       ],
                     ),
                   ),
-      ),
-    );
+      );
   }
 
   Widget _chipEstado(String estado) {
@@ -338,8 +436,9 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
     );
   }
 
-  Widget _tarjeta({required String titulo, required Widget child}) {
+  Widget _tarjeta({required String titulo, required Widget child, Key? key}) {
     return Container(
+      key: key,
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFC7CBD3))),
@@ -363,6 +462,7 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
     final montoPagado = apartado.montoTotal - saldoPendiente;
     final progreso = apartado.montoTotal <= 0 ? 0.0 : (montoPagado / apartado.montoTotal).clamp(0, 1).toDouble();
     return _tarjeta(
+      key: _keyProgreso,
       titulo: 'Progreso de pago',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,6 +647,7 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
   /// futuro la termine de cubrir por completo.
   Widget _tarjetaCuotas(ApartadoModel apartado, List<ApartadoCuotaModel> cuotas, Map<String, double> abonadoPorCuota, DateFormat formatoFecha) {
     return _tarjeta(
+      key: _keyCuotas,
       titulo: 'Cuotas programadas',
       child: cuotas.isEmpty
           ? Text('Sin cuotas', style: GoogleFonts.poppins(color: Colors.grey.shade500))
@@ -629,6 +730,7 @@ class _DetalleApartadoScreenState extends ConsumerState<DetalleApartadoScreen> {
   /// sensible, siempre disponible, protegida por verificarAccesoEspecial-.
   Widget _tarjetaHistorialPagos(List<ApartadoAbonoModel> abonos, DateFormat formatoFecha) {
     return _tarjeta(
+      key: _keyHistorial,
       titulo: 'Historial de pagos',
       child: abonos.isEmpty
           ? Text('Todavía no hay pagos registrados', style: GoogleFonts.poppins(color: Colors.grey.shade500))

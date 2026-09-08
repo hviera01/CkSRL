@@ -9,6 +9,8 @@ import '../../../../core/utils/texto_utils.dart';
 import '../../../../core/utils/formato_moneda.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
+import '../../../../core/tutorial/tutorial_modelos.dart';
+import '../../../../core/tutorial/tutorial_boton.dart';
 import '../widgets/registrar_pago_apartado_dialog.dart';
 import 'crear_apartado_screen.dart';
 import 'detalle_apartado_screen.dart';
@@ -43,11 +45,84 @@ class ApartadosScreen extends ConsumerStatefulWidget {
 class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
   final _busquedaController = TextEditingController();
 
+  // Claves del tutorial guiado -pedido explícito del dueño: la persona que
+  // va a usar el sistema no es muy ágil con computadoras-. _keyAccionesTabla
+  // y _keyAccionesTarjeta apuntan a la fila/tarjeta de acciones del PRIMER
+  // apartado listado: solo una de las dos existe en pantalla a la vez (según
+  // el ancho, ver _tabla/_tarjetas), la otra queda sin currentContext y
+  // TutorialBoton la salta sola.
+  final _keyFiltro = GlobalKey();
+  final _keyBuscador = GlobalKey();
+  final _keyNuevoApartado = GlobalKey();
+  final _keyAccionesTabla = GlobalKey();
+  final _keyAccionesTarjeta = GlobalKey();
+
   @override
   void dispose() {
     _busquedaController.dispose();
     super.dispose();
   }
+
+  TutorialTema get _temaListado => TutorialTema(
+        titulo: 'Cómo usar la lista de Apartados',
+        descripcion: 'Filtrar, buscar, crear uno nuevo y registrar pagos',
+        icono: Icons.shopping_bag_outlined,
+        bienvenida:
+            'Un Apartado es distinto de una Venta a Crédito: en un Apartado el '
+            'cliente deja pagando una parte de un producto y SOLO SE LO LLEVA '
+            'cuando termina de pagar todo -el producto se queda guardado acá '
+            'hasta entonces-. En cambio, en una Venta a Crédito el cliente SÍ '
+            'se lleva el producto de una vez, aunque quede debiendo. '
+            'Te muestro cómo se usa esta pantalla.',
+        pasos: () => [
+          TutorialPaso(
+            key: _keyFiltro,
+            titulo: 'Filtrar por estado',
+            explicacion:
+                'Elegí qué apartados ver: "Activos" (los que se están pagando '
+                'todavía), "Entregados" (ya se pagaron completo y el cliente '
+                'se llevó el producto), "Cancelados" o "Todos".',
+            obligatorio: false,
+          ),
+          TutorialPaso(
+            key: _keyBuscador,
+            titulo: 'Buscar por cliente',
+            explicacion:
+                'Escribí el nombre del cliente y tocá la flecha (o Enter) '
+                'para encontrar su apartado más rápido.',
+            obligatorio: false,
+          ),
+          TutorialPaso(
+            key: _keyNuevoApartado,
+            titulo: 'Crear un apartado nuevo',
+            explicacion:
+                'Tocá este botón para armar un apartado desde cero: vas a '
+                'elegir el cliente, los productos, y cómo va a pagar el resto.',
+          ),
+          TutorialPaso(
+            key: _keyAccionesTabla,
+            titulo: 'Registrar pago / Ver detalle',
+            explicacion:
+                'En cada fila tenés dos botones: el de la moneda registra un '
+                'pago sin salir de esta lista -el monto es LIBRE, el cliente '
+                'puede dar lo que pueda, no tiene que coincidir con ninguna '
+                'cuota exacta-; el del ojo abre el detalle completo de ese '
+                'apartado.',
+            alineacion: ContentAlign.top,
+          ),
+          TutorialPaso(
+            key: _keyAccionesTarjeta,
+            titulo: 'Registrar pago / Ver detalle',
+            explicacion:
+                'En cada tarjeta tenés estos botones: "Registrar pago" anota '
+                'un pago sin salir de esta lista -el monto es LIBRE, el '
+                'cliente puede dar lo que pueda, no tiene que coincidir con '
+                'ninguna cuota exacta-; "Ver detalle" abre toda la '
+                'información de ese apartado.',
+            alineacion: ContentAlign.top,
+          ),
+        ],
+      );
 
   void _buscar() {
     ref.read(apartadosBusquedaProvider.notifier).actualizar(_busquedaController.text.trim());
@@ -123,6 +198,19 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        _cuerpo(context),
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: TutorialBoton(temas: [_temaListado]),
+        ),
+      ],
+    );
+  }
+
+  Widget _cuerpo(BuildContext context) {
     final apartadosAsync = ref.watch(apartadosStreamProvider);
     final busqueda = ref.watch(apartadosBusquedaProvider);
     final vista = ref.watch(apartadosVistaProvider);
@@ -175,6 +263,7 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
                         ),
                       ),
                       FilledButton.icon(
+                        key: _keyNuevoApartado,
                         onPressed: _abrirCrear,
                         icon: const Icon(Icons.add, size: 18),
                         label: Text('Nuevo Apartado', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)),
@@ -226,6 +315,7 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
 
   Widget _selectorVista(String vista) {
     return Container(
+      key: _keyFiltro,
       height: 46,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFB6BCC7))),
@@ -251,6 +341,7 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
 
   Widget _buscador(String busqueda) {
     return Container(
+      key: _keyBuscador,
       height: 46,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFB6BCC7))),
@@ -332,7 +423,7 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
                     _celda(2, formatearMoneda(a.montoTotal), gris: true),
                     _celda(2, formatearMoneda(saldo), peso: FontWeight.w700),
                     Expanded(flex: 2, child: _chipEstado(a)),
-                    Expanded(flex: 3, child: _accionesFila(a, saldo)),
+                    Expanded(flex: 3, child: _accionesFila(a, saldo, key: index == 1 ? _keyAccionesTabla : null)),
                   ],
                 ),
               ),
@@ -345,9 +436,11 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
 
   /// "Ver detalle" y "Registrar pago" explícitos por fila -antes solo se
   /// llegaba al detalle tocando la fila entera, sin ninguna acción visible-.
-  /// "Registrar pago" solo tiene sentido en un apartado activo.
-  Widget _accionesFila(ApartadoModel a, double saldo) {
+  /// "Registrar pago" solo tiene sentido en un apartado activo. [key] solo se
+  /// usa en la primera fila del listado, para el tutorial guiado.
+  Widget _accionesFila(ApartadoModel a, double saldo, {Key? key}) {
     return Row(
+      key: key,
       mainAxisSize: MainAxisSize.min,
       children: [
         if (a.activo)
@@ -439,6 +532,7 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
                 ),
                 const SizedBox(height: 10),
                 Row(
+                  key: index == 0 ? _keyAccionesTarjeta : null,
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     if (a.activo)
