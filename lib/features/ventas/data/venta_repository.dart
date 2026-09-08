@@ -284,6 +284,64 @@ class VentaRepository with ConRedMixin {
     });
   }
 
+  /// Crea una venta MARCADA COMO PRUEBA (numeroDocumento 'PRUEBA', tipo
+  /// 'VentaSinFacturar') para el botón "Imprimir ticket de prueba" de
+  /// Negocio -pedido explícito del dueño para no tener que crear/anular
+  /// ventas reales solo para probar que la impresora imprime bien-. Va
+  /// DIRECTO a `ventas`/`venta_items` (sin pasar por `registrar_venta`): no
+  /// toca contadores/correlativo real, no descuenta stock, `id_producto`
+  /// queda null a propósito (no depende de que exista ningún producto real
+  /// en el inventario). Se borra apenas termina la prueba, ver
+  /// [eliminarVentaPrueba] -no debe quedar nunca en Reportes/Ver Facturas-.
+  Future<VentaModel> crearVentaPrueba({required String usuario}) {
+    return conRed(() async {
+      final fila = await _db.from('ventas').insert({
+        'tipo_documento': 'VentaSinFacturar',
+        'numero_documento': 'PRUEBA',
+        'nombre_cliente': 'PRUEBA DE IMPRESION',
+        'metodo_pago': 'Efectivo',
+        'monto_pago': 100,
+        'monto_cambio': 0,
+        'subtotal': 100,
+        'impuesto': 0,
+        'total_a_pagar': 100,
+        'condicion': 'Contado',
+        'estado': 'Activa',
+        'usuario_registro': usuario,
+        'cantidad_productos': 2,
+      }).select().single();
+      final id = fila['id'] as String;
+      await _db.from('venta_items').insert({
+        'id_venta': id,
+        'nombre_producto': 'PRODUCTO DE PRUEBA',
+        'precio_venta': 50,
+        'cantidad': 2,
+        'subtotal': 100,
+        'orden': 0,
+      });
+      final items = [
+        ItemVentaModel(
+          idProducto: '',
+          idCategoria: '',
+          nombreProducto: 'PRODUCTO DE PRUEBA',
+          precioVenta: 50,
+          cantidad: 2,
+          subtotal: 100,
+          precioCompraUsado: 0,
+        ),
+      ];
+      return VentaModel.fromMap(id, fila, items);
+    });
+  }
+
+  /// Borra por completo la venta de prueba creada por [crearVentaPrueba]
+  /// (`venta_items` cae con ella por el `on delete cascade`) — se llama
+  /// siempre al cerrar el diálogo de prueba, haya salido bien la impresión
+  /// o no, para que nunca quede una "PRUEBA" dando vueltas en Reportes.
+  Future<void> eliminarVentaPrueba(String id) {
+    return conRed(() => _db.from('ventas').delete().eq('id', id));
+  }
+
   /// Ventas guardadas pero sin imprimir.
   Stream<List<VentaModel>> obtenerVentasPendientesImpresion() {
     return conRedStream(() => _db

@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
@@ -5,11 +6,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
+import '../../../../core/services/impresora_bluetooth_service.dart';
 import '../../../../core/services/impresora_red_service.dart';
 import '../../../../core/utils/face_id_storage.dart';
 import '../../../../core/utils/webauthn.dart';
 import '../../../../core/widgets/face_id_icon.dart';
+import '../../../../core/widgets/pdf_preview_dialog.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../ventas/data/venta_export_service.dart';
+import '../../../ventas/data/venta_model.dart';
+import '../../../ventas/data/venta_ticket_escpos_service.dart';
+import '../../../ventas/presentation/widgets/ticket_escpos_preview.dart';
 import '../../../ventas/providers/ventas_provider.dart';
 import '../../data/negocio_model.dart';
 import '../../providers/negocio_provider.dart';
@@ -95,6 +103,7 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
   bool _guardando = false;
   bool _guardandoClave = false;
   bool _guardandoRed = false;
+  bool _generandoPrueba = false;
   bool _probandoRed = false;
   int? _proximoFacturaActual;
   bool _cargandoProximoFactura = true;
@@ -1237,9 +1246,200 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
                   .actualizarImpresoraBluetooth(id, nombre),
             ),
           ],
+          const SizedBox(height: 20),
+          Divider(color: Colors.grey.shade200),
+          const SizedBox(height: 14),
+          Text(
+            'Con la configuración de arriba ya guardada, probá que imprima bien antes de usarla en una venta real -no crea ni deja ninguna venta guardada-.',
+            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _generandoPrueba ? null : _imprimirTicketDePrueba,
+              icon: _generandoPrueba
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.receipt_long_outlined, size: 18),
+              label: Text(
+                'Imprimir ticket de prueba',
+                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF0F1B3D),
+                side: const BorderSide(color: Color(0xFF0F1B3D)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  // Arma una venta de mentira (crearVentaPrueba, ver VentaRepository) y la
+  // manda por el MISMO camino de impresión que usa una venta real -pedido
+  // explícito del dueño: "para no estar creando ventas a lo bruto"-, para
+  // poder probar la impresora sin ensuciar Reportes/Ver Facturas con datos
+  // de prueba. La venta de prueba se borra siempre al final (con un margen
+  // de tiempo si se pidió impresión remota a la PC principal, ver más abajo),
+  // haya salido bien la impresión o no.
+  Future<void> _imprimirTicketDePrueba() async {
+    final negocio = widget.modelo;
+    final usuario = ref.read(authProvider).usuario?.nombreCompleto ?? 'Prueba';
+    final ventaRepo = ref.read(ventaRepositoryProvider);
+    setState(() => _generandoPrueba = true);
+    VentaModel? ventaPrueba;
+    var pidioRemota = false;
+    try {
+      ventaPrueba = await ventaRepo.crearVentaPrueba(usuario: usuario);
+      if (!mounted) return;
+
+      if (!kIsWeb && Platform.isAndroid) {
+        pidioRemota = await _imprimirPruebaAndroid(ventaPrueba, negocio);
+      } else {
+        final impresora = negocio.impresoraTermicaUrl.isEmpty
+            ? null
+            : Printer(url: negocio.impresoraTermicaUrl, name: negocio.impresoraTermicaNombre);
+        await showDialog(
+          useRootNavigator: false,
+          context: context,
+          builder: (context) => PdfPreviewDialog(
+            titulo: 'Ticket de prueba',
+            nombreArchivo: 'ticket_prueba.pdf',
+            generarPdf: () => VentaExportService().generarPdfFactura(ventaPrueba!, negocio),
+            generarPdfConFormato: (formato) =>
+                VentaExportService().generarPdfFactura(ventaPrueba!, negocio, formatoImpresora: formato),
+            impresora: impresora,
+            generarTicketEscPos: () => VentaTicketEscPosService().generarTicket(ventaPrueba!, negocio),
+            nombreImpresoraWindows: negocio.impresoraTermicaNombre,
+            vistaPreviaTicket: () => TicketEscPosPreview(venta: ventaPrueba!, negocio: negocio, esCopia: false),
+            alFallarImprimir: () async {
+              pidioRemota = await _pedirImpresionRemotaPrueba(ventaPrueba!);
+            },
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo generar el ticket de prueba: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _generandoPrueba = false);
+      if (ventaPrueba != null) {
+        final id = ventaPrueba.id;
+        if (pidioRemota) {
+          // Le da tiempo a la PC principal (si está conectada) a recibir el
+          // aviso por Realtime y terminar de imprimir antes de borrar la
+          // fila que necesita leer -mismo margen que el latido de presencia
+          // (ver PresenciaImpresionRepository.umbralConectada)-.
+          unawaited(
+            Future.delayed(const Duration(seconds: 25))
+                .then((_) => ventaRepo.eliminarVentaPrueba(id))
+                .catchError((_) {}),
+          );
+        } else {
+          await ventaRepo.eliminarVentaPrueba(id);
+        }
+      }
+    }
+  }
+
+  // Mismas 3 opciones que _manejarImpresionAndroid en Registrar Venta
+  // (Bluetooth/red, impresora del sistema, cancelar) para que la prueba sea
+  // representativa de lo que va a pasar con una venta real. Devuelve true si
+  // se llegó a pedir impresión remota a la PC principal (para saber cuánto
+  // esperar antes de borrar la venta de prueba).
+  Future<bool> _imprimirPruebaAndroid(VentaModel venta, NegocioModel negocio) async {
+    final opcion = await showDialog<String>(
+      useRootNavigator: false,
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Ticket de prueba', style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16)),
+        content: Text('¿Cómo querés probar la impresión?', style: GoogleFonts.poppins(fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'cancelar'),
+            child: Text('Cancelar', style: GoogleFonts.poppins()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'sistema'),
+            child: Text('Impresora del sistema', style: GoogleFonts.poppins()),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F1B3D)),
+            onPressed: () => Navigator.pop(context, 'imprimir'),
+            child: Text('Bluetooth/red', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || opcion == null || opcion == 'cancelar') return false;
+    if (opcion == 'sistema') {
+      try {
+        await Printing.layoutPdf(
+          onLayout: (formato) => VentaExportService().generarPdfFactura(venta, negocio),
+          name: 'ticket_prueba.pdf',
+        );
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No se pudo abrir el diálogo de impresión.')),
+          );
+        }
+      }
+      return false;
+    }
+    // 'imprimir': mismo orden de respaldo que _imprimirEscPosRed en
+    // Registrar Venta -Bluetooth emparejado, impresora de red, y si ninguna
+    // funciona, pedirle a la PC principal-, cada intento en su propio
+    // try/catch para que nunca se corte antes de llegar al siguiente.
+    if (negocio.impresoraBluetoothId.isNotEmpty) {
+      try {
+        final bytes = await VentaTicketEscPosService().generarTicket(venta, negocio);
+        final ok = await ImpresoraBluetoothService().imprimir(macAddress: negocio.impresoraBluetoothId, bytes: bytes);
+        if (ok) return false;
+      } catch (_) {}
+    }
+    if (negocio.impresoraRedIp.isNotEmpty) {
+      try {
+        final bytes = await VentaTicketEscPosService().generarTicket(venta, negocio);
+        final ok = await ImpresoraRedService().imprimir(ip: negocio.impresoraRedIp, puerto: negocio.impresoraRedPuerto, bytes: bytes);
+        if (ok) return false;
+      } catch (_) {}
+    }
+    return _pedirImpresionRemotaPrueba(venta);
+  }
+
+  // Mismo mecanismo que _intentarImpresionRemota en Registrar Venta: marca
+  // la venta de prueba con solicitud_impresion_en_vivo para que la PC
+  // principal (ver AppShell) la imprima sola apenas la detecte, si está
+  // conectada en este momento. Devuelve true si se llegó a pedir.
+  Future<bool> _pedirImpresionRemotaPrueba(VentaModel venta) async {
+    final pcConectada = await ref.read(presenciaImpresionRepositoryProvider).estaConectada();
+    if (!pcConectada) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo imprimir acá, y la PC principal no está conectada ahora mismo.')),
+        );
+      }
+      return false;
+    }
+    await ref.read(ventaRepositoryProvider).marcarSolicitudImpresionEnVivo(venta.id, true);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo imprimir acá: se envió la orden a la PC principal.')),
+      );
+    }
+    return true;
   }
 
   Widget _opcionAnchoTicket(String etiqueta, String descripcion, int mm) {
