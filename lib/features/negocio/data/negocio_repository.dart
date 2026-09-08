@@ -201,6 +201,14 @@ class NegocioRepository with ConRedMixin {
     return _guardar({'ancho_ticket_mm': mm});
   }
 
+  /// Ver NegocioModel.impresoraUsbUsarDriverWindows: cuando [valor] es true,
+  /// en Windows el ticket se manda como PDF por el driver de la impresora
+  /// (en vez de bytes ESC/POS crudos por USB) -para impresoras que no
+  /// hablan ESC/POS genérico, como la Star POP10-.
+  Future<void> establecerImpresoraUsbUsarDriverWindows(bool valor) {
+    return _guardar({'impresora_usb_usar_driver_windows': valor});
+  }
+
   /// [hostname] vacío vuelve al comportamiento de siempre (cualquier
   /// escritorio actúa como PC principal) -ver NegocioModel.pcPrincipalHostname-.
   Future<void> establecerPcPrincipalHostname(String hostname) {

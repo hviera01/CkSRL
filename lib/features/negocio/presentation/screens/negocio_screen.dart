@@ -1097,6 +1097,18 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
           const SizedBox(height: 20),
           Divider(color: Colors.grey.shade200),
           const SizedBox(height: 14),
+          _filaSwitchFactura(
+            titulo: 'Impresora especial (Star, u otra que no imprima bien directo)',
+            descripcion:
+                'Activá esto SOLO si al imprimir en Windows sale mal (saca demasiado papel sin cortar, o el texto sale raro/incompleto) -pasa con impresoras como la Star POP10, que no hablan el mismo lenguaje que la mayoría de impresoras térmicas-. Con esto activado, el ticket se manda por el programa oficial de la impresora (el que instalaste en Windows) en vez de mandarle los datos directo, para que esa impresora sí lo entienda bien. Si tu impresora ya imprimía bien, dejalo apagado.',
+            valor: widget.modelo.impresoraUsbUsarDriverWindows,
+            onChanged: (v) => ref
+                .read(negocioRepositoryProvider)
+                .establecerImpresoraUsbUsarDriverWindows(v),
+          ),
+          const SizedBox(height: 20),
+          Divider(color: Colors.grey.shade200),
+          const SizedBox(height: 14),
           Text(
             'Impresora térmica de red (para celular)',
             style: GoogleFonts.poppins(
@@ -1317,7 +1329,9 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
                 VentaExportService().generarPdfFactura(ventaPrueba!, negocio, formatoImpresora: formato),
             impresora: impresora,
             generarTicketEscPos: () => VentaTicketEscPosService().generarTicket(ventaPrueba!, negocio),
-            nombreImpresoraWindows: negocio.impresoraTermicaNombre,
+            nombreImpresoraWindows: negocio.impresoraUsbUsarDriverWindows
+                ? null
+                : negocio.impresoraTermicaNombre,
             vistaPreviaTicket: () => TicketEscPosPreview(venta: ventaPrueba!, negocio: negocio, esCopia: false),
             alFallarImprimir: () async {
               pidioRemota = await _pedirImpresionRemotaPrueba(ventaPrueba!);

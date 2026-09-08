@@ -38,7 +38,7 @@ class ImpresionEnVivoService {
     // En Windows se manda el ticket como ESC/POS crudo por USB en vez de
     // como PDF (ver el mismo cambio y su comentario grande en
     // venta_export_service.dart / registrar_venta_screen.dart).
-    if (!kIsWeb && Platform.isWindows) {
+    if (!kIsWeb && Platform.isWindows && !negocio.impresoraUsbUsarDriverWindows) {
       try {
         final bytes = await _servicioTicketEscPos.generarTicket(venta, negocio, forzarCopia: forzarCopia);
         return ImpresoraUsbWindowsService().imprimir(nombreImpresora: negocio.impresoraTermicaNombre, bytes: bytes);
@@ -70,6 +70,10 @@ class ImpresionEnVivoService {
       final bytes = await _servicioTicketEscPos.generarGuiaEnvio(venta, negocio, grande: grande);
       if (!kIsWeb && Platform.isWindows) {
         if (negocio.impresoraTermicaNombre.isEmpty) return false;
+        // La guía de envío es ESC/POS puro sin versión PDF (ver el mismo
+        // comentario en registrar_venta_screen.dart): si esta impresora no
+        // habla ESC/POS crudo no hay vía segura, mejor que quede pendiente.
+        if (negocio.impresoraUsbUsarDriverWindows) return false;
         return ImpresoraUsbWindowsService().imprimir(nombreImpresora: negocio.impresoraTermicaNombre, bytes: bytes);
       }
       if (negocio.impresoraRedIp.isEmpty) return false;

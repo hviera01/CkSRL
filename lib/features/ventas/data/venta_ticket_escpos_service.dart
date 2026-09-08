@@ -77,12 +77,13 @@ class VentaTicketEscPosService {
     // que tiene la impresora (576 en 80mm, 384 en 58mm -ver _paperSizePara-).
     final logo = decodificarLogoEscPos(negocio.logoBnBase64, maxDimension: paperSize == PaperSize.mm58 ? 280 : 420);
     final anchoDescripcion = _anchoDescripcionPara(paperSize);
+    final anchoTexto = _anchoTextoPara(paperSize);
 
     List<int> bytes = [];
     bytes += generador.reset();
-    bytes += _construirTicket(generador, venta, negocio, logo, esCopia: forzarCopia ?? false, anchoDescripcion: anchoDescripcion);
+    bytes += _construirTicket(generador, venta, negocio, logo, esCopia: forzarCopia ?? false, anchoDescripcion: anchoDescripcion, anchoTexto: anchoTexto);
     if (forzarCopia == null && negocio.facturaImprimirCopia) {
-      bytes += _construirTicket(generador, venta, negocio, logo, esCopia: true, anchoDescripcion: anchoDescripcion);
+      bytes += _construirTicket(generador, venta, negocio, logo, esCopia: true, anchoDescripcion: anchoDescripcion, anchoTexto: anchoTexto);
     }
     return bytes;
   }
@@ -235,8 +236,20 @@ class VentaTicketEscPosService {
   // cortan la línea ahí) — por eso todo el texto que se manda a imprimir
   // pasa por quitarTildes antes. Estos dos wrappers evitan tener que
   // acordarse de hacerlo a mano en cada línea.
-  List<int> _texto(Generator g, String texto, {PosStyles styles = const PosStyles()}) {
-    return g.text(quitarTildes(texto), styles: styles);
+  // [maxAncho] (cantidad de caracteres): si se manda, envuelve el texto por
+  // palabra completa (mismo mecanismo que _envolverDescripcion, nunca corta
+  // a mitad de palabra) antes de mandarlo -pedido explícito del dueño tras
+  // ver palabras cortadas en un ticket real-. Sin esto, un texto más largo
+  // que el ancho del papel lo corta la propia impresora/librería a la
+  // cantidad exacta de caracteres, sin importar si cae a mitad de palabra.
+  List<int> _texto(Generator g, String texto, {PosStyles styles = const PosStyles(), int? maxAncho}) {
+    final limpio = quitarTildes(texto);
+    if (maxAncho == null) return g.text(limpio, styles: styles);
+    List<int> bytes = [];
+    for (final linea in _envolverDescripcion(limpio, maxAncho)) {
+      bytes += g.text(linea, styles: styles);
+    }
+    return bytes;
   }
 
   PosColumn _columna(String texto, {required int width, PosStyles styles = const PosStyles()}) {
@@ -253,6 +266,12 @@ class VentaTicketEscPosService {
   // Si algún día cambia el ancho de columna acá (8) o spaceBetweenRows (5),
   // estos números hay que recalcularlos con la misma fórmula.
   int _anchoDescripcionPara(PaperSize paperSize) => paperSize == PaperSize.mm58 ? 20 : 31;
+
+  // Ancho real (en caracteres) de una línea de texto normal a todo lo ancho
+  // del papel (Generator.text, sin dividir en columnas) -32 en 58mm, 48 en
+  // 80mm, valores estándar de fuente A de ESC/POS para esos dos tamaños de
+  // rollo (mismo dato ya usado en _anchoCompleto para la guía de envío)-.
+  int _anchoTextoPara(PaperSize paperSize) => paperSize == PaperSize.mm58 ? 32 : 48;
 
   // Usados por generarGuiaEnvio: 48 caracteres por línea completa a ancho
   // normal (mismo dato citado arriba, ver Generator en esc_pos_utils_plus
@@ -318,7 +337,7 @@ class VentaTicketEscPosService {
     return lineas;
   }
 
-  List<int> _construirTicket(Generator generador, VentaModel venta, NegocioModel negocio, img.Image? logo, {required bool esCopia, required int anchoDescripcion}) {
+  List<int> _construirTicket(Generator generador, VentaModel venta, NegocioModel negocio, img.Image? logo, {required bool esCopia, required int anchoDescripcion, required int anchoTexto}) {
     final formatoFecha = DateFormat('dd/MM/yyyy hh:mm a');
     final formatoDia = DateFormat('dd/MM/yyyy');
 
@@ -343,34 +362,34 @@ class VentaTicketEscPosService {
 
     if (logo != null) bytes += generador.image(logo);
     if (negocio.nombre.isNotEmpty) {
-      bytes += _texto(generador, negocio.nombre.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2));
+      bytes += _texto(generador, negocio.nombre.toUpperCase(), styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2), maxAncho: anchoTexto ~/ 2);
     }
-    if (negocio.eslogan.isNotEmpty) bytes += _texto(generador, negocio.eslogan, styles: const PosStyles(align: PosAlign.center));
-    if (negocio.direccion.isNotEmpty) bytes += _texto(generador, 'Direccion: ${negocio.direccion}', styles: const PosStyles(align: PosAlign.center));
-    if (negocio.rtn.isNotEmpty) bytes += _texto(generador, 'RTN: ${negocio.rtn}', styles: const PosStyles(align: PosAlign.center));
-    if (negocio.telefono.isNotEmpty) bytes += _texto(generador, 'Tel: ${negocio.telefono}', styles: const PosStyles(align: PosAlign.center));
-    if (negocio.correo.isNotEmpty) bytes += _texto(generador, 'Email: ${negocio.correo}', styles: const PosStyles(align: PosAlign.center));
-    if (negocio.cai.isNotEmpty) bytes += _texto(generador, 'CAI: ${negocio.cai}', styles: const PosStyles(align: PosAlign.center));
+    if (negocio.eslogan.isNotEmpty) bytes += _texto(generador, negocio.eslogan, styles: const PosStyles(align: PosAlign.center), maxAncho: anchoTexto);
+    if (negocio.direccion.isNotEmpty) bytes += _texto(generador, 'Direccion: ${negocio.direccion}', styles: const PosStyles(align: PosAlign.center), maxAncho: anchoTexto);
+    if (negocio.rtn.isNotEmpty) bytes += _texto(generador, 'RTN: ${negocio.rtn}', styles: const PosStyles(align: PosAlign.center), maxAncho: anchoTexto);
+    if (negocio.telefono.isNotEmpty) bytes += _texto(generador, 'Tel: ${negocio.telefono}', styles: const PosStyles(align: PosAlign.center), maxAncho: anchoTexto);
+    if (negocio.correo.isNotEmpty) bytes += _texto(generador, 'Email: ${negocio.correo}', styles: const PosStyles(align: PosAlign.center), maxAncho: anchoTexto);
+    if (negocio.cai.isNotEmpty) bytes += _texto(generador, 'CAI: ${negocio.cai}', styles: const PosStyles(align: PosAlign.center), maxAncho: anchoTexto);
     bytes += generador.emptyLines(1);
     bytes += generador.hr();
 
-    bytes += _texto(generador, '${(tiposDocumento[venta.tipoDocumento] ?? venta.tipoDocumento).toUpperCase()} ${negocio.rangoPrefijo}${venta.numeroDocumento}', styles: const PosStyles(bold: true));
-    bytes += _texto(generador, 'Fecha: ${venta.fechaRegistro != null ? formatoFecha.format(venta.fechaRegistro!) : '-'}');
-    bytes += _texto(generador, 'Atendido por: ${venta.usuarioRegistro}');
-    bytes += _texto(generador, 'Condicion: ${venta.condicion}');
+    bytes += _texto(generador, '${(tiposDocumento[venta.tipoDocumento] ?? venta.tipoDocumento).toUpperCase()} ${negocio.rangoPrefijo}${venta.numeroDocumento}', styles: const PosStyles(bold: true), maxAncho: anchoTexto);
+    bytes += _texto(generador, 'Fecha: ${venta.fechaRegistro != null ? formatoFecha.format(venta.fechaRegistro!) : '-'}', maxAncho: anchoTexto);
+    bytes += _texto(generador, 'Atendido por: ${venta.usuarioRegistro}', maxAncho: anchoTexto);
+    bytes += _texto(generador, 'Condicion: ${venta.condicion}', maxAncho: anchoTexto);
     if (venta.condicion == 'Credito' && venta.fechaVencimiento != null) {
-      bytes += _texto(generador, 'Fecha de vencimiento: ${formatoDia.format(venta.fechaVencimiento!)}');
+      bytes += _texto(generador, 'Fecha de vencimiento: ${formatoDia.format(venta.fechaVencimiento!)}', maxAncho: anchoTexto);
     }
     bytes += generador.hr();
 
-    bytes += _texto(generador, 'Cliente: ${venta.nombreCliente.isEmpty ? 'CONSUMIDOR FINAL' : venta.nombreCliente}');
-    bytes += _texto(generador, 'ID/RTN Cliente: ${venta.documentoCliente.isEmpty ? 'N/A' : venta.documentoCliente}');
-    if (venta.oc.isNotEmpty) bytes += _texto(generador, 'No. O/C exenta: ${venta.oc}');
-    if (venta.regExonerado.isNotEmpty) bytes += _texto(generador, 'No. Reg de exonerado: ${venta.regExonerado}');
-    if (venta.regSag.isNotEmpty) bytes += _texto(generador, 'No. De reg de la SAG: ${venta.regSag}');
+    bytes += _texto(generador, 'Cliente: ${venta.nombreCliente.isEmpty ? 'CONSUMIDOR FINAL' : venta.nombreCliente}', maxAncho: anchoTexto);
+    bytes += _texto(generador, 'ID/RTN Cliente: ${venta.documentoCliente.isEmpty ? 'N/A' : venta.documentoCliente}', maxAncho: anchoTexto);
+    if (venta.oc.isNotEmpty) bytes += _texto(generador, 'No. O/C exenta: ${venta.oc}', maxAncho: anchoTexto);
+    if (venta.regExonerado.isNotEmpty) bytes += _texto(generador, 'No. Reg de exonerado: ${venta.regExonerado}', maxAncho: anchoTexto);
+    if (venta.regSag.isNotEmpty) bytes += _texto(generador, 'No. De reg de la SAG: ${venta.regSag}', maxAncho: anchoTexto);
     if (venta.observaciones.isNotEmpty) {
       bytes += generador.hr();
-      bytes += _texto(generador, 'Observaciones: ${venta.observaciones}');
+      bytes += _texto(generador, 'Observaciones: ${venta.observaciones}', maxAncho: anchoTexto);
     }
     bytes += generador.hr();
 
@@ -418,38 +437,38 @@ class VentaTicketEscPosService {
     bytes += generador.emptyLines(1);
     bytes += generador.hr();
 
-    bytes += _texto(generador, 'Son: ${convertirNumeroALetras(venta.totalAPagar)}');
+    bytes += _texto(generador, 'Son: ${convertirNumeroALetras(venta.totalAPagar)}', maxAncho: anchoTexto);
     if (venta.condicion != 'Credito') {
       if (venta.metodoPago == 'Efectivo') {
-        bytes += _texto(generador, 'Efectivo: ${formatearMoneda(venta.montoPago)}');
-        bytes += _texto(generador, 'Cambio: ${formatearMoneda(venta.montoCambio)}');
+        bytes += _texto(generador, 'Efectivo: ${formatearMoneda(venta.montoPago)}', maxAncho: anchoTexto);
+        bytes += _texto(generador, 'Cambio: ${formatearMoneda(venta.montoCambio)}', maxAncho: anchoTexto);
       } else if (venta.metodoPago == 'Tarjeta') {
-        bytes += _texto(generador, 'Pago con tarjeta: ${formatearMoneda(venta.totalAPagar)}');
+        bytes += _texto(generador, 'Pago con tarjeta: ${formatearMoneda(venta.totalAPagar)}', maxAncho: anchoTexto);
       } else if (venta.metodoPago == 'Transferencia') {
         bytes += _texto(generador, 'Transferencia');
       } else if (venta.metodoPago == 'Cheque') {
-        bytes += _texto(generador, 'Pago con cheque: ${formatearMoneda(venta.totalAPagar)}');
+        bytes += _texto(generador, 'Pago con cheque: ${formatearMoneda(venta.totalAPagar)}', maxAncho: anchoTexto);
       } else if (venta.metodoPago == 'Mixto') {
         for (final pago in venta.pagosMixtos) {
-          bytes += _texto(generador, '${pago.metodoPago}: ${formatearMoneda(pago.monto)}');
+          bytes += _texto(generador, '${pago.metodoPago}: ${formatearMoneda(pago.monto)}', maxAncho: anchoTexto);
         }
       }
     }
     bytes += generador.hr();
 
     if (negocio.rangoPrefijo.isNotEmpty || negocio.rangoDesde.isNotEmpty) {
-      bytes += _texto(generador, 'Rango Aut.: ${negocio.rangoPrefijo}${negocio.rangoDesde} al ${negocio.rangoPrefijo}${negocio.rangoHasta}');
+      bytes += _texto(generador, 'Rango Aut.: ${negocio.rangoPrefijo}${negocio.rangoDesde} al ${negocio.rangoPrefijo}${negocio.rangoHasta}', maxAncho: anchoTexto);
     }
     if (negocio.fechaLimiteEmision != null) {
-      bytes += _texto(generador, 'Fecha Limite: ${formatoDia.format(negocio.fechaLimiteEmision!)}');
+      bytes += _texto(generador, 'Fecha Limite: ${formatoDia.format(negocio.fechaLimiteEmision!)}', maxAncho: anchoTexto);
     }
     bytes += generador.emptyLines(1);
-    bytes += _texto(generador, 'ORIGINAL: CLIENTE');
-    bytes += _texto(generador, 'COPIA: OBLIGADO TRIBUTARIO EMISOR');
+    bytes += _texto(generador, 'ORIGINAL: CLIENTE', maxAncho: anchoTexto);
+    bytes += _texto(generador, 'COPIA: OBLIGADO TRIBUTARIO EMISOR', maxAncho: anchoTexto);
     bytes += generador.emptyLines(1);
-    bytes += _texto(generador, 'LA FACTURA ES BENEFICIO DE TODOS, EXIJALA!', styles: const PosStyles(align: PosAlign.center, bold: true));
+    bytes += _texto(generador, 'LA FACTURA ES BENEFICIO DE TODOS, EXIJALA!', styles: const PosStyles(align: PosAlign.center, bold: true), maxAncho: anchoTexto);
     bytes += generador.emptyLines(1);
-    bytes += _texto(generador, 'GRACIAS POR SU COMPRA!', styles: const PosStyles(align: PosAlign.center, bold: true));
+    bytes += _texto(generador, 'GRACIAS POR SU COMPRA!', styles: const PosStyles(align: PosAlign.center, bold: true), maxAncho: anchoTexto);
     bytes += generador.emptyLines(1);
     bytes += _texto(generador, esCopia ? 'COPIA' : 'ORIGINAL', styles: const PosStyles(align: PosAlign.right, bold: true));
     bytes += generador.cut();

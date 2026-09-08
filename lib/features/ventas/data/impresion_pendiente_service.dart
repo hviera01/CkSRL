@@ -61,7 +61,9 @@ class ImpresionPendienteService {
           impresora: impresora,
           generarTicketEscPos: () =>
               _servicioTicketEscPos.generarTicket(venta, negocio),
-          nombreImpresoraWindows: negocio.impresoraTermicaNombre,
+          nombreImpresoraWindows: negocio.impresoraUsbUsarDriverWindows
+              ? null
+              : negocio.impresoraTermicaNombre,
           vistaPreviaTicket: () => TicketEscPosPreview(
             venta: venta,
             negocio: negocio,
@@ -121,7 +123,7 @@ class ImpresionPendienteService {
     // Ver el mismo comentario en registrar_venta_screen.dart: en Windows se
     // manda el ticket como ESC/POS crudo por USB en vez de como PDF, para no
     // depender del tope de tamaño de página fijo que tienen algunos drivers.
-    if (!kIsWeb && Platform.isWindows) {
+    if (!kIsWeb && Platform.isWindows && !negocio.impresoraUsbUsarDriverWindows) {
       try {
         final bytes = await _servicioTicketEscPos.generarTicket(venta, negocio);
         final ok = ImpresoraUsbWindowsService().imprimir(

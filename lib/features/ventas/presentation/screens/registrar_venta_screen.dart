@@ -2726,7 +2726,9 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
           impresora: impresora,
           generarTicketEscPos: () =>
               _servicioTicketEscPos.generarTicket(venta, negocio),
-          nombreImpresoraWindows: negocio.impresoraTermicaNombre,
+          nombreImpresoraWindows: negocio.impresoraUsbUsarDriverWindows
+              ? null
+              : negocio.impresoraTermicaNombre,
           vistaPreviaTicket: () => TicketEscPosPreview(
             venta: venta,
             negocio: negocio,
@@ -2828,7 +2830,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
     // y recortan o reescalan cualquier factura más larga que eso sin
     // importar qué le pidamos al PDF. Mismo mecanismo que ya usa la
     // impresión por red/celular, que no tiene ese límite.
-    if (!kIsWeb && Platform.isWindows) {
+    if (!kIsWeb && Platform.isWindows && !negocio.impresoraUsbUsarDriverWindows) {
       try {
         final bytes = await _servicioTicketEscPos.generarTicket(venta, negocio);
         final ok = ImpresoraUsbWindowsService().imprimir(
@@ -2935,6 +2937,18 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
         if (negocio.impresoraTermicaNombre.isEmpty) {
           _mostrarMensaje(
             'No hay impresora configurada, no se pudo imprimir la guía de envío',
+          );
+          return;
+        }
+        // La guía de envío no tiene versión PDF (es ESC/POS puro, ver
+        // VentaTicketEscPosService.generarGuiaEnvio) así que si esta
+        // impresora no habla ESC/POS crudo (ver impresoraUsbUsarDriverWindows)
+        // no hay ninguna vía segura para mandarla -mejor avisar que arriesgar
+        // el mismo problema de la Star POP10 (papel sin cortar/texto mal
+        // interpretado) con un ticket que ni siquiera se ve en pantalla antes-.
+        if (negocio.impresoraUsbUsarDriverWindows) {
+          _mostrarMensaje(
+            'Esta impresora no soporta la guía de envío (activaste "usar el driver de Windows"): usá el ticket normal',
           );
           return;
         }

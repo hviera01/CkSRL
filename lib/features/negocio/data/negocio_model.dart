@@ -155,6 +155,19 @@ class NegocioModel {
   // negocios que todavía no tienen impresora física conectada. Default true
   // (comportamiento de siempre: sí se imprime).
   final bool imprimirFacturas;
+  // Si es true, en Windows el ticket/factura NO se manda como bytes ESC/POS
+  // crudos por USB (ver ImpresoraUsbWindowsService) sino como PDF a través
+  // del driver de Windows normal de la impresora térmica elegida arriba
+  // -pedido explícito del dueño tras una impresión real que salió mal con
+  // la Star POP10: esa impresora usa su propio protocolo (StarPRNT), no
+  // ESC/POS genérico, así que al mandarle los bytes crudos directo nunca
+  // reconoció el comando de "cortar papel" y siguió alimentando papel en
+  // blanco sin parar, además de imprimir texto interpretado a medias-. El
+  // driver oficial de Star sí sabe traducir a su propio protocolo, así que
+  // este interruptor evita mandarle bytes que no entiende. Default false
+  // (comportamiento de siempre: ESC/POS crudo, correcto para impresoras
+  // genéricas que sí lo hablan).
+  final bool impresoraUsbUsarDriverWindows;
 
   const NegocioModel({
     this.nombre = '',
@@ -187,6 +200,7 @@ class NegocioModel {
     this.tecladoCompactoTablet = false,
     this.pcPrincipalHostname = '',
     this.imprimirFacturas = true,
+    this.impresoraUsbUsarDriverWindows = false,
   });
 
   bool get tieneClaveEspecial => claveEspecialHash.isNotEmpty;
@@ -226,6 +240,8 @@ class NegocioModel {
       tecladoCompactoTablet: data['teclado_compacto_tablet'] ?? false,
       pcPrincipalHostname: data['pc_principal_hostname'] ?? '',
       imprimirFacturas: data['imprimir_facturas'] ?? true,
+      impresoraUsbUsarDriverWindows:
+          data['impresora_usb_usar_driver_windows'] ?? false,
     );
   }
 
@@ -261,6 +277,7 @@ class NegocioModel {
       'teclado_compacto_tablet': tecladoCompactoTablet,
       'pc_principal_hostname': pcPrincipalHostname,
       'imprimir_facturas': imprimirFacturas,
+      'impresora_usb_usar_driver_windows': impresoraUsbUsarDriverWindows,
     };
   }
 
@@ -295,6 +312,7 @@ class NegocioModel {
     bool? tecladoCompactoTablet,
     String? pcPrincipalHostname,
     bool? imprimirFacturas,
+    bool? impresoraUsbUsarDriverWindows,
   }) {
     return NegocioModel(
       nombre: nombre ?? this.nombre,
@@ -332,6 +350,8 @@ class NegocioModel {
           tecladoCompactoTablet ?? this.tecladoCompactoTablet,
       pcPrincipalHostname: pcPrincipalHostname ?? this.pcPrincipalHostname,
       imprimirFacturas: imprimirFacturas ?? this.imprimirFacturas,
+      impresoraUsbUsarDriverWindows:
+          impresoraUsbUsarDriverWindows ?? this.impresoraUsbUsarDriverWindows,
     );
   }
 }

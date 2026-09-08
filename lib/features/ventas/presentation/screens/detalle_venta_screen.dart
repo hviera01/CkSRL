@@ -337,7 +337,9 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
             negocio,
             forzarCopia: esCopia,
           ),
-          nombreImpresoraWindows: negocio.impresoraTermicaNombre,
+          nombreImpresoraWindows: negocio.impresoraUsbUsarDriverWindows
+              ? null
+              : negocio.impresoraTermicaNombre,
           vistaPreviaTicket: () => TicketEscPosPreview(
             venta: venta,
             negocio: negocio,
@@ -523,6 +525,15 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
         if (negocio.impresoraTermicaNombre.isEmpty) {
           _mostrarMensaje(
             'No hay impresora configurada, no se pudo imprimir la guía de envío',
+          );
+          return;
+        }
+        // Ver el mismo comentario en registrar_venta_screen.dart: la guía de
+        // envío es ESC/POS puro sin versión PDF, así que si esta impresora no
+        // habla ESC/POS crudo no hay vía segura para mandarla.
+        if (negocio.impresoraUsbUsarDriverWindows) {
+          _mostrarMensaje(
+            'Esta impresora no soporta la guía de envío (activaste "usar el driver de Windows"): usá el ticket normal',
           );
           return;
         }

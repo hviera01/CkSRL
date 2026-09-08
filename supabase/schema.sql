@@ -83,7 +83,12 @@ create table negocio_config (
   ancho_ticket_mm smallint not null default 80 check (ancho_ticket_mm in (58, 80)),
   teclado_compacto_tablet boolean not null default false,
   pc_principal_hostname text not null default '',
-  imprimir_facturas boolean not null default true
+  imprimir_facturas boolean not null default true,
+  -- Ver NegocioModel.impresoraUsbUsarDriverWindows: true = en Windows el
+  -- ticket se manda como PDF por el driver de la impresora en vez de bytes
+  -- ESC/POS crudos por USB (impresoras que no hablan ESC/POS genérico,
+  -- como la Star POP10, que usa su propio protocolo StarPRNT).
+  impresora_usb_usar_driver_windows boolean not null default false
 );
 comment on table negocio_config is 'Fila única (id=1) — reemplaza el doc configuracion/negocio de Firestore.';
 
