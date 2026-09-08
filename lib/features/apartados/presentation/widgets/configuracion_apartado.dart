@@ -128,6 +128,14 @@ class ConfiguracionApartadoController {
   // días) que ya traía el campo numérico libre de antes.
   String intervaloPresetId = 'quincenal';
 
+  // Fecha de la Cuota 1 -pedido explícito del dueño: por defecto sigue
+  // saliendo automático (hoy + 1 frecuencia, ver calcularCuotasApartado),
+  // pero el usuario puede elegir otra fecha a mano si quiere correr el
+  // arranque de los pagos -por ejemplo, darle un mes de gracia-. null =
+  // automático; las cuotas siguientes SIEMPRE respetan la modalidad/
+  // frecuencia elegida a partir de esta fecha, se haya tocado o no.
+  DateTime? fechaPrimerPago;
+
   ConfiguracionApartadoController({String nombreClienteInicial = '', this.idCliente})
       : clienteController = TextEditingController(text: nombreClienteInicial);
 
@@ -183,7 +191,21 @@ class ConfiguracionApartadoController {
       numeroCuotas: numeroCuotas,
       intervaloDias: intervalo.dias,
       intervaloMeses: intervalo.meses,
+      // calcularCuotasApartado arma la Cuota 1 en `desde + 1 frecuencia`
+      // (nunca en `desde` mismo): si el usuario eligió una fecha exacta para
+      // la Cuota 1, hay que retroceder una frecuencia para que esa fórmula
+      // -sin tocarla, sigue igual para todo el resto que no usa esto- dé
+      // justo la fecha que se pidió.
+      desde: fechaPrimerPago == null ? null : _restarIntervalo(fechaPrimerPago!, intervalo),
     );
+  }
+
+  static DateTime _restarIntervalo(DateTime fecha, IntervaloApartado intervalo) {
+    if (intervalo.meses > 0) {
+      final mesesTotales = fecha.year * 12 + (fecha.month - 1) - intervalo.meses;
+      return DateTime(mesesTotales ~/ 12, mesesTotales % 12 + 1, fecha.day);
+    }
+    return fecha.subtract(Duration(days: intervalo.dias));
   }
 
   /// Devuelve el mensaje de error a mostrar, o null si está todo bien (las
@@ -521,6 +543,8 @@ class ConfiguracionApartadoForm extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
+                _filaFechaPrimerPago(context, controller, formatoFecha, alCambiar),
+                const SizedBox(height: 6),
                 for (final cuota in controller.cuotasSobre(montoTotal))
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
@@ -539,6 +563,80 @@ class ConfiguracionApartadoForm extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  // Muestra cuándo cae la Cuota 1 -automático (hoy + 1 frecuencia) salvo que
+  // el usuario elija otra fecha a mano, ver ConfiguracionApartadoController.
+  // fechaPrimerPago-, con un lápiz para cambiarla y una "x" para volver a
+  // automático.
+  Widget _filaFechaPrimerPago(
+    BuildContext context,
+    ConfiguracionApartadoController controller,
+    DateFormat formatoFecha,
+    VoidCallback alCambiar,
+  ) {
+    final elegida = controller.fechaPrimerPago;
+    final automatica = elegida == null;
+    final primeraCuota = controller.cuotasSobre(montoTotal).isNotEmpty
+        ? controller.cuotasSobre(montoTotal).first.fechaProgramada
+        : null;
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () async {
+        final elegidaAntes = controller.fechaPrimerPago ?? primeraCuota ?? DateTime.now();
+        final fecha = await showDatePicker(
+          context: context,
+          initialDate: elegidaAntes,
+          firstDate: DateTime.now().subtract(const Duration(days: 1)),
+          lastDate: DateTime.now().add(const Duration(days: 3650)),
+          helpText: 'Fecha de la primera cuota',
+        );
+        if (fecha != null) {
+          controller.fechaPrimerPago = fecha;
+          alCambiar();
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Icon(Icons.event_outlined, size: 16, color: Colors.grey.shade600),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                primeraCuota == null
+                    ? 'Elegí número de cuotas y frecuencia primero'
+                    : 'Primera cuota: ${formatoFecha.format(primeraCuota)}'
+                        '${automatica ? ' (automático)' : ''}',
+                style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade600),
+              ),
+            ),
+            if (!automatica)
+              InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  controller.fechaPrimerPago = null;
+                  alCambiar();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Text(
+                    'Volver a automático',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF0F1B3D),
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              )
+            else
+              Icon(Icons.edit_outlined, size: 15, color: Colors.grey.shade500),
+          ],
+        ),
+      ),
     );
   }
 }
