@@ -156,8 +156,6 @@ class TicketEscPosPreview extends StatelessWidget {
           fila('SUBTOTAL:', formatearMoneda(venta.subtotal)),
           if (venta.descuentoGlobal > 0) linea('Descuento global: ${_formatoCantidad(venta.descuentoGlobal)}%'),
           if (descuentosYRebajas > 0) fila('Descuentos y rebajas:', formatearMoneda(descuentosYRebajas)),
-          fila('Importe Exento:', formatearMoneda(0)),
-          fila('Importe Exonerado:', formatearMoneda(0)),
           if (esFacturable) ...[
             fila('Gravado 15%:', formatearMoneda(venta.subtotal)),
             fila('Gravado 18%:', formatearMoneda(0)),

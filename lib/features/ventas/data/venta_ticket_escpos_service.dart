@@ -397,8 +397,6 @@ class VentaTicketEscPosService {
     bytes += _filaTotal(generador, 'SUBTOTAL:', venta.subtotal);
     if (venta.descuentoGlobal > 0) bytes += _texto(generador, 'Descuento global: ${_formatoCantidad(venta.descuentoGlobal)}%');
     if (descuentosYRebajas > 0) bytes += _filaTotal(generador, 'Descuentos y rebajas:', descuentosYRebajas);
-    bytes += _filaTotal(generador, 'Importe Exento:', 0);
-    bytes += _filaTotal(generador, 'Importe Exonerado:', 0);
     if (esFacturable) {
       bytes += _filaTotal(generador, 'Gravado 15%:', venta.subtotal);
       bytes += _filaTotal(generador, 'Gravado 18%:', 0);

@@ -563,8 +563,6 @@ class VentaExportService {
             _filaTotal('SUBTOTAL:', venta.subtotal),
             if (venta.descuentoGlobal > 0) pw.Text('Descuento global: ${_formatoCantidad(venta.descuentoGlobal)}%', style: const pw.TextStyle(fontSize: fSmall)),
             if (descuentosYRebajas > 0) _filaTotal('Descuentos y rebajas:', descuentosYRebajas),
-            _filaTotal('Importe Exento:', 0),
-            _filaTotal('Importe Exonerado:', 0),
             if (esFacturable) ...[
               _filaTotal('Gravado 15%:', venta.subtotal),
               _filaTotal('Gravado 18%:', 0),

@@ -30,6 +30,22 @@ class ProductoRepository with ConRedMixin {
     return 'PROD-${ahora.substring(ahora.length - 8)}';
   }
 
+  // EAN-13 interno: el prefijo '20' está reservado por el estándar GS1 para
+  // uso interno de cada negocio (nunca choca con un código real de fábrica),
+  // seguido de 10 dígitos del timestamp + un dígito verificador real, para
+  // que quede en el mismo formato que cualquier código de barras escaneable.
+  String _generarCodigoBarras() {
+    final ahora = DateTime.now().microsecondsSinceEpoch.toString();
+    final cuerpo = '20${ahora.substring(ahora.length - 10)}';
+    var suma = 0;
+    for (var i = 0; i < cuerpo.length; i++) {
+      final digito = int.parse(cuerpo[i]);
+      suma += (i % 2 == 0) ? digito : digito * 3;
+    }
+    final verificador = (10 - (suma % 10)) % 10;
+    return '$cuerpo$verificador';
+  }
+
   Future<ProductoModel> crear({
     required String codigo,
     required String codigoBarras,
@@ -56,9 +72,10 @@ class ProductoRepository with ConRedMixin {
           throw Exception('Ya existe un producto con ese código');
         }
       }
+      final codigoBarrasFinal = codigoBarras.trim().isEmpty ? _generarCodigoBarras() : codigoBarras.trim();
       final fila = await _db.from('productos').insert({
         'codigo': codigoFinal,
-        'codigo_barras': codigoBarras.trim(),
+        'codigo_barras': codigoBarrasFinal,
         'nombre': nombre.trim(),
         'descripcion': descripcion.trim(),
         'id_categoria': idCategoria.isEmpty ? null : idCategoria,
@@ -91,7 +108,7 @@ class ProductoRepository with ConRedMixin {
       return ProductoModel(
         id: id,
         codigo: codigoFinal,
-        codigoBarras: codigoBarras.trim(),
+        codigoBarras: codigoBarrasFinal,
         nombre: nombre.trim(),
         descripcion: descripcion.trim(),
         idCategoria: idCategoria,
