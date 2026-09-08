@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   connectivity_plus
+  print_bluetooth_thermal
   printing
   share_plus
   url_launcher_windows

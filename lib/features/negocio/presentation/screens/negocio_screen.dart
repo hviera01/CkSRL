@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ import '../../data/negocio_model.dart';
 import '../../providers/negocio_provider.dart';
 import '../widgets/negocio_logo_picker.dart';
 import '../widgets/selector_impresora.dart';
+import '../widgets/selector_impresora_bluetooth.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
 import '../../../../core/utils/tablet_utils_stub.dart'
@@ -1022,6 +1024,24 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
             ),
           ),
           const SizedBox(height: 18),
+          Text(
+            'Ancho del ticket',
+            style: GoogleFonts.poppins(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF1A1A1A),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'El tamaño del rollo de papel térmico. Afecta la impresión ESC/POS real y su vista previa en pantalla.',
+            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 10),
+          _selectorAnchoTicket(),
+          const SizedBox(height: 20),
+          Divider(color: Colors.grey.shade200),
+          const SizedBox(height: 18),
           Flex(
             direction: esMovil ? Axis.vertical : Axis.horizontal,
             crossAxisAlignment: esMovil
@@ -1205,8 +1225,73 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
                 ),
               ],
             ),
+          if (!kIsWeb && Platform.isAndroid) ...[
+            const SizedBox(height: 20),
+            Divider(color: Colors.grey.shade200),
+            const SizedBox(height: 14),
+            SelectorImpresoraBluetooth(
+              idActual: widget.modelo.impresoraBluetoothId,
+              nombreActual: widget.modelo.impresoraBluetoothNombre,
+              onSeleccionar: (id, nombre) => ref
+                  .read(negocioRepositoryProvider)
+                  .actualizarImpresoraBluetooth(id, nombre),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _opcionAnchoTicket(String etiqueta, String descripcion, int mm) {
+    final activo = widget.modelo.anchoTicketMm == mm;
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: activo
+            ? null
+            : () => ref
+                .read(negocioRepositoryProvider)
+                .establecerAnchoTicketMm(mm),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: activo ? const Color(0xFF0F1B3D) : const Color(0xFFE8EAF0),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: activo ? const Color(0xFF0F1B3D) : const Color(0xFFB6BCC7)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                etiqueta,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: activo ? Colors.white : const Color(0xFF1A1A1A),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                descripcion,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  color: activo ? Colors.white70 : Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _selectorAnchoTicket() {
+    return Row(
+      children: [
+        _opcionAnchoTicket('58mm (angosto)', '32 columnas · tipo POS de tarjeta', 58),
+        const SizedBox(width: 12),
+        _opcionAnchoTicket('80mm', '48 columnas · el de siempre', 80),
+      ],
     );
   }
 

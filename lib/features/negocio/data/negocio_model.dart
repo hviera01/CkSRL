@@ -116,6 +116,19 @@ class NegocioModel {
   // sistema operativo.
   final String impresoraRedIp;
   final int impresoraRedPuerto;
+  // Impresora térmica Bluetooth (ESC/POS), Android únicamente: mac (id) y
+  // nombre del dispositivo ya emparejado que se eligió en Negocio (ver
+  // SelectorImpresoraBluetooth). Vacío = sin impresora Bluetooth elegida
+  // -RegistrarVentaScreen sigue con la impresora de red, y si tampoco hay,
+  // con el respaldo remoto de siempre (ver _imprimirEscPosRed)-.
+  final String impresoraBluetoothId;
+  final String impresoraBluetoothNombre;
+  // Ancho del rollo térmico -pedido explícito del dueño: "que existan las
+  // DOS medidas disponibles, por si acaso"-. 58 = ticket angosto (32
+  // columnas ESC/POS, tipo POS de tarjeta), 80 = el de siempre (48 columnas).
+  // Afecta tanto la impresión ESC/POS real (ver VentaTicketEscPosService)
+  // como su vista previa en pantalla (ver TicketEscPosPreview).
+  final int anchoTicketMm;
   // Si es true, en tablet (ancho de pantalla de tablet + dispositivo táctil,
   // ver esTabletTactil en core/utils/tablet_utils.dart) los campos de texto
   // de toda la app abren un teclado propio, chico, en vez del teclado nativo
@@ -168,6 +181,9 @@ class NegocioModel {
     this.modoImpresion = ModoImpresion.preguntar,
     this.impresoraRedIp = '',
     this.impresoraRedPuerto = 9100,
+    this.impresoraBluetoothId = '',
+    this.impresoraBluetoothNombre = '',
+    this.anchoTicketMm = 80,
     this.tecladoCompactoTablet = false,
     this.pcPrincipalHostname = '',
     this.imprimirFacturas = true,
@@ -204,6 +220,9 @@ class NegocioModel {
       modoImpresion: data['modo_impresion'] ?? ModoImpresion.preguntar,
       impresoraRedIp: data['impresora_red_ip'] ?? '',
       impresoraRedPuerto: ((data['impresora_red_puerto'] ?? 9100) as num).toInt(),
+      impresoraBluetoothId: data['impresora_bluetooth_id'] ?? '',
+      impresoraBluetoothNombre: data['impresora_bluetooth_nombre'] ?? '',
+      anchoTicketMm: ((data['ancho_ticket_mm'] ?? 80) as num).toInt(),
       tecladoCompactoTablet: data['teclado_compacto_tablet'] ?? false,
       pcPrincipalHostname: data['pc_principal_hostname'] ?? '',
       imprimirFacturas: data['imprimir_facturas'] ?? true,
@@ -236,6 +255,9 @@ class NegocioModel {
       'modo_impresion': modoImpresion,
       'impresora_red_ip': impresoraRedIp,
       'impresora_red_puerto': impresoraRedPuerto,
+      'impresora_bluetooth_id': impresoraBluetoothId,
+      'impresora_bluetooth_nombre': impresoraBluetoothNombre,
+      'ancho_ticket_mm': anchoTicketMm,
       'teclado_compacto_tablet': tecladoCompactoTablet,
       'pc_principal_hostname': pcPrincipalHostname,
       'imprimir_facturas': imprimirFacturas,
@@ -267,6 +289,9 @@ class NegocioModel {
     String? modoImpresion,
     String? impresoraRedIp,
     int? impresoraRedPuerto,
+    String? impresoraBluetoothId,
+    String? impresoraBluetoothNombre,
+    int? anchoTicketMm,
     bool? tecladoCompactoTablet,
     String? pcPrincipalHostname,
     bool? imprimirFacturas,
@@ -299,6 +324,10 @@ class NegocioModel {
       modoImpresion: modoImpresion ?? this.modoImpresion,
       impresoraRedIp: impresoraRedIp ?? this.impresoraRedIp,
       impresoraRedPuerto: impresoraRedPuerto ?? this.impresoraRedPuerto,
+      impresoraBluetoothId: impresoraBluetoothId ?? this.impresoraBluetoothId,
+      impresoraBluetoothNombre:
+          impresoraBluetoothNombre ?? this.impresoraBluetoothNombre,
+      anchoTicketMm: anchoTicketMm ?? this.anchoTicketMm,
       tecladoCompactoTablet:
           tecladoCompactoTablet ?? this.tecladoCompactoTablet,
       pcPrincipalHostname: pcPrincipalHostname ?? this.pcPrincipalHostname,

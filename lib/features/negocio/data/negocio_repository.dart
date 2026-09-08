@@ -189,6 +189,18 @@ class NegocioRepository with ConRedMixin {
     return _guardar({'impresora_red_ip': ip, 'impresora_red_puerto': puerto});
   }
 
+  /// Impresora térmica Bluetooth (Android, ver NegocioModel.impresoraBluetoothId).
+  /// [id] vacío = sin impresora Bluetooth elegida.
+  Future<void> actualizarImpresoraBluetooth(String id, String nombre) {
+    return _guardar({'impresora_bluetooth_id': id, 'impresora_bluetooth_nombre': nombre});
+  }
+
+  /// Ancho del rollo térmico usado para el ticket de venta (58 o 80mm, ver
+  /// NegocioModel.anchoTicketMm).
+  Future<void> establecerAnchoTicketMm(int mm) {
+    return _guardar({'ancho_ticket_mm': mm});
+  }
+
   /// [hostname] vacío vuelve al comportamiento de siempre (cualquier
   /// escritorio actúa como PC principal) -ver NegocioModel.pcPrincipalHostname-.
   Future<void> establecerPcPrincipalHostname(String hostname) {

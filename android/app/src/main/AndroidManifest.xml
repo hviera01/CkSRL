@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Necesario para mandar el ticket de venta por socket TCP a una
          impresora térmica en la red WiFi local (ver ImpresoraRedService). -->
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -7,6 +8,21 @@
          le pide confirmación al usuario antes de instalar, esto solo
          habilita que la app pueda abrir esa pantalla. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- Impresora térmica Bluetooth (ver ImpresoraBluetoothService/
+         print_bluetooth_thermal): solo se usan dispositivos YA emparejados
+         (getBondedDevices), no se escanean dispositivos nuevos alrededor, así
+         que no hace falta declarar acceso a ubicación -de ahí el
+         "neverForLocation" en BLUETOOTH_SCAN, que evita que Android exija
+         también el permiso de ubicación en Android 12+-. BLUETOOTH/
+         BLUETOOTH_ADMIN (con maxSdkVersion) son las versiones viejas de estos
+         mismos permisos, para equipos con Android 11 o anterior; en 12+ las
+         reemplazan BLUETOOTH_CONNECT/BLUETOOTH_SCAN. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s"/>
     <application
         android:label="Ck S de R.L. de C.V."
         android:name="${applicationName}"

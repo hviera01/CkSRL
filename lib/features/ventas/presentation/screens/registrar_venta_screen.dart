@@ -37,6 +37,7 @@ import '../../../promociones/data/promocion_model.dart';
 import '../../../promociones/providers/promociones_provider.dart';
 import '../../../promociones/presentation/widgets/promocion_detectada_dialog.dart';
 import '../../../promociones/presentation/widgets/promociones_vigentes_dialog.dart';
+import '../../../../core/services/impresora_bluetooth_service.dart';
 import '../../../../core/services/impresora_red_service.dart';
 import '../../../../core/services/impresora_usb_windows_service.dart';
 import '../../../../core/utils/codigo_barras_utils.dart';
@@ -211,6 +212,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
   final _servicioExport = VentaExportService();
   final _servicioTicketEscPos = VentaTicketEscPosService();
   final _servicioImpresoraRed = ImpresoraRedService();
+  final _servicioImpresoraBluetooth = ImpresoraBluetoothService();
   bool _guardando = false;
 
   // Campo de "escanear código de barras" directo en esta pantalla (sin
@@ -3028,26 +3030,53 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
     }
   }
 
-  // Intenta imprimir por ESC/POS de red (Android/iOS). Si no hay impresora
-  // de red configurada en este equipo, o el intento falla -lo más común: el
-  // celular no está conectado a la misma red que la impresora-, antes de
-  // resignarse a dejarla pendiente se prueba pedirle a la PC principal que
-  // la imprima ella sola, igual que desde el navegador del celular (ver
-  // _manejarImpresion, rama kIsWeb && esMovil): en el celular casi nunca se
-  // va a poder llegar de verdad hasta la impresora física, así que este
-  // respaldo es el camino más común, no la excepción.
+  // Intenta imprimir por ESC/POS en Android/iOS, en orden: 1) impresora
+  // Bluetooth elegida en Negocio (solo Android -pedido explícito del dueño:
+  // a veces se conecta la impresora por cable/Bluetooth en el celular en vez
+  // de por red WiFi-); 2) impresora de red (impresoraRedIp, como ya existía,
+  // única vía en iOS). Si ninguna de las dos está configurada, o el intento
+  // falla -lo más común: el celular no está conectado a la misma red/no está
+  // emparejado con la impresora-, antes de resignarse a dejarla pendiente se
+  // prueba pedirle a la PC principal que la imprima ella sola, igual que
+  // desde el navegador del celular (ver _manejarImpresion, rama kIsWeb &&
+  // esMovil): en el celular casi nunca se va a poder llegar de verdad hasta
+  // la impresora física, así que este respaldo es el camino más común, no la
+  // excepción.
+  //
+  // Cada intento va en su propio try/catch: ni generarTicket (podría fallar
+  // decodificando el logo, por ejemplo) ni el envío en sí deben poder tirar
+  // una excepción sin manejar que corte el flujo antes de llegar al
+  // siguiente respaldo -ese es justo el caso que se quiere evitar (fallar en
+  // silencio o con un error técnico en vez de caer al respaldo correcto)-.
   Future<void> _imprimirEscPosRed(
     VentaModel venta,
     NegocioModel negocio,
   ) async {
+    if (!kIsWeb && Platform.isAndroid && negocio.impresoraBluetoothId.isNotEmpty) {
+      try {
+        final bytes = await _servicioTicketEscPos.generarTicket(venta, negocio);
+        final ok = await _servicioImpresoraBluetooth.imprimir(
+          macAddress: negocio.impresoraBluetoothId,
+          bytes: bytes,
+        );
+        if (ok) return;
+      } catch (_) {
+        // Sigue al siguiente respaldo (impresora de red y, si tampoco, PC
+        // principal/pendiente) en vez de propagar la excepción.
+      }
+    }
     if (negocio.impresoraRedIp.isNotEmpty) {
-      final bytes = await _servicioTicketEscPos.generarTicket(venta, negocio);
-      final ok = await _servicioImpresoraRed.imprimir(
-        ip: negocio.impresoraRedIp,
-        puerto: negocio.impresoraRedPuerto,
-        bytes: bytes,
-      );
-      if (ok) return;
+      try {
+        final bytes = await _servicioTicketEscPos.generarTicket(venta, negocio);
+        final ok = await _servicioImpresoraRed.imprimir(
+          ip: negocio.impresoraRedIp,
+          puerto: negocio.impresoraRedPuerto,
+          bytes: bytes,
+        );
+        if (ok) return;
+      } catch (_) {
+        // Sigue al respaldo de PC principal/pendiente.
+      }
     }
     final ventaRepoLocal = ref.read(ventaRepositoryProvider);
     final futurePendiente = ventaRepoLocal.marcarPendienteImpresion(

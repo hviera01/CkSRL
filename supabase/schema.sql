@@ -74,6 +74,13 @@ create table negocio_config (
   modo_impresion text not null default 'preguntar' check (modo_impresion in ('preguntar', 'directo')),
   impresora_red_ip text not null default '',
   impresora_red_puerto integer not null default 9100,
+  -- Impresora térmica Bluetooth (Android, ver NegocioModel.impresoraBluetoothId):
+  -- mac address y nombre del dispositivo ya emparejado.
+  impresora_bluetooth_id text not null default '',
+  impresora_bluetooth_nombre text not null default '',
+  -- Ancho del rollo térmico del ticket de venta (ver NegocioModel.anchoTicketMm):
+  -- 58 = angosto/32 columnas ESC/POS, 80 = el de siempre/48 columnas.
+  ancho_ticket_mm smallint not null default 80 check (ancho_ticket_mm in (58, 80)),
   teclado_compacto_tablet boolean not null default false,
   pc_principal_hostname text not null default '',
   imprimir_facturas boolean not null default true

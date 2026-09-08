@@ -70,20 +70,29 @@ class VentaTicketEscPosService {
   /// detalle de venta-.
   Future<List<int>> generarTicket(VentaModel venta, NegocioModel negocio, {bool? forzarCopia}) async {
     final perfil = await CapabilityProfile.load();
-    final generador = Generator(PaperSize.mm80, perfil);
+    final paperSize = _paperSizePara(negocio);
+    final generador = Generator(paperSize, perfil);
     // Un poco más grande/ancho que el default (300) para que se note más
-    // pegado al nombre del negocio, sin pasarse de los ~576 puntos de ancho
-    // que tiene una impresora de 80mm.
-    final logo = decodificarLogoEscPos(negocio.logoBnBase64, maxDimension: 420);
+    // pegado al nombre del negocio, sin pasarse de los puntos de ancho reales
+    // que tiene la impresora (576 en 80mm, 384 en 58mm -ver _paperSizePara-).
+    final logo = decodificarLogoEscPos(negocio.logoBnBase64, maxDimension: paperSize == PaperSize.mm58 ? 280 : 420);
+    final anchoDescripcion = _anchoDescripcionPara(paperSize);
 
     List<int> bytes = [];
     bytes += generador.reset();
-    bytes += _construirTicket(generador, venta, negocio, logo, esCopia: forzarCopia ?? false);
+    bytes += _construirTicket(generador, venta, negocio, logo, esCopia: forzarCopia ?? false, anchoDescripcion: anchoDescripcion);
     if (forzarCopia == null && negocio.facturaImprimirCopia) {
-      bytes += _construirTicket(generador, venta, negocio, logo, esCopia: true);
+      bytes += _construirTicket(generador, venta, negocio, logo, esCopia: true, anchoDescripcion: anchoDescripcion);
     }
     return bytes;
   }
+
+  // Ancho del rollo elegido en Negocio (ver NegocioModel.anchoTicketMm) —
+  // pedido explícito del dueño de tener las DOS medidas disponibles (58mm
+  // angosto/32 columnas, tipo POS de tarjeta, y el de siempre 80mm/48
+  // columnas), siempre por la vía ESC/POS cruda (nunca como alternativa en
+  // PDF). mm58/mm80 ya vienen soportados por esc_pos_utils_plus.
+  PaperSize _paperSizePara(NegocioModel negocio) => negocio.anchoTicketMm == 58 ? PaperSize.mm58 : PaperSize.mm80;
 
   /// Guía de envío -pedido explícito del dueño: "imprimir en la térmica así
   /// como a lo ancho para poder hacer la letra un poco grande y clara y
@@ -235,12 +244,15 @@ class VentaTicketEscPosService {
   }
 
   // Ancho real (en caracteres) de la columna de 8/12 donde va la
-  // descripción del producto, para papel de 80mm y fuente por defecto: ver
-  // Generator.row en esc_pos_utils_plus (paperWidth=576, 48 caracteres por
-  // línea completa, spaceBetweenRows=5 -> floor((576*8/12 - 1 - 5) / 12) = 31.
-  // Si algún día cambia el ancho de columna acá (8) o el tamaño de papel,
-  // este número hay que recalcularlo con la misma fórmula.
-  static const _anchoDescripcion = 31;
+  // descripción del producto, según el tamaño de papel: ver Generator.row en
+  // esc_pos_utils_plus -misma fórmula que usa la librería para decidir dónde
+  // cortar una columna que no entra (maxCharactersNb = floor((toPos-fromPos)
+  // /charWidth), con charWidth=paperWidth/charsPerLine=12 en ambos tamaños)-.
+  // 80mm: paperWidth=576, floor((576*8/12 - 1 - 5) / 12) = 31.
+  // 58mm: paperWidth=384, floor((384*8/12 - 1 - 5) / 12) = 20.
+  // Si algún día cambia el ancho de columna acá (8) o spaceBetweenRows (5),
+  // estos números hay que recalcularlos con la misma fórmula.
+  int _anchoDescripcionPara(PaperSize paperSize) => paperSize == PaperSize.mm58 ? 20 : 31;
 
   // Usados por generarGuiaEnvio: 48 caracteres por línea completa a ancho
   // normal (mismo dato citado arriba, ver Generator en esc_pos_utils_plus
@@ -306,7 +318,7 @@ class VentaTicketEscPosService {
     return lineas;
   }
 
-  List<int> _construirTicket(Generator generador, VentaModel venta, NegocioModel negocio, img.Image? logo, {required bool esCopia}) {
+  List<int> _construirTicket(Generator generador, VentaModel venta, NegocioModel negocio, img.Image? logo, {required bool esCopia, required int anchoDescripcion}) {
     final formatoFecha = DateFormat('dd/MM/yyyy hh:mm a');
     final formatoDia = DateFormat('dd/MM/yyyy');
 
@@ -378,7 +390,7 @@ class VentaTicketEscPosService {
       // _envolverDescripcion (por palabra completa, con guion si hace falta
       // partir una palabra), una línea por row: así la librería nunca corta
       // por su cuenta a mitad de palabra.
-      for (final linea in _envolverDescripcion(item.nombreProducto, _anchoDescripcion)) {
+      for (final linea in _envolverDescripcion(item.nombreProducto, anchoDescripcion)) {
         bytes += generador.row([
           _columna(linea, width: 8),
           _columna('', width: 4),

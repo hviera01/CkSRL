@@ -105,8 +105,14 @@ class TicketEscPosPreview extends StatelessWidget {
     final logoDecodificado = decodificarLogoEscPos(negocio.logoBnBase64);
     final Uint8List? logoBytes = logoDecodificado == null ? null : Uint8List.fromList(img.encodePng(logoDecodificado));
 
+    // Mismo ancho que se usa de verdad al imprimir (ver
+    // NegocioModel.anchoTicketMm/VentaTicketEscPosService): la proporción
+    // entre 58mm y 80mm (384/576 puntos ESC/POS reales) se traslada acá para
+    // que el mismo texto envuelva en los mismos puntos que en el papel real.
+    final anchoContenedor = negocio.anchoTicketMm == 58 ? 320.0 * 384 / 576 : 320.0;
+
     return Container(
-      width: 320,
+      width: anchoContenedor,
       padding: const EdgeInsets.all(16),
       color: Colors.white,
       child: Column(
