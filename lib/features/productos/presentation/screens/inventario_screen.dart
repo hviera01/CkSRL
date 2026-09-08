@@ -31,6 +31,8 @@ import '../../../../core/widgets/imagen_zoom_dialog.dart';
 import '../../../../core/widgets/imagen_producto_network.dart';
 import '../../../apartados/providers/apartados_provider.dart';
 import '../../../apartados/presentation/widgets/apartados_producto_dialog.dart';
+import '../../../../core/tutorial/tutorial_modelos.dart';
+import '../../../../core/tutorial/tutorial_boton.dart';
 
 class InventarioScreen extends ConsumerStatefulWidget {
   const InventarioScreen({super.key});
@@ -52,6 +54,18 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
   static const _alturaDivisorFila = 1.0;
   static const _alturaItemLista = _alturaFila + _alturaDivisorFila;
   final _servicioExport = ProductoExportService();
+  // --- GlobalKeys para el tutorial guiado (ver lib/core/tutorial/) ---
+  // Solo apuntan a widgets que existen UNA sola vez en esta pantalla (el
+  // buscador, un botón, un encabezado de columna) -nunca a algo que se
+  // repite por fila de la lista, porque una GlobalKey no puede estar en más
+  // de un widget montado a la vez (Flutter tira un error si dos filas
+  // visibles a la vez la usaran).
+  final _keyBuscador = GlobalKey();
+  final _keyEscanear = GlobalKey();
+  final _keyFiltroEstado = GlobalKey();
+  final _keyBotonNuevoProducto = GlobalKey();
+  final _keyColumnaExistencia = GlobalKey();
+  final _keyColumnaAcciones = GlobalKey();
   String? _filaSeleccionada;
   String? _columnaOrden;
   bool _ordenAscendente = false;
@@ -213,6 +227,71 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     _timerRepeticionTeclado?.cancel();
     super.dispose();
   }
+
+  // --- Temas del tutorial guiado de esta pantalla ---
+  // El botón "Nuevo Producto" abre producto_form_dialog.dart, que trae su
+  // propio botón de ayuda (mismo ícono de birrete, en la esquina del
+  // diálogo) con el tema "Cómo agregar un producto nuevo" -no se repite acá
+  // porque las GlobalKey de esos campos solo existen mientras el diálogo
+  // está abierto-.
+  TutorialTema get _temaBuscarProducto => TutorialTema(
+    titulo: 'Cómo buscar un producto',
+    descripcion: 'Encontrar un producto rápido en la lista',
+    icono: Icons.search,
+    bienvenida:
+        'Te voy a mostrar las distintas formas de encontrar un producto en el inventario: escribiendo, escaneando el código de barras, o filtrando por Activos/Inactivos.',
+    pasos: () => [
+      TutorialPaso(
+        key: _keyBuscador,
+        titulo: 'Buscador',
+        explicacion:
+            'Acá podés escribir el nombre, el código, o parte del nombre del producto que buscás. Cuando termines de escribir, presioná la tecla Enter o el botón de la flecha (→) para buscar.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyEscanear,
+        titulo: 'Escanear código de barras',
+        explicacion:
+            'Si el producto tiene una etiqueta con código de barras, tocá este ícono para escanearlo con la cámara en vez de escribirlo a mano.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyFiltroEstado,
+        titulo: 'Activos / Inactivos',
+        explicacion:
+            'Elegí "Activos" para ver los productos que se venden normalmente, o "Inactivos" para ver los que fueron dados de baja pero se guardan igual en el sistema.',
+      ),
+      TutorialPaso(
+        key: _keyColumnaExistencia,
+        titulo: 'Columna Existencia',
+        explicacion:
+            'Acá se muestra cuántas unidades quedan de cada producto. Si ves una etiqueta morada que dice "apartados" debajo del número, quiere decir que parte de esas unidades ya están reservadas para un cliente; tocá esa etiqueta para ver el detalle.',
+      ),
+      TutorialPaso(
+        key: _keyBotonNuevoProducto,
+        titulo: '¿No lo encontrás?',
+        explicacion:
+            'Si buscaste y el producto no aparece, es porque todavía no existe en el sistema. Tocá este botón "Nuevo Producto" para crearlo — ahí adentro hay otro botón de ayuda (el mismo ícono de birrete) que te explica cada campo del formulario.',
+        obligatorio: false,
+      ),
+    ],
+  );
+
+  TutorialTema get _temaAjustarStock => TutorialTema(
+    titulo: 'Cómo ajustar el stock de un producto',
+    descripcion: 'Corregir la cantidad de existencia de un producto',
+    icono: Icons.tune,
+    bienvenida:
+        'Te voy a mostrar cómo corregir la cantidad de un producto cuando hacés un conteo físico, encontrás algo dañado, o simplemente el número no cuadra.',
+    pasos: () => [
+      TutorialPaso(
+        key: _keyColumnaAcciones,
+        titulo: 'Columna Acciones',
+        explicacion:
+            'En cada producto, del lado derecho, vas a ver los tres puntitos (⋮). Tocalos y elegí la opción "Ajustar existencia" para cambiar la cantidad de ese producto. También podés ver el "Historial de existencia" para revisar los cambios que se hicieron antes.',
+      ),
+    ],
+  );
 
   void _buscar() {
     setState(() => _busquedaPorCodigoBarras = false);
@@ -812,6 +891,36 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     }
     final mapaCategorias = _cacheMapaCategorias;
 
+    return Stack(
+      children: [
+        _contenido(
+          productosAsync: productosAsync,
+          mapaCategorias: mapaCategorias,
+          busqueda: busqueda,
+          vista: vista,
+          cantidadesApartadas: cantidadesApartadas,
+        ),
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: TutorialBoton(
+            temas: [_temaBuscarProducto, _temaAjustarStock],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// El contenido "real" de la pantalla -separado de build() solo para
+  /// poder envolverlo en el Stack de arriba junto al TutorialBoton flotante
+  /// (ver comentario junto a las GlobalKey del tutorial).
+  Widget _contenido({
+    required AsyncValue<List<ProductoModel>> productosAsync,
+    required Map<String, String> mapaCategorias,
+    required String busqueda,
+    required String vista,
+    required Map<String, double> cantidadesApartadas,
+  }) {
     return Container(
       color: const Color(0xFFF2F3F7),
       child: LayoutBuilder(
@@ -841,7 +950,10 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                         alignment: WrapAlignment.end,
                         children: [
                           if (esTablet) _selectorVistaTabletChico(),
-                          _selectorEstadoChico(),
+                          KeyedSubtree(
+                            key: _keyFiltroEstado,
+                            child: _selectorEstadoChico(),
+                          ),
                         ],
                       ),
                     ],
@@ -984,6 +1096,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                         ),
                       ),
                       FilledButton.icon(
+                        key: _keyBotonNuevoProducto,
                         onPressed: () => _abrirFormulario(),
                         icon: const Icon(Icons.add, size: 18),
                         label: Text(
@@ -1187,6 +1300,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                     texto: 'EXISTENCIA',
                     flex: 12,
                     columnaOrdenKey: 'existencia',
+                    headerKey: _keyColumnaExistencia,
                   ),
                   _celdaHeader(
                     texto: 'P. VENTA',
@@ -1199,7 +1313,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                     columnaOrdenKey: 'precioCompra',
                   ),
                   _celdaHeader(texto: 'ESTADO', flex: 11),
-                  _celdaHeaderAcciones(),
+                  _celdaHeaderAcciones(headerKey: _keyColumnaAcciones),
                 ],
               ),
             ),
@@ -1793,6 +1907,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     required String texto,
     required int flex,
     String? columnaOrdenKey,
+    Key? headerKey,
   }) {
     final activa = columnaOrdenKey != null && _columnaOrden == columnaOrdenKey;
     return Expanded(
@@ -1802,6 +1917,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
             ? null
             : () => _alternarOrden(columnaOrdenKey),
         child: Container(
+          key: headerKey,
           height: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: const BoxDecoration(
@@ -1849,8 +1965,9 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     );
   }
 
-  Widget _celdaHeaderAcciones() {
+  Widget _celdaHeaderAcciones({Key? headerKey}) {
     return Container(
+      key: headerKey,
       width: 116,
       height: double.infinity,
       alignment: Alignment.center,
@@ -2303,6 +2420,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
 
   Widget _buscador(String busqueda) {
     return Container(
+      key: _keyBuscador,
       height: 46,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
@@ -2347,6 +2465,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
               onPressed: _limpiarBusqueda,
             ),
           IconButton(
+            key: _keyEscanear,
             tooltip: 'Escanear código de barras',
             icon: const Icon(Icons.qr_code_scanner, size: 20),
             onPressed: _escanear,

@@ -15,6 +15,8 @@ import '../../../../core/services/remove_bg_service.dart';
 import '../../../../core/widgets/imagen_producto_network.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
 import '../../../../core/widgets/campo_teclado_compacto.dart';
+import '../../../../core/tutorial/tutorial_modelos.dart';
+import '../../../../core/tutorial/tutorial_boton.dart';
 
 /// Un componente agregado a la receta de un combo mientras se está armando
 /// en el formulario (antes de guardar). [cantidad] vive en un controller
@@ -69,6 +71,25 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
   // registrar_venta_screen para este problema) el foco queda firme antes de
   // que llegue cualquier tecla.
   final _focusNombre = FocusNode();
+
+  // --- GlobalKeys para el tutorial guiado (ver lib/core/tutorial/) ---
+  // Este diálogo solo se abre UNA vez a la vez (no vive dentro de una
+  // lista), así que no hay riesgo de que dos widgets compartan la misma key
+  // al mismo tiempo.
+  final _keyCodigo = GlobalKey();
+  final _keyCodigoBarras = GlobalKey();
+  final _keyNombre = GlobalKey();
+  final _keyCategoria = GlobalKey();
+  final _keyCombo = GlobalKey();
+  final _keyExistencia = GlobalKey();
+  final _keyPrecioCompra = GlobalKey();
+  final _keyPrecioVenta = GlobalKey();
+  final _keyNivelesExtra = GlobalKey();
+  final _keyPrecioVenta2 = GlobalKey();
+  final _keyPrecioVenta3 = GlobalKey();
+  final _keyFoto = GlobalKey();
+  final _keyEstado = GlobalKey();
+  final _keyGuardar = GlobalKey();
 
   String? _idCategoria;
   bool _activo = true;
@@ -407,6 +428,111 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
     }
   }
 
+  TutorialTema get _temaAgregarProducto => TutorialTema(
+    titulo: 'Cómo agregar un producto nuevo',
+    descripcion: 'Llenar el formulario paso a paso',
+    icono: Icons.add_box_outlined,
+    bienvenida:
+        'Te voy a explicar qué es cada campo de este formulario, cuáles son obligatorios y cuáles podés dejar vacíos.',
+    pasos: () => [
+      TutorialPaso(
+        key: _keyCodigo,
+        titulo: 'Código',
+        explicacion:
+            'Es un número interno para identificar el producto en el sistema. Si lo dejás vacío, el sistema le pone uno automáticamente — no hace falta que te preocupes por esto.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyCodigoBarras,
+        titulo: 'Código de barras',
+        explicacion:
+            'Si el producto tiene una etiqueta de fábrica con código de barras, podés escanearla tocando el ícono de la cámara, o escribir el número a mano. Si no tiene o no lo sabés, dejalo vacío: el sistema le va a poner uno solo, automáticamente.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyNombre,
+        titulo: 'Nombre',
+        explicacion:
+            'El nombre del producto, como querés que aparezca en la lista y en el ticket. Este campo SÍ es obligatorio, no se puede guardar sin nombre.',
+        obligatorio: true,
+      ),
+      TutorialPaso(
+        key: _keyCategoria,
+        titulo: 'Categoría',
+        explicacion:
+            'Elegí a qué categoría pertenece el producto (por ejemplo "Bebidas" o "Limpieza"). Es obligatorio elegir una para poder guardar.',
+        obligatorio: true,
+      ),
+      TutorialPaso(
+        key: _keyCombo,
+        titulo: '¿Es un combo o kit?',
+        explicacion:
+            'Activá esto SOLO si este producto en realidad es un paquete armado con otros productos que ya existen (por ejemplo, una canasta con varias cosas adentro). Si es un producto normal y suelto, dejalo apagado.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyExistencia,
+        titulo: 'Existencia inicial',
+        explicacion:
+            'Cuántas unidades de este producto tenés ahora mismo en stock. Si no sabés el número exacto, podés poner 0 y ajustarlo después desde Inventario.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyPrecioCompra,
+        titulo: 'Precio Compra',
+        explicacion:
+            'Cuánto te costó a vos comprar (o fabricar) una unidad de este producto. Sirve para saber cuánto ganás en cada venta.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyPrecioVenta,
+        titulo: 'Precio Venta',
+        explicacion:
+            'A cuánto le vas a vender este producto al cliente. Este campo SÍ es obligatorio.',
+        obligatorio: true,
+      ),
+      TutorialPaso(
+        key: _keyNivelesExtra,
+        titulo: 'Niveles de precio adicionales',
+        explicacion:
+            'Tocá acá SOLO si querés manejar hasta dos precios de venta más para este mismo producto (por ejemplo, un precio para venta al por mayor). La mayoría de los productos no necesita esto.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyPrecioVenta2,
+        titulo: 'Precio Venta 2',
+        explicacion: 'Un segundo precio de venta opcional para este producto.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyPrecioVenta3,
+        titulo: 'Precio Venta 3',
+        explicacion: 'Un tercer precio de venta opcional para este producto.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyFoto,
+        titulo: 'Foto del producto',
+        explicacion:
+            'Tocá el cuadro para elegir una foto del producto desde tu computadora o celular. Es totalmente opcional, el producto se puede guardar sin foto.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyEstado,
+        titulo: 'Estado',
+        explicacion:
+            'Activo quiere decir que el producto se puede vender normalmente. Si lo apagás (Inactivo), el producto se guarda pero deja de aparecer para venderse — usalo si dejaste de manejar ese producto.',
+      ),
+      TutorialPaso(
+        key: _keyGuardar,
+        titulo: 'Guardar',
+        explicacion:
+            'Cuando ya completaste el nombre, la categoría y el precio de venta, tocá este botón para guardar el producto.',
+        obligatorio: true,
+      ),
+    ],
+  );
+
   InputDecoration _decoracion(String label) {
     return InputDecoration(
       labelText: label,
@@ -506,6 +632,8 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
                       ),
                     ),
                   ),
+                  TutorialBoton(temas: [_temaAgregarProducto]),
+                  const SizedBox(width: 4),
                   IconButton(
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () => Navigator.pop(context),
@@ -519,7 +647,12 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(child: _selectorImagen()),
+                    Center(
+                      child: KeyedSubtree(
+                        key: _keyFoto,
+                        child: _selectorImagen(),
+                      ),
+                    ),
                     const SizedBox(height: 18),
                     // En pantalla ancha (PC) se reparte en dos columnas para
                     // aprovechar el ancho del diálogo y evitar el scroll del
@@ -587,6 +720,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
                   ),
                   const SizedBox(width: 10),
                   FilledButton(
+                    key: _keyGuardar,
                     onPressed: _guardando ? null : _guardar,
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF0F1B3D),
@@ -634,6 +768,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
         children: [
           Expanded(
             child: CampoTecladoCompacto(
+              key: _keyCodigo,
               controller: _codigoController,
               numerico: false,
               child: TextField(
@@ -649,6 +784,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
           const SizedBox(width: 12),
           Expanded(
             child: CampoTecladoCompacto(
+              key: _keyCodigoBarras,
               controller: _codigoBarrasController,
               numerico: false,
               child: TextField(
@@ -675,6 +811,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
       ),
       const SizedBox(height: 14),
       CampoTecladoCompacto(
+        key: _keyNombre,
         controller: _nombreController,
         numerico: false,
         child: TextField(
@@ -705,6 +842,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
       categoriasAsync.when(
         data: (categorias) {
           return DropdownButtonFormField<String>(
+            key: _keyCategoria,
             value: _idCategoria,
             decoration: _decoracion('Categoría'),
             style: GoogleFonts.poppins(
@@ -733,6 +871,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
       if (!editando) ...[
         const SizedBox(height: 14),
         Container(
+          key: _keyCombo,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
             color: const Color(0xFFE8EAF0),
@@ -796,6 +935,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
           children: [
             Expanded(
               child: CampoTecladoCompacto(
+                key: _keyExistencia,
                 controller: _stockController,
                 numerico: true,
                 child: TextField(
@@ -817,6 +957,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
             const SizedBox(width: 12),
             Expanded(
               child: CampoTecladoCompacto(
+                key: _keyPrecioCompra,
                 controller: _precioCompraController,
                 numerico: true,
                 child: TextField(
@@ -835,6 +976,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
       ],
       const SizedBox(height: 14),
       CampoTecladoCompacto(
+        key: _keyPrecioVenta,
         controller: _precioVentaController,
         numerico: true,
         child: TextField(
@@ -849,6 +991,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
       ),
       const SizedBox(height: 8),
       InkWell(
+        key: _keyNivelesExtra,
         onTap: () =>
             setState(() => _mostrarNivelesExtra = !_mostrarNivelesExtra),
         child: Row(
@@ -878,6 +1021,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
           children: [
             Expanded(
               child: CampoTecladoCompacto(
+                key: _keyPrecioVenta2,
                 controller: _precioVenta2Controller,
                 numerico: true,
                 child: TextField(
@@ -894,6 +1038,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
             const SizedBox(width: 12),
             Expanded(
               child: CampoTecladoCompacto(
+                key: _keyPrecioVenta3,
                 controller: _precioVenta3Controller,
                 numerico: true,
                 child: TextField(
@@ -912,6 +1057,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
       ],
       const SizedBox(height: 14),
       Container(
+        key: _keyEstado,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         decoration: BoxDecoration(
           color: const Color(0xFFE8EAF0),
