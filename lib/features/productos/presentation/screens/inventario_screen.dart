@@ -63,6 +63,14 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
   final _keyBuscador = GlobalKey();
   final _keyEscanear = GlobalKey();
   final _keyFiltroEstado = GlobalKey();
+  final _keySelectorVista = GlobalKey();
+  final _keyCampoFiltro = GlobalKey();
+  final _keyRefrescar = GlobalKey();
+  final _keyImportar = GlobalKey();
+  final _keyExcel = GlobalKey();
+  final _keyPdf = GlobalKey();
+  final _keyTicket = GlobalKey();
+  final _keyEtiquetas = GlobalKey();
   final _keyBotonNuevoProducto = GlobalKey();
   final _keyColumnaExistencia = GlobalKey();
   final _keyColumnaAcciones = GlobalKey();
@@ -277,9 +285,51 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
     ],
   );
 
-  TutorialTema get _temaAjustarStock => TutorialTema(
-    titulo: 'Cómo ajustar el stock de un producto',
-    descripcion: 'Corregir la cantidad de existencia de un producto',
+  // Temas "Crear Producto nuevo" / "Editar un Producto existente" -pedido
+  // explícito del dueño, como entradas SEPARADAS y claras en este menú, ya
+  // que acá (Inventario) es donde se decide cuál de las dos acciones hacer-.
+  // Solo apuntan al botón/columna que ABRE el diálogo correspondiente: el
+  // detalle campo por campo vive en el propio ProductoFormDialog (su
+  // GlobalKey de cada campo solo existe mientras ESE diálogo está montado,
+  // no mientras se navega este menú desde Inventario), que trae su propio
+  // botón de ayuda (mismo ícono de birrete) apenas se abre.
+  TutorialTema get _temaCrearProducto => TutorialTema(
+    titulo: 'Crear Producto nuevo',
+    descripcion: 'Agregar un producto que todavía no existe en el sistema',
+    icono: Icons.add_box_outlined,
+    bienvenida:
+        'Te muestro dónde tocar para agregar un producto nuevo. Apenas se abra el formulario vas a ver otro ícono de ayuda (el mismo birrete, arriba a la derecha del formulario) que te explica cada campo uno por uno.',
+    pasos: () => [
+      TutorialPaso(
+        key: _keyBotonNuevoProducto,
+        titulo: 'Nuevo Producto',
+        explicacion:
+            'Tocá este botón para abrir el formulario y cargar un producto que no existe todavía en el inventario. Ahí adentro, arriba a la derecha, hay otro ícono de ayuda (el mismo birrete) que te explica cada campo del formulario uno por uno, y te aclara cuáles son obligatorios y cuáles podés dejar vacíos.',
+        obligatorio: false,
+      ),
+    ],
+  );
+
+  TutorialTema get _temaEditarProducto => TutorialTema(
+    titulo: 'Editar un Producto existente',
+    descripcion: 'Cambiar nombre, precio, foto, etc. de un producto que ya existe',
+    icono: Icons.edit_outlined,
+    bienvenida:
+        'Te muestro cómo abrir un producto que ya existe para cambiarle algún dato (nombre, precio, foto, categoría, etc.).',
+    pasos: () => [
+      TutorialPaso(
+        key: _keyColumnaAcciones,
+        titulo: 'Columna Acciones',
+        explicacion:
+            'En cada producto, del lado derecho, tocá los tres puntitos (⋮) y elegí "Editar producto". Se abre el mismo formulario que al crear uno nuevo, pero con todos los datos actuales ya cargados — cambiá solo lo que necesites y tocá Guardar. Ahí adentro también hay un ícono de ayuda (birrete) con el detalle de cada campo.',
+        obligatorio: false,
+      ),
+    ],
+  );
+
+  TutorialTema get _temaAjustarExistencias => TutorialTema(
+    titulo: 'Editar/Ajustar Existencias (stock)',
+    descripcion: 'Sumar o restar unidades de un producto',
     icono: Icons.tune,
     bienvenida:
         'Te voy a mostrar cómo corregir la cantidad de un producto cuando hacés un conteo físico, encontrás algo dañado, o simplemente el número no cuadra.',
@@ -288,7 +338,71 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
         key: _keyColumnaAcciones,
         titulo: 'Columna Acciones',
         explicacion:
-            'En cada producto, del lado derecho, vas a ver los tres puntitos (⋮). Tocalos y elegí la opción "Ajustar existencia" para cambiar la cantidad de ese producto. También podés ver el "Historial de existencia" para revisar los cambios que se hicieron antes.',
+            'En cada producto, del lado derecho, tocá los tres puntitos (⋮) y elegí "Ajustar existencia" para sumar o restar unidades de ese producto — ahí adentro hay un ícono de ayuda (birrete) que te explica cada campo del ajuste (cantidad, costo o de qué lote sale, motivo). También podés elegir "Historial de existencia" para revisar los cambios que se hicieron antes.',
+      ),
+    ],
+  );
+
+  TutorialTema get _temaBotonesSuperiores => TutorialTema(
+    titulo: 'Qué hace cada botón de arriba',
+    descripcion: 'Refrescar, Importar, Excel, PDF, Ticket, Etiquetas y los filtros',
+    icono: Icons.widgets_outlined,
+    bienvenida:
+        'Te voy a explicar, uno por uno, para qué sirve cada botón y cada filtro de la barra de arriba de Inventario.',
+    pasos: () => [
+      TutorialPaso(
+        key: _keySelectorVista,
+        titulo: 'Productos filtrados',
+        explicacion:
+            'Elegí qué lista de productos ver: "Productos filtrados" muestra solo lo que escribiste en el buscador (y queda vacío si todavía no buscaste nada), "Mostrar todos" muestra el inventario completo, y "Bajo existencia" muestra solo los productos con menos de 3 unidades — útil para saber qué hay que reponer.',
+      ),
+      TutorialPaso(
+        key: _keyCampoFiltro,
+        titulo: 'Filtrar por',
+        explicacion:
+            'Por defecto el buscador busca en todo (código, código de barras, nombre, descripción, categoría). Acá podés acotar la búsqueda a un solo campo en particular, por ejemplo buscar solo por Categoría.',
+      ),
+      TutorialPaso(
+        key: _keyRefrescar,
+        titulo: 'Refrescar',
+        explicacion:
+            'Trae los datos más nuevos a mano. Normalmente el sistema se actualiza solo apenas cambia algo (una venta, una compra, etc.), así que casi nunca vas a necesitar tocar este botón — sirve por si alguna vez sentís que la lista quedó desactualizada.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyImportar,
+        titulo: 'Importar',
+        explicacion:
+            'Carga muchos productos de una sola vez desde un archivo de Excel, en vez de escribirlos uno por uno a mano.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyExcel,
+        titulo: 'Excel',
+        explicacion:
+            'Descarga en un archivo de Excel la lista de productos que ves en pantalla en este momento. Antes de descargarlo, te deja elegir cuáles productos y qué columnas incluir.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyPdf,
+        titulo: 'PDF',
+        explicacion:
+            'Igual que Excel, pero descarga la lista en un archivo PDF. También te deja elegir antes cuáles productos y qué columnas incluir, y te muestra una vista previa antes de guardarlo o imprimirlo.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyTicket,
+        titulo: 'Ticket',
+        explicacion:
+            'Imprime en la impresora térmica un ticket de papel con la lista de productos en pantalla (antes te deja elegir qué datos incluir: código, precio, existencia, etc.) — sirve como una lista rápida en papel, por ejemplo para revisar precios.',
+        obligatorio: false,
+      ),
+      TutorialPaso(
+        key: _keyEtiquetas,
+        titulo: 'Etiquetas',
+        explicacion:
+            'Imprime etiquetas con el código de barras de cada producto, para pegarlas en el producto físico. Antes te pregunta si querés imprimir de TODOS los productos en pantalla, o solo de los que todavía no tienen código de barras asignado.',
+        obligatorio: false,
       ),
     ],
   );
@@ -904,7 +1018,13 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
           right: 16,
           bottom: 16,
           child: TutorialBoton(
-            temas: [_temaBuscarProducto, _temaAjustarStock],
+            temas: [
+              _temaBuscarProducto,
+              _temaCrearProducto,
+              _temaEditarProducto,
+              _temaAjustarExistencias,
+              _temaBotonesSuperiores,
+            ],
           ),
         ),
       ],
@@ -967,17 +1087,24 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                     children: [
                       SizedBox(
                         width: esMovil ? constraints.maxWidth : 220,
-                        child: _selectorVista(vista),
+                        child: KeyedSubtree(
+                          key: _keySelectorVista,
+                          child: _selectorVista(vista),
+                        ),
                       ),
                       SizedBox(
                         width: esMovil ? constraints.maxWidth : 170,
-                        child: _selectorCampoFiltro(),
+                        child: KeyedSubtree(
+                          key: _keyCampoFiltro,
+                          child: _selectorCampoFiltro(),
+                        ),
                       ),
                       SizedBox(
                         width: esMovil ? constraints.maxWidth : 340,
                         child: _buscador(busqueda),
                       ),
                       OutlinedButton.icon(
+                        key: _keyRefrescar,
                         onPressed: () =>
                             ref.invalidate(productosStreamProvider),
                         icon: const Icon(Icons.refresh, size: 18),
@@ -998,6 +1125,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                         ),
                       ),
                       OutlinedButton.icon(
+                        key: _keyImportar,
                         onPressed: _abrirImportar,
                         icon: const Icon(Icons.upload_file_outlined, size: 18),
                         label: Text(
@@ -1017,6 +1145,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                         ),
                       ),
                       OutlinedButton.icon(
+                        key: _keyExcel,
                         onPressed: () => _exportarExcel(mapaCategorias),
                         icon: const Icon(Icons.grid_on_outlined, size: 18),
                         label: Text(
@@ -1036,6 +1165,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                         ),
                       ),
                       OutlinedButton.icon(
+                        key: _keyPdf,
                         onPressed: () => _exportarPdf(mapaCategorias),
                         icon: const Icon(
                           Icons.picture_as_pdf_outlined,
@@ -1058,6 +1188,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                         ),
                       ),
                       OutlinedButton.icon(
+                        key: _keyTicket,
                         onPressed: () => _imprimirTicketGrid(mapaCategorias),
                         icon: const Icon(Icons.receipt_long_outlined, size: 18),
                         label: Text(
@@ -1077,6 +1208,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
                         ),
                       ),
                       OutlinedButton.icon(
+                        key: _keyEtiquetas,
                         onPressed: _imprimirEtiquetasGrid,
                         icon: const Icon(Icons.qr_code_2_outlined, size: 18),
                         label: Text(
