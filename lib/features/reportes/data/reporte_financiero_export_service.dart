@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../../../core/utils/segundo_plano.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -8,13 +9,17 @@ import '../../../core/utils/formato_moneda.dart';
 const _colorPrimario = PdfColor.fromInt(0xFF0F1B3D);
 
 class ReporteFinancieroExportService {
-  Future<Uint8List> generarPdf(ReporteFinancieroData data) async {
+  Future<Uint8List> generarPdf(ReporteFinancieroData data) =>
+      enSegundoPlano(() => _generarPdf(data));
+
+  Future<Uint8List> _generarPdf(ReporteFinancieroData data) async {
     final formatoFecha = DateFormat('dd/MM/yyyy');
     final formatoMes = DateFormat('MMM yyyy', 'es');
     final doc = pw.Document();
 
     doc.addPage(
       pw.MultiPage(
+        maxPages: 2000,
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
         header: (context) => context.pageNumber == 1

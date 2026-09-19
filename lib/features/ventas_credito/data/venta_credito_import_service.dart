@@ -83,6 +83,8 @@ class VentaCreditoImportService {
 
   /// Lee un .xlsx y devuelve las filas encontradas (válidas o con error).
   /// Lanza [FormatException] si el archivo no se pudo leer en absoluto.
+  static List<FilaImportacionVentaCredito> leerBytes(List<int> bytes) => VentaCreditoImportService().leer(bytes);
+
   List<FilaImportacionVentaCredito> leer(List<int> bytes) {
     xls.Excel excel;
     try {

@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../../../core/utils/segundo_plano.dart';
 import 'package:excel/excel.dart' as xls;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -75,7 +76,10 @@ class EgresoExportService {
     return Uint8List.fromList(bytes ?? []);
   }
 
-  Future<Uint8List> generarPdfLibro(List<MovimientoFinanciero> movimientos, DateTime inicio, DateTime fin) async {
+  Future<Uint8List> generarPdfLibro(List<MovimientoFinanciero> movimientos, DateTime inicio, DateTime fin) =>
+      enSegundoPlano(() => _generarPdfLibro(movimientos, inicio, fin));
+
+  Future<Uint8List> _generarPdfLibro(List<MovimientoFinanciero> movimientos, DateTime inicio, DateTime fin) async {
     final doc = pw.Document();
     final formatoDia = DateFormat('dd/MM/yyyy');
     final formatoFecha = DateFormat('dd/MM/yyyy HH:mm');
@@ -83,6 +87,7 @@ class EgresoExportService {
 
     doc.addPage(
       pw.MultiPage(
+        maxPages: 2000,
         pageFormat: PdfPageFormat.letter.landscape,
         margin: const pw.EdgeInsets.fromLTRB(28, 26, 28, 26),
         header: (context) => pw.Column(

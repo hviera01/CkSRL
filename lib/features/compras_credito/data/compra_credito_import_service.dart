@@ -83,6 +83,8 @@ class CompraCreditoImportService {
 
   /// Lee un .xlsx y devuelve las filas encontradas (válidas o con error).
   /// Lanza [FormatException] si el archivo no se pudo leer en absoluto.
+  static List<FilaImportacionCompraCredito> leerBytes(List<int> bytes) => CompraCreditoImportService().leer(bytes);
+
   List<FilaImportacionCompraCredito> leer(List<int> bytes) {
     xls.Excel excel;
     try {

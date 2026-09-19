@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../../../core/utils/segundo_plano.dart';
 import 'package:excel/excel.dart' as xls;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -59,7 +60,10 @@ class ProductoExportService {
     return Uint8List.fromList(bytes ?? []);
   }
 
-  Future<Uint8List> generarPdfInventario(List<ProductoModel> lista, Map<String, String> mapaCategorias, {Set<String>? columnas}) async {
+  Future<Uint8List> generarPdfInventario(List<ProductoModel> lista, Map<String, String> mapaCategorias, {Set<String>? columnas}) =>
+      enSegundoPlano(() => _generarPdfInventario(lista, mapaCategorias, columnas: columnas));
+
+  Future<Uint8List> _generarPdfInventario(List<ProductoModel> lista, Map<String, String> mapaCategorias, {Set<String>? columnas}) async {
     final claves = _ordenColumnas.where((c) => columnas == null || columnas.contains(c)).toList();
     final valores = _valoresColumna(mapaCategorias);
     // Anchos relativos ya calibrados por columna (ver columnWidths más
@@ -79,6 +83,7 @@ class ProductoExportService {
     final doc = pw.Document();
     doc.addPage(
       pw.MultiPage(
+        maxPages: 2000,
         pageFormat: PdfPageFormat.a4.landscape,
         margin: const pw.EdgeInsets.all(28),
         header: (context) => pw.Column(
@@ -169,7 +174,10 @@ class ProductoExportService {
   // Inventario, una por producto distinto) como para la de un solo producto
   // con varias copias (menú "Código de barras" de cada fila, repitiendo el
   // mismo ProductoModel N veces en la lista).
-  Future<Uint8List> generarPdfEtiquetasGrid(List<ProductoModel> productos) async {
+  Future<Uint8List> generarPdfEtiquetasGrid(List<ProductoModel> productos) =>
+      enSegundoPlano(() => _generarPdfEtiquetasGrid(productos));
+
+  Future<Uint8List> _generarPdfEtiquetasGrid(List<ProductoModel> productos) async {
     const columnas = 1;
     const anchoEtiquetaMm = 50.8; // 2 pulgadas
     const altoEtiquetaMm = 25.4; // 1 pulgada

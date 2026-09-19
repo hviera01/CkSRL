@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,7 +17,6 @@ class ImportarCreditosCompraDialog extends ConsumerStatefulWidget {
 }
 
 class _ImportarCreditosCompraDialogState extends ConsumerState<ImportarCreditosCompraDialog> {
-  final _servicio = CompraCreditoImportService();
 
   String? _nombreArchivo;
   List<FilaImportacionCompraCredito>? _filas;
@@ -45,7 +45,7 @@ class _ImportarCreditosCompraDialogState extends ConsumerState<ImportarCreditosC
       _nombreArchivo = archivo.name;
     });
     try {
-      final filas = _servicio.leer(bytes);
+      final filas = await compute(CompraCreditoImportService.leerBytes, bytes);
       setState(() => _filas = filas);
     } on FormatException catch (e) {
       setState(() => _error = e.message);

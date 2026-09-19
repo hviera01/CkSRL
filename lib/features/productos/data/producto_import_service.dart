@@ -64,6 +64,8 @@ class ProductoImportService {
 
   /// Lee un .xlsx y devuelve las filas encontradas (válidas o con error).
   /// Lanza [FormatException] si el archivo no se pudo leer en absoluto.
+  static List<FilaImportacionProducto> leerBytes(List<int> bytes) => ProductoImportService().leer(bytes);
+
   List<FilaImportacionProducto> leer(List<int> bytes) {
     xls.Excel excel;
     try {

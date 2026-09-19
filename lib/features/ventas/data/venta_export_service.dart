@@ -474,6 +474,7 @@ class VentaExportService {
     final margenMm = (!kIsWeb && Platform.isWindows) ? (anchoPaginaMm <= 58 ? 4.0 : 9.0) : 5.0;
 
     return pw.MultiPage(
+        maxPages: 2000,
       pageFormat: PdfPageFormat(anchoPaginaMm * PdfPageFormat.mm, alturaMm * PdfPageFormat.mm, marginAll: margenMm * PdfPageFormat.mm),
       // Mismo mecanismo que traslado_export_service.dart (Auto Frenos
       // Oriente): "Página X de Y" solo aparece si de verdad hay más de una

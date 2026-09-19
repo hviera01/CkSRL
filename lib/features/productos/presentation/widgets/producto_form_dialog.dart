@@ -3,7 +3,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image/image.dart' as img;
 import '../../data/producto_model.dart';
 import '../../providers/productos_provider.dart';
 import '../../../categorias/providers/categorias_provider.dart';
@@ -11,6 +10,7 @@ import '../../../categorias/data/categoria_model.dart';
 import '../../../../core/widgets/barcode_scanner_screen.dart';
 import '../../../../core/widgets/reintentar_dialog.dart';
 import '../../../../core/services/cloudinary_service.dart';
+import '../../../../core/utils/foto_producto.dart';
 import '../../../../core/services/remove_bg_service.dart';
 import '../../../../core/widgets/imagen_producto_network.dart';
 import '../../../../core/utils/mayusculas_input_formatter.dart';
@@ -197,25 +197,15 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
 
     if (!mounted) return;
 
-    // Siempre se reencoda a JPG (paquete `image`, ya usado en el proyecto
-    // para los logos de tickets) — PNG solo tenía sentido si después se le
-    // iba a quitar el fondo (ver _quitarFondo, que ya sube su propio PNG con
-    // transparencia aparte), así que preguntar el formato en cada foto común
-    // era una pregunta de más sin necesidad real. Si por algún motivo no se
-    // puede decodificar la imagen (archivo corrupto/formato raro), se sube
-    // tal cual vino en vez de fallar la subida entera.
-    final decodificada = img.decodeImage(bytesOriginales);
-    final bytes = decodificada == null
-        ? bytesOriginales
-        : Uint8List.fromList(img.encodeJpg(decodificada, quality: 90));
-    final nombreArchivo = '${archivo.name.split('.').first}.jpg';
-
     setState(() {
-      _imagenPreviewBytes = bytes;
+      _imagenPreviewBytes = null;
       _subiendoImagen = true;
     });
     try {
-      final url = await CloudinaryService().subirImagen(bytes, nombreArchivo);
+      final foto = await prepararFotoProducto(bytesOriginales, archivo.name);
+      if (!mounted) return;
+      setState(() => _imagenPreviewBytes = foto.bytes);
+      final url = await CloudinaryService().subirImagen(foto.bytes, foto.nombreArchivo);
       if (!mounted) return;
       setState(() {
         _imagenUrl = url;

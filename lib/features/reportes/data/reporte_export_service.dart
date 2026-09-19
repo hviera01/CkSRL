@@ -7,6 +7,7 @@ import 'reporte_venta_model.dart';
 import 'reporte_compra_model.dart';
 import '../../ventas/data/tipos_documento.dart';
 import '../../../core/utils/formato_moneda.dart';
+import '../../../core/utils/segundo_plano.dart';
 
 class ReporteExportService {
   Uint8List generarExcelVentas(List<ReporteVentaModel> lista) {
@@ -101,11 +102,15 @@ class ReporteExportService {
     return Uint8List.fromList(bytes ?? []);
   }
 
-  Future<Uint8List> generarPdfVentas(List<ReporteVentaModel> lista) async {
+  Future<Uint8List> generarPdfVentas(List<ReporteVentaModel> lista) =>
+      enSegundoPlano(() => _generarPdfVentas(lista));
+
+  Future<Uint8List> _generarPdfVentas(List<ReporteVentaModel> lista) async {
     final formato = DateFormat('dd/MM/yyyy');
     final doc = pw.Document();
     doc.addPage(
       pw.MultiPage(
+        maxPages: 2000,
         pageFormat: PdfPageFormat.a4.landscape,
         margin: const pw.EdgeInsets.all(28),
         header: (context) => pw.Column(
@@ -148,11 +153,15 @@ class ReporteExportService {
     return doc.save();
   }
 
-  Future<Uint8List> generarPdfCompras(List<ReporteCompraModel> lista) async {
+  Future<Uint8List> generarPdfCompras(List<ReporteCompraModel> lista) =>
+      enSegundoPlano(() => _generarPdfCompras(lista));
+
+  Future<Uint8List> _generarPdfCompras(List<ReporteCompraModel> lista) async {
     final formato = DateFormat('dd/MM/yyyy');
     final doc = pw.Document();
     doc.addPage(
       pw.MultiPage(
+        maxPages: 2000,
         pageFormat: PdfPageFormat.a4.landscape,
         margin: const pw.EdgeInsets.all(28),
         header: (context) => pw.Column(

@@ -45,6 +45,7 @@ class CajaExportService {
       // estimada según lo que de verdad va a imprimirse (ver
       // _estimarAlturaTicketCierreMm) el ticket sale ajustado, sin ese hueco.
       pw.MultiPage(
+        maxPages: 2000,
         pageFormat: PdfPageFormat(anchoPaginaMm * PdfPageFormat.mm, alturaMm * PdfPageFormat.mm, marginAll: 8 * PdfPageFormat.mm),
         build: (context) {
           return [

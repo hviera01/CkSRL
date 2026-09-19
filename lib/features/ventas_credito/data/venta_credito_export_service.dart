@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../../../core/utils/segundo_plano.dart';
 import 'package:excel/excel.dart' as xls;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -44,11 +45,15 @@ class VentaCreditoExportService {
     return Uint8List.fromList(bytes ?? []);
   }
 
-  Future<Uint8List> generarPdfListado(List<VentaCreditoModel> lista) async {
+  Future<Uint8List> generarPdfListado(List<VentaCreditoModel> lista) =>
+      enSegundoPlano(() => _generarPdfListado(lista));
+
+  Future<Uint8List> _generarPdfListado(List<VentaCreditoModel> lista) async {
     final formato = DateFormat('dd/MM/yyyy');
     final doc = pw.Document();
     doc.addPage(
       pw.MultiPage(
+        maxPages: 2000,
         pageFormat: PdfPageFormat.a4.landscape,
         margin: const pw.EdgeInsets.all(28),
         header: (context) => pw.Column(
