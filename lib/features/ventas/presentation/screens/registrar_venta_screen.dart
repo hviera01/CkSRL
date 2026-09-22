@@ -2957,6 +2957,12 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
           bytes: bytes,
         );
         if (!ok) _mostrarMensaje('No se pudo imprimir la guía de envío');
+      } else if (negocio.impresoraUsbUsarDriverWindows) {
+        // Mismo caso que la rama de Windows más arriba: sin vía segura para
+        // una impresora que no habla ESC/POS genérico.
+        _mostrarMensaje(
+          'Esta impresora no soporta la guía de envío (activaste "usar el driver de Windows"): usá el ticket normal',
+        );
       } else if (negocio.impresoraRedIp.isNotEmpty) {
         final ok = await _servicioImpresoraRed.imprimir(
           ip: negocio.impresoraRedIp,
@@ -2979,7 +2985,10 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
     NegocioModel negocio,
     bool grande,
   ) async {
-    if (negocio.impresoraRedIp.isNotEmpty) {
+    // Ver el comentario grande en _imprimirEscPosRed: mismo interruptor,
+    // mismo motivo (no reproducir el "papel sin cortar" por red en vez de
+    // USB).
+    if (!negocio.impresoraUsbUsarDriverWindows && negocio.impresoraRedIp.isNotEmpty) {
       try {
         final bytes = await _servicioTicketEscPos.generarGuiaEnvio(
           venta,
@@ -3129,30 +3138,42 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
     VentaModel venta,
     NegocioModel negocio,
   ) async {
-    if (!kIsWeb && Platform.isAndroid && negocio.impresoraBluetoothId.isNotEmpty) {
-      try {
-        final bytes = await _servicioTicketEscPos.generarTicket(venta, negocio);
-        final ok = await _servicioImpresoraBluetooth.imprimir(
-          macAddress: negocio.impresoraBluetoothId,
-          bytes: bytes,
-        );
-        if (ok) return;
-      } catch (_) {
-        // Sigue al siguiente respaldo (impresora de red y, si tampoco, PC
-        // principal/pendiente) en vez de propagar la excepción.
+    // "Impresora especial" (impresoraUsbUsarDriverWindows) significa que esta
+    // impresora NO habla ESC/POS genérico (ej. Star POP10/mPOP, que hablan su
+    // propio protocolo StarPRNT) -ver el comentario grande en NegocioModel y
+    // el mismo interruptor ya respetado en la vía USB/Windows-. Bluetooth y
+    // red mandan los mismos bytes ESC/POS crudos que USB, así que si el
+    // interruptor está activo, mandarlos por acá reproduce EXACTAMENTE el
+    // mismo problema (papel sin cortar alimentando sin parar) que ya se
+    // arregló para USB: se saltan ambos intentos y se cae directo al
+    // respaldo de pedirle a la PC principal (que si sabe hacerlo bien, vía su
+    // driver oficial).
+    if (!negocio.impresoraUsbUsarDriverWindows) {
+      if (!kIsWeb && Platform.isAndroid && negocio.impresoraBluetoothId.isNotEmpty) {
+        try {
+          final bytes = await _servicioTicketEscPos.generarTicket(venta, negocio);
+          final ok = await _servicioImpresoraBluetooth.imprimir(
+            macAddress: negocio.impresoraBluetoothId,
+            bytes: bytes,
+          );
+          if (ok) return;
+        } catch (_) {
+          // Sigue al siguiente respaldo (impresora de red y, si tampoco, PC
+          // principal/pendiente) en vez de propagar la excepción.
+        }
       }
-    }
-    if (negocio.impresoraRedIp.isNotEmpty) {
-      try {
-        final bytes = await _servicioTicketEscPos.generarTicket(venta, negocio);
-        final ok = await _servicioImpresoraRed.imprimir(
-          ip: negocio.impresoraRedIp,
-          puerto: negocio.impresoraRedPuerto,
-          bytes: bytes,
-        );
-        if (ok) return;
-      } catch (_) {
-        // Sigue al respaldo de PC principal/pendiente.
+      if (negocio.impresoraRedIp.isNotEmpty) {
+        try {
+          final bytes = await _servicioTicketEscPos.generarTicket(venta, negocio);
+          final ok = await _servicioImpresoraRed.imprimir(
+            ip: negocio.impresoraRedIp,
+            puerto: negocio.impresoraRedPuerto,
+            bytes: bytes,
+          );
+          if (ok) return;
+        } catch (_) {
+          // Sigue al respaldo de PC principal/pendiente.
+        }
       }
     }
     final ventaRepoLocal = ref.read(ventaRepositoryProvider);

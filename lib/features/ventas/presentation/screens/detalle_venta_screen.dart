@@ -369,7 +369,11 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
     NegocioModel negocio,
     bool esCopia,
   ) async {
-    if (negocio.impresoraRedIp.isNotEmpty) {
+    // "Impresora especial" (impresoraUsbUsarDriverWindows): la Red manda los
+    // mismos bytes ESC/POS crudos que USB, así que si esta impresora no los
+    // entiende (Star POP10/mPOP), no se intenta -se salta directo al
+    // respaldo de pedirle a la PC principal, que sí sabe imprimir bien-.
+    if (!negocio.impresoraUsbUsarDriverWindows && negocio.impresoraRedIp.isNotEmpty) {
       final bytes = await _servicioTicketEscPos.generarTicket(
         venta,
         negocio,
@@ -473,7 +477,11 @@ class _DetalleVentaScreenState extends ConsumerState<DetalleVentaScreen> {
     // ya es la candidata a "PC principal", así que si falla se avisa
     // directo, sin pedirle a nadie más (igual que el resto de la pantalla).
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-      if (negocio.impresoraRedIp.isNotEmpty) {
+      // Ver el mismo comentario en _reimprimirEscPosORemoto: sin este
+      // chequeo, la guía por red reproduce el "papel sin cortar" de la Star
+      // POP10/mPOP aunque el ticket normal ya esté protegido.
+      if (!negocio.impresoraUsbUsarDriverWindows &&
+          negocio.impresoraRedIp.isNotEmpty) {
         try {
           final bytes = await _servicioTicketEscPos.generarGuiaEnvio(
             ventaConEnvio,
