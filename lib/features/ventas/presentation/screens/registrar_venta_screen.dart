@@ -42,6 +42,7 @@ import '../../../../core/services/impresora_red_service.dart';
 import '../../../../core/services/impresora_usb_windows_service.dart';
 import '../../../../core/utils/codigo_barras_utils.dart';
 import '../../../../core/utils/formato_moneda.dart';
+import '../../../../core/utils/impresion_calentamiento.dart';
 import '../../../../core/widgets/barcode_scanner_screen.dart';
 import '../../../../core/widgets/exito_transaccion_overlay.dart';
 import '../../../../core/widgets/pdf_preview_dialog.dart';
@@ -2844,6 +2845,16 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
       return;
     }
     try {
+      // Ver calentarImpresionWindows: "si lo va a tirar mal mejor que no
+      // tire nada" -mismo refuerzo que la impresión en vivo remota-. Si la
+      // impresora no responde bien a esta consulta liviana, no se intenta
+      // el trabajo real: cae al mismo respaldo de siempre (pedirle a la PC
+      // principal, que puede ser esta misma otra vez más tarde, o dejarla
+      // pendiente).
+      if (!await calentarImpresionWindows(nombreImpresora: negocio.impresoraTermicaNombre)) {
+        await _intentarImpresionRemota(venta);
+        return;
+      }
       final impresora = Printer(
         url: negocio.impresoraTermicaUrl,
         name: negocio.impresoraTermicaNombre,

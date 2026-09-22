@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import '../services/impresora_usb_windows_service.dart';
+import '../utils/impresion_calentamiento.dart';
 
 class PdfPreviewDialog extends StatefulWidget {
   final String titulo;
@@ -95,6 +96,14 @@ class _PdfPreviewDialogState extends State<PdfPreviewDialog> {
         );
         if (!ok) throw Exception('No se pudo escribir en la impresora');
         return;
+      }
+      // Ver calentarImpresionWindows: "si lo va a tirar mal mejor que no
+      // tire nada" -mismo refuerzo que la impresión en vivo remota-. Si la
+      // impresora no responde bien a esta consulta liviana, no se intenta
+      // el trabajo real: cae al mismo manejo de error de más abajo
+      // (alFallarImprimir/aviso genérico).
+      if (!await calentarImpresionWindows(nombreImpresora: impresora.name)) {
+        throw Exception('La impresora no respondió a tiempo');
       }
       final generarConFormato = widget.generarPdfConFormato;
       await Printing.directPrintPdf(

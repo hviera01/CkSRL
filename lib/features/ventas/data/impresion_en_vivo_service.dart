@@ -7,6 +7,7 @@ import '../../../core/services/impresora_red_service.dart';
 import 'venta_export_service.dart';
 import 'venta_model.dart';
 import 'venta_ticket_escpos_service.dart';
+import '../../../core/utils/impresion_calentamiento.dart';
 
 /// Imprime automáticamente, sin ningún diálogo ni confirmación, una venta
 /// que llegó como "solicitud de impresión en vivo" desde el celular (ver
@@ -47,6 +48,16 @@ class ImpresionEnVivoService {
       }
     }
     try {
+      // Ver el comentario grande en calentarImpresionWindows: esto es lo que
+      // más importa reforzar acá, justo esta impresión remota es la que
+      // reportó el problema -pedido explícito del dueño: "si lo va a tirar
+      // mal mejor que no tire nada"-. Si esta consulta liviana no encuentra
+      // la impresora respondiendo bien, no se intenta el trabajo real: se
+      // corta acá (la venta sigue pendienteImpresion, disponible para
+      // resolverla a mano) en vez de arriesgarse a gastar papel.
+      if (!await calentarImpresionWindows(nombreImpresora: negocio.impresoraTermicaNombre)) {
+        return false;
+      }
       final impresora = Printer(url: negocio.impresoraTermicaUrl, name: negocio.impresoraTermicaNombre);
       await Printing.directPrintPdf(
         printer: impresora,

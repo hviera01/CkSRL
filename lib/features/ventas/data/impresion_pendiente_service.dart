@@ -13,6 +13,7 @@ import 'venta_export_service.dart';
 import 'venta_model.dart';
 import 'venta_repository.dart';
 import 'venta_ticket_escpos_service.dart';
+import '../../../core/utils/impresion_calentamiento.dart';
 
 /// Imprime una venta pendiente directo desde su lista
 /// (VentasPendientesImpresionDialog), sin tener que abrir el detalle.
@@ -141,6 +142,14 @@ class ImpresionPendienteService {
       return;
     }
     try {
+      // Ver calentarImpresionWindows: "si lo va a tirar mal mejor que no
+      // tire nada" -mismo refuerzo que ImpresionEnVivoService-. Si la
+      // impresora no responde bien a esta consulta liviana, no se intenta
+      // el trabajo real.
+      if (!await calentarImpresionWindows(nombreImpresora: negocio.impresoraTermicaNombre)) {
+        mostrarMensaje('No se pudo confirmar la impresora, quedó pendiente de impresión');
+        return;
+      }
       final impresora = Printer(
         url: negocio.impresoraTermicaUrl,
         name: negocio.impresoraTermicaNombre,
