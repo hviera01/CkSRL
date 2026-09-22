@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:printing/printing.dart';
 import '../providers/actualizacion_provider.dart';
 import '../providers/tabs_provider.dart';
 import '../models/tab_item.dart';
@@ -75,6 +76,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     if (_esPcPrincipal) {
       _confirmarPcPrincipal();
+      _calentarImpresion();
     }
 
     // Reporta este equipo (versión instalada + quién inició sesión) al
@@ -121,6 +123,33 @@ class _AppShellState extends ConsumerState<AppShell> {
       const Duration(seconds: 25),
       (_) => presencia.enviarLatido(),
     );
+  }
+
+  // Reportado por el dueño: una venta impresa en vivo desde el celular (la
+  // PRIMERA impresión de la sesión, apenas se abre esta PC, sin que nadie
+  // haya tocado nada localmente todavía) salió con el ticket bien, pero con
+  // un tramo larguísimo de papel en blanco antes de cortar; probando
+  // reimprimir localmente ahí mismo -ya con la app abierta un rato- salió
+  // perfecto. Mismo mecanismo en ambos casos (Printing.directPrintPdf con un
+  // PdfPageFormat propio, no el que reporte el driver -ver
+  // venta_export_service.dart-), así que la diferencia no está en qué se le
+  // pide al driver sino en CUÁNDO: el plugin de impresión de Windows, la
+  // primera vez que se usa en una sesión nueva, puede no terminar de negociar
+  // el tamaño de página real con el driver antes de imprimir y cae en el
+  // tamaño por defecto (más largo) del driver -en local no se nota porque
+  // para cuando alguien reimprime a mano ya hubo un intento anterior en esa
+  // misma sesión (aunque sea remoto y fallido) que "despertó" el plugin-.
+  // Se dispara un chequeo de impresoras inofensivo (no imprime nada) apenas
+  // arranca esta PC, ANTES de que llegue cualquier solicitud real -remota o
+  // local-, para que esa negociación ya esté hecha cuando haga falta de
+  // verdad. Nunca bloquea el arranque ni avisa nada si falla (sin
+  // impresora/sin permisos/lo que sea): es pura prevención, no una función
+  // que alguien esté esperando.
+  Future<void> _calentarImpresion() async {
+    if (kIsWeb || !Platform.isWindows) return;
+    try {
+      await Printing.listPrinters();
+    } catch (_) {}
   }
 
   Future<void> _chequearActualizacion() async {
