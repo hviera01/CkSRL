@@ -1,19 +1,29 @@
-name: Keep-alive Supabase
+name: Keep-alive Supabase (auto-restore)
 
 on:
   schedule:
-    # Cada 3 días, bien lejos del límite de 7 días de inactividad del plan free.
     - cron: '23 13 */3 * *'
   workflow_dispatch: {}
 
 jobs:
-  ping:
+  keepalive:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase REST API
-        # Se consulta una tabla real (una fila, una columna): la raíz
-        # /rest/v1/ responde 401 solo con la apikey, así que no sirve como
-        # ping y hacía fallar el workflow sin que nadie se enterara.
+      - name: Revisar estado y reanudar si está pausado
+        env:
+          TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+          REF: rlmjmfjeupwsozppwqwn
         run: |
-          curl -sf -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/negocio_config?select=id&limit=1" -o /dev/null
+          # El ping anterior (curl a /rest/v1/negocio_config) corrió sin
+          # errores en gestion_negocios y aun así el proyecto se pausó por
+          # inactividad, así que en vez de simular actividad, este workflow
+          # consulta el estado real por la Management API y reanuda si hace falta.
+          status=$(curl -sf -H "Authorization: Bearer $TOKEN" \
+            "https://api.supabase.com/v1/projects/$REF" | jq -r '.status')
+          echo "Estado actual: $status"
+          if [ "$status" != "ACTIVE_HEALTHY" ]; then
+            echo "Proyecto pausado, reanudando..."
+            curl -sf -X POST -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" -d '{}' \
+              "https://api.supabase.com/v1/projects/$REF/restore"
+          fi
