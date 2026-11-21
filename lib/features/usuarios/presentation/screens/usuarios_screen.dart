@@ -412,6 +412,7 @@ class UsuariosScreen extends ConsumerWidget {
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
+              textCapitalization: TextCapitalization.characters,
               inputFormatters: [mayusculasInputFormatter],
               autocorrect: false,
               enableSuggestions: false,

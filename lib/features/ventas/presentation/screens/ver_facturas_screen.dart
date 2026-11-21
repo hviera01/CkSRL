@@ -513,6 +513,7 @@ class _VerFacturasScreenState extends ConsumerState<VerFacturasScreen> {
               onSubmitted: (_) => _aplicarBusqueda(),
               titulo: 'Buscar por número, cliente, método de pago...',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

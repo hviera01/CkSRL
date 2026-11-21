@@ -910,6 +910,7 @@ class _VentasCreditoScreenState extends ConsumerState<VentasCreditoScreen> {
               onSubmitted: (_) => _buscar(),
               titulo: 'Buscar por factura o cliente...',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

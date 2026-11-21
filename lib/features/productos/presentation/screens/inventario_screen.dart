@@ -2642,6 +2642,7 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen> {
               onSubmitted: (_) => _buscar(),
               titulo: 'Buscar o escanear código de barras...',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

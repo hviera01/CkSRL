@@ -352,6 +352,7 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
               onSubmitted: (_) => _buscar(),
               titulo: 'Buscar por DNI, nombre, dirección o teléfono...',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

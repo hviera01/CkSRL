@@ -520,6 +520,7 @@ class _AuditoriaInventarioScreenState
               numerico: false,
               titulo: 'Buscar o escanear código de barras...',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

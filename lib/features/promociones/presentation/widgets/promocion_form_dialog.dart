@@ -342,6 +342,7 @@ class _PromocionFormDialogState extends ConsumerState<PromocionFormDialog> {
                   controller: _nombreController,
                   numerico: false,
                   child: TextFormField(
+                    textCapitalization: TextCapitalization.characters,
                     inputFormatters: [mayusculasInputFormatter],
                     autocorrect: false,
                     enableSuggestions: false,

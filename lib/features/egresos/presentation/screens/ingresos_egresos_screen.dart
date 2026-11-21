@@ -742,6 +742,7 @@ class _IngresosEgresosScreenState extends ConsumerState<IngresosEgresosScreen> {
       controller: controller,
       numerico: false,
       child: TextField(
+        textCapitalization: TextCapitalization.characters,
         inputFormatters: [mayusculasInputFormatter],
         autocorrect: false,
         enableSuggestions: false,
@@ -920,6 +921,7 @@ class _IngresosEgresosScreenState extends ConsumerState<IngresosEgresosScreen> {
               numerico: false,
               titulo: 'Buscar...',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

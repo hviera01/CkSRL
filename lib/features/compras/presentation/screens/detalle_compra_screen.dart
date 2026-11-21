@@ -177,6 +177,7 @@ class _DetalleCompraScreenState extends ConsumerState<DetalleCompraScreen> {
               numerico: false,
               titulo: 'Motivo (opcional)',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,
@@ -298,6 +299,7 @@ class _DetalleCompraScreenState extends ConsumerState<DetalleCompraScreen> {
                     onSubmitted: (_) => _buscarPorNumero(),
                     titulo: 'Número de documento o de factura...',
                     child: TextField(
+                      textCapitalization: TextCapitalization.characters,
                       inputFormatters: [mayusculasInputFormatter],
                       autocorrect: false,
                       enableSuggestions: false,

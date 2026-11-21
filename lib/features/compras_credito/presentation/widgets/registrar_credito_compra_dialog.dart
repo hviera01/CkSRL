@@ -164,6 +164,7 @@ class _RegistrarCreditoCompraDialogState extends ConsumerState<RegistrarCreditoC
                             controller: _numeroDocumentoController,
                             numerico: false,
                             child: TextField(
+                            textCapitalization: TextCapitalization.characters,
                             inputFormatters: [mayusculasInputFormatter],
                             autocorrect: false,
                             enableSuggestions: false,
@@ -179,6 +180,7 @@ class _RegistrarCreditoCompraDialogState extends ConsumerState<RegistrarCreditoC
                             controller: _noFacturaController,
                             numerico: false,
                             child: TextField(
+                            textCapitalization: TextCapitalization.characters,
                             inputFormatters: [mayusculasInputFormatter],
                             autocorrect: false,
                             enableSuggestions: false,

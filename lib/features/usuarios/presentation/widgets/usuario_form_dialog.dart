@@ -233,6 +233,7 @@ class _UsuarioFormDialogState extends ConsumerState<UsuarioFormDialog> {
                 controller: _documentoController,
                 numerico: false,
                 child: TextField(
+                  textCapitalization: TextCapitalization.characters,
                   inputFormatters: [mayusculasInputFormatter],
                   autocorrect: false,
                   enableSuggestions: false,
@@ -247,6 +248,7 @@ class _UsuarioFormDialogState extends ConsumerState<UsuarioFormDialog> {
                 controller: _nombreController,
                 numerico: false,
                 child: TextField(
+                  textCapitalization: TextCapitalization.characters,
                   inputFormatters: [mayusculasInputFormatter],
                   autocorrect: false,
                   enableSuggestions: false,
@@ -260,6 +262,7 @@ class _UsuarioFormDialogState extends ConsumerState<UsuarioFormDialog> {
                 controller: _correoController,
                 numerico: false,
                 child: TextField(
+                  textCapitalization: TextCapitalization.characters,
                   inputFormatters: [mayusculasInputFormatter],
                   autocorrect: false,
                   enableSuggestions: false,

@@ -208,6 +208,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                           const SizedBox(height: 34),
                           TextField(
+                            textCapitalization: TextCapitalization.characters,
                             inputFormatters: [mayusculasInputFormatter],
                             autocorrect: false,
                             enableSuggestions: false,

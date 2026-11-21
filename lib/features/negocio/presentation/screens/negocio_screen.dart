@@ -208,6 +208,7 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
                   numerico: false,
                   titulo: 'Código de acceso',
                   child: TextField(
+                    textCapitalization: TextCapitalization.characters,
                     inputFormatters: [mayusculasInputFormatter],
                     autocorrect: false,
                     enableSuggestions: false,
@@ -658,6 +659,7 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
         controller: controller,
         numerico: false,
         child: TextField(
+          textCapitalization: TextCapitalization.characters,
           inputFormatters: [mayusculasInputFormatter],
           autocorrect: false,
           enableSuggestions: false,
@@ -783,6 +785,7 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
                   controller: _rangoPrefijoController,
                   numerico: false,
                   child: TextField(
+                    textCapitalization: TextCapitalization.characters,
                     inputFormatters: [mayusculasInputFormatter],
                     autocorrect: false,
                     enableSuggestions: false,
@@ -1148,6 +1151,7 @@ class _NegocioFormState extends ConsumerState<_NegocioForm> {
                     numerico: false,
                     titulo: 'IP de la impresora',
                     child: TextField(
+                      textCapitalization: TextCapitalization.characters,
                       inputFormatters: [mayusculasInputFormatter],
                       autocorrect: false,
                       enableSuggestions: false,

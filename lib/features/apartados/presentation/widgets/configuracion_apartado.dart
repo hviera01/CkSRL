@@ -351,6 +351,7 @@ class ConfiguracionApartadoForm extends StatelessWidget {
                   controller: controller.clienteController,
                   numerico: false,
                   child: TextField(
+                    textCapitalization: TextCapitalization.characters,
                     inputFormatters: [mayusculasInputFormatter],
                     autocorrect: false,
                     enableSuggestions: false,

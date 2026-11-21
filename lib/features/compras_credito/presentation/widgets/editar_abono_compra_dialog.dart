@@ -224,6 +224,7 @@ class _EditarAbonoCompraDialogState extends ConsumerState<EditarAbonoCompraDialo
                         controller: _numeroReciboController,
                         numerico: false,
                         child: TextField(
+                          textCapitalization: TextCapitalization.characters,
                           inputFormatters: [mayusculasInputFormatter],
                           autocorrect: false,
                           enableSuggestions: false,

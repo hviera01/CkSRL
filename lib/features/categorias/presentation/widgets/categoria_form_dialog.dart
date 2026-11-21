@@ -171,6 +171,7 @@ class _CategoriaFormDialogState extends ConsumerState<CategoriaFormDialog> {
               numerico: false,
               titulo: 'Descripción',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

@@ -778,6 +778,7 @@ class _CierreCajaScreenState extends ConsumerState<CierreCajaScreen> {
             numerico: false,
             titulo: 'Observaciones del cierre (opcional)',
             child: TextField(
+              textCapitalization: TextCapitalization.characters,
               inputFormatters: [mayusculasInputFormatter],
               autocorrect: false,
               enableSuggestions: false,

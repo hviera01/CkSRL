@@ -258,6 +258,7 @@ class _BuscarProductoCompraDialogState
                               onSubmitted: (_) => _buscar(),
                               titulo: 'Escribí y presioná Enter para buscar...',
                               child: TextField(
+                                textCapitalization: TextCapitalization.characters,
                                 inputFormatters: [mayusculasInputFormatter],
                                 autocorrect: false,
                                 enableSuggestions: false,

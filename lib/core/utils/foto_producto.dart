@@ -1,10 +1,12 @@
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 
+import 'foto_producto_stub.dart'
+    if (dart.library.js_interop) 'foto_producto_web.dart'
+    as impl;
+
 const _ladoMaximo = 1600;
-const _pesoQueNoNecesitaReducirse = 350 * 1024;
+const _calidad = 85;
 
 class FotoPreparada {
   final Uint8List bytes;
@@ -17,22 +19,20 @@ Future<FotoPreparada> prepararFotoProducto(Uint8List original, String nombreOrig
   final base = nombreOriginal.contains('.')
       ? nombreOriginal.substring(0, nombreOriginal.lastIndexOf('.'))
       : nombreOriginal;
-  final extension = nombreOriginal.contains('.')
+  var extension = nombreOriginal.contains('.')
       ? nombreOriginal.substring(nombreOriginal.lastIndexOf('.') + 1).toLowerCase()
       : 'jpg';
-
-  if (kIsWeb) {
-    return FotoPreparada(original, '$base.$extension');
-  }
-
-  final esJpg = extension == 'jpg' || extension == 'jpeg';
-  if (esJpg && original.length <= _pesoQueNoNecesitaReducirse) {
-    return FotoPreparada(original, '$base.jpg');
-  }
+  if (extension == 'jpeg') extension = 'jpg';
 
   try {
-    final reducida = await compute(_reducirFoto, original);
-    if (reducida != null) return FotoPreparada(reducida, '$base.jpg');
+    final Uint8List? reducida = kIsWeb
+        ? await impl.reducirFotoEnNavegador(original, _ladoMaximo, _calidad / 100)
+        : await compute(_reducirFoto, original);
+    if (reducida != null &&
+        reducida.isNotEmpty &&
+        (reducida.length < original.length || extension != 'jpg')) {
+      return FotoPreparada(reducida, '$base.jpg');
+    }
   } catch (_) {}
   return FotoPreparada(original, '$base.$extension');
 }
@@ -50,5 +50,10 @@ Uint8List? _reducirFoto(Uint8List bytes) {
       interpolation: img.Interpolation.average,
     );
   }
-  return Uint8List.fromList(img.encodeJpg(imagen, quality: 85));
+  if (imagen.hasAlpha) {
+    final fondo = img.Image(width: imagen.width, height: imagen.height)
+      ..clear(img.ColorRgb8(255, 255, 255));
+    imagen = img.compositeImage(fondo, imagen);
+  }
+  return Uint8List.fromList(img.encodeJpg(imagen, quality: _calidad));
 }

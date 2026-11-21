@@ -356,6 +356,7 @@ class _ApartadosScreenState extends ConsumerState<ApartadosScreen> {
               onSubmitted: (_) => _buscar(),
               titulo: 'Buscar por cliente...',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

@@ -834,6 +834,7 @@ class _ReporteComprasScreenState extends ConsumerState<ReporteComprasScreen> {
               onSubmitted: (_) => _aplicarBusqueda(),
               titulo: 'Buscar por factura, proveedor...',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

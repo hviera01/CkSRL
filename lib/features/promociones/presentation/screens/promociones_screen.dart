@@ -273,6 +273,7 @@ class _PromocionesScreenState extends ConsumerState<PromocionesScreen> {
               onSubmitted: (_) => _buscar(),
               titulo: 'Buscar por nombre o producto...',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

@@ -162,6 +162,7 @@ class _UnirFacturasDialogState extends ConsumerState<UnirFacturasDialog> {
                       controller: _documentoController,
                       numerico: false,
                       child: TextField(
+                      textCapitalization: TextCapitalization.characters,
                       inputFormatters: [mayusculasInputFormatter],
                       autocorrect: false,
                       enableSuggestions: false,
@@ -175,6 +176,7 @@ class _UnirFacturasDialogState extends ConsumerState<UnirFacturasDialog> {
                       controller: _nombreController,
                       numerico: false,
                       child: TextField(
+                      textCapitalization: TextCapitalization.characters,
                       inputFormatters: [mayusculasInputFormatter],
                       autocorrect: false,
                       enableSuggestions: false,

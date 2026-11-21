@@ -134,6 +134,7 @@ class _CambiarUsuarioVentaDialogState
               onSubmitted: (_) => _confirmar(),
               titulo: 'Código de acceso',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

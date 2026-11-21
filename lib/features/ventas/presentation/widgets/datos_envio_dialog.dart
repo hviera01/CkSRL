@@ -183,6 +183,7 @@ class _DatosEnvioDialogState extends State<DatosEnvioDialog> {
       controller: controller,
       maxLines: lineas,
       keyboardType: teclado,
+      textCapitalization: TextCapitalization.characters,
       inputFormatters: mayusculas ? [mayusculasInputFormatter] : null,
       autocorrect: false,
       enableSuggestions: false,

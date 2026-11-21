@@ -839,6 +839,7 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
               onSubmitted: (_) => _aplicarBusqueda(),
               titulo: 'Buscar por documento, cliente, método de pago...',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

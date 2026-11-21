@@ -5089,6 +5089,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                                   numerico: false,
                                   titulo: 'Vacío = Consumidor Final',
                                   child: TextField(
+                                    textCapitalization: TextCapitalization.characters,
                                     inputFormatters: [mayusculasInputFormatter],
                                     autocorrect: false,
                                     enableSuggestions: false,
@@ -5165,6 +5166,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                   controller: _documentoClienteController,
                   numerico: false,
                   child: TextField(
+                    textCapitalization: TextCapitalization.characters,
                     inputFormatters: [mayusculasInputFormatter],
                     autocorrect: false,
                     enableSuggestions: false,
@@ -5438,6 +5440,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                   controller: _ocController,
                   numerico: false,
                   child: TextField(
+                    textCapitalization: TextCapitalization.characters,
                     inputFormatters: [mayusculasInputFormatter],
                     autocorrect: false,
                     enableSuggestions: false,
@@ -5456,6 +5459,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                   controller: _regExoneradoController,
                   numerico: false,
                   child: TextField(
+                    textCapitalization: TextCapitalization.characters,
                     inputFormatters: [mayusculasInputFormatter],
                     autocorrect: false,
                     enableSuggestions: false,
@@ -5475,6 +5479,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                   controller: _regSagController,
                   numerico: false,
                   child: TextField(
+                    textCapitalization: TextCapitalization.characters,
                     inputFormatters: [mayusculasInputFormatter],
                     autocorrect: false,
                     enableSuggestions: false,
@@ -5494,6 +5499,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                   controller: _observacionesController,
                   numerico: false,
                   child: TextField(
+                    textCapitalization: TextCapitalization.characters,
                     inputFormatters: [mayusculasInputFormatter],
                     autocorrect: false,
                     enableSuggestions: false,
@@ -5654,6 +5660,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                                   numerico: false,
                                   titulo: 'Vacío = Consumidor Final',
                                   child: TextField(
+                                    textCapitalization: TextCapitalization.characters,
                                     inputFormatters: [mayusculasInputFormatter],
                                     autocorrect: false,
                                     enableSuggestions: false,
@@ -5730,6 +5737,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                   controller: _documentoClienteController,
                   numerico: false,
                   child: TextField(
+                    textCapitalization: TextCapitalization.characters,
                     inputFormatters: [mayusculasInputFormatter],
                     autocorrect: false,
                     enableSuggestions: false,
@@ -5941,6 +5949,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                                 controller: _descuentoGlobalController,
                                 numerico: true,
                                 child: TextField(
+                                  textCapitalization: TextCapitalization.characters,
                                   inputFormatters: [mayusculasInputFormatter],
                                   autocorrect: false,
                                   enableSuggestions: false,
@@ -5974,6 +5983,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                                 controller: _ocController,
                                 numerico: false,
                                 child: TextField(
+                                  textCapitalization: TextCapitalization.characters,
                                   inputFormatters: [mayusculasInputFormatter],
                                   autocorrect: false,
                                   enableSuggestions: false,
@@ -5993,6 +6003,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                                 controller: _regExoneradoController,
                                 numerico: false,
                                 child: TextField(
+                                  textCapitalization: TextCapitalization.characters,
                                   inputFormatters: [mayusculasInputFormatter],
                                   autocorrect: false,
                                   enableSuggestions: false,
@@ -6012,6 +6023,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                                 controller: _regSagController,
                                 numerico: false,
                                 child: TextField(
+                                  textCapitalization: TextCapitalization.characters,
                                   inputFormatters: [mayusculasInputFormatter],
                                   autocorrect: false,
                                   enableSuggestions: false,
@@ -6031,6 +6043,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
                                 controller: _observacionesController,
                                 numerico: false,
                                 child: TextField(
+                                  textCapitalization: TextCapitalization.characters,
                                   inputFormatters: [mayusculasInputFormatter],
                                   autocorrect: false,
                                   enableSuggestions: false,
@@ -6079,6 +6092,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
       numerico: false,
       onSubmitted: (_) => _confirmarCodigoBarras(),
       child: TextField(
+        textCapitalization: TextCapitalization.characters,
         inputFormatters: [mayusculasInputFormatter],
         autocorrect: false,
         enableSuggestions: false,
@@ -7149,6 +7163,7 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
           controller: ctrl,
           numerico: false,
           child: TextField(
+            textCapitalization: TextCapitalization.characters,
             inputFormatters: [mayusculasInputFormatter],
             autocorrect: false,
             enableSuggestions: false,

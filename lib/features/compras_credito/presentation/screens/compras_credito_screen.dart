@@ -750,6 +750,7 @@ class _ComprasCreditoScreenState extends ConsumerState<ComprasCreditoScreen> {
               onSubmitted: (_) => _buscar(),
               titulo: 'Buscar por documento, factura o proveedor...',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

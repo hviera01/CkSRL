@@ -800,6 +800,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
               controller: _codigoController,
               numerico: false,
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,
@@ -816,6 +817,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
               controller: _codigoBarrasController,
               numerico: false,
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,
@@ -843,6 +845,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
         controller: _nombreController,
         numerico: false,
         child: TextField(
+          textCapitalization: TextCapitalization.characters,
           inputFormatters: [mayusculasInputFormatter],
           autocorrect: false,
           enableSuggestions: false,
@@ -857,6 +860,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
         controller: _descripcionController,
         numerico: false,
         child: TextField(
+          textCapitalization: TextCapitalization.characters,
           inputFormatters: [mayusculasInputFormatter],
           autocorrect: false,
           enableSuggestions: false,
@@ -1172,6 +1176,7 @@ class _ProductoFormDialogState extends ConsumerState<ProductoFormDialog> {
           controller: _busquedaComponenteController,
           numerico: false,
           child: TextField(
+            textCapitalization: TextCapitalization.characters,
             inputFormatters: [mayusculasInputFormatter],
             autocorrect: false,
             enableSuggestions: false,

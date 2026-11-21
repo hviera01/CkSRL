@@ -231,6 +231,7 @@ class _RegistrarCreditoDialogState
                       controller: _numeroDocumentoController,
                       numerico: false,
                       child: TextField(
+                        textCapitalization: TextCapitalization.characters,
                         inputFormatters: [mayusculasInputFormatter],
                         autocorrect: false,
                         enableSuggestions: false,
@@ -249,6 +250,7 @@ class _RegistrarCreditoDialogState
                             controller: _clienteController,
                             numerico: false,
                             child: TextField(
+                              textCapitalization: TextCapitalization.characters,
                               inputFormatters: [mayusculasInputFormatter],
                               autocorrect: false,
                               enableSuggestions: false,
@@ -279,6 +281,7 @@ class _RegistrarCreditoDialogState
                       controller: _rtnController,
                       numerico: false,
                       child: TextField(
+                        textCapitalization: TextCapitalization.characters,
                         inputFormatters: [mayusculasInputFormatter],
                         autocorrect: false,
                         enableSuggestions: false,
@@ -331,6 +334,7 @@ class _RegistrarCreditoDialogState
                             controller: _montoTotalController,
                             numerico: true,
                             child: TextField(
+                              textCapitalization: TextCapitalization.characters,
                               inputFormatters: [mayusculasInputFormatter],
                               autocorrect: false,
                               enableSuggestions: false,
@@ -350,6 +354,7 @@ class _RegistrarCreditoDialogState
                             controller: _saldoPendienteController,
                             numerico: true,
                             child: TextField(
+                              textCapitalization: TextCapitalization.characters,
                               inputFormatters: [mayusculasInputFormatter],
                               autocorrect: false,
                               enableSuggestions: false,

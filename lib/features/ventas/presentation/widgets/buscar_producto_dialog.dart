@@ -499,6 +499,7 @@ class _BuscarProductoDialogState extends ConsumerState<BuscarProductoDialog> {
                               onSubmitted: (_) => _buscar(),
                               titulo: 'Escribí y presioná Enter para buscar...',
                               child: TextField(
+                                textCapitalization: TextCapitalization.characters,
                                 inputFormatters: [mayusculasInputFormatter],
                                 autocorrect: false,
                                 enableSuggestions: false,

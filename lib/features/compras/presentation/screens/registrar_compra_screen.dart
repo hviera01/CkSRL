@@ -338,6 +338,7 @@ class _RegistrarCompraScreenState extends ConsumerState<RegistrarCompraScreen> {
       numerico: false,
       onSubmitted: (_) => _confirmarCodigoBarras(),
       child: TextField(
+        textCapitalization: TextCapitalization.characters,
         inputFormatters: [mayusculasInputFormatter],
         autocorrect: false,
         enableSuggestions: false,
@@ -1113,6 +1114,7 @@ class _RegistrarCompraScreenState extends ConsumerState<RegistrarCompraScreen> {
                   controller: _noFacturaController,
                   numerico: false,
                   child: TextField(
+                    textCapitalization: TextCapitalization.characters,
                     inputFormatters: [mayusculasInputFormatter],
                     autocorrect: false,
                     enableSuggestions: false,
@@ -1287,6 +1289,7 @@ class _RegistrarCompraScreenState extends ConsumerState<RegistrarCompraScreen> {
                                 controller: _descuentoGlobalController,
                                 numerico: true,
                                 child: TextField(
+                                  textCapitalization: TextCapitalization.characters,
                                   inputFormatters: [mayusculasInputFormatter],
                                   autocorrect: false,
                                   enableSuggestions: false,
@@ -1320,6 +1323,7 @@ class _RegistrarCompraScreenState extends ConsumerState<RegistrarCompraScreen> {
                                 controller: _isvController,
                                 numerico: true,
                                 child: TextField(
+                                  textCapitalization: TextCapitalization.characters,
                                   inputFormatters: [mayusculasInputFormatter],
                                   autocorrect: false,
                                   enableSuggestions: false,
@@ -1348,6 +1352,7 @@ class _RegistrarCompraScreenState extends ConsumerState<RegistrarCompraScreen> {
                                 controller: _ajusteManualController,
                                 numerico: true,
                                 child: TextField(
+                                  textCapitalization: TextCapitalization.characters,
                                   inputFormatters: [mayusculasInputFormatter],
                                   autocorrect: false,
                                   enableSuggestions: false,

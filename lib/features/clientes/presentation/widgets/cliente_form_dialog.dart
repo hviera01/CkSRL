@@ -220,6 +220,7 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
                       controller: _dniController,
                       numerico: false,
                       child: TextField(
+                        textCapitalization: TextCapitalization.characters,
                         inputFormatters: [mayusculasInputFormatter],
                         autocorrect: false,
                         enableSuggestions: false,
@@ -234,6 +235,7 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
                       controller: _nombreController,
                       numerico: false,
                       child: TextField(
+                        textCapitalization: TextCapitalization.characters,
                         inputFormatters: [mayusculasInputFormatter],
                         autocorrect: false,
                         enableSuggestions: false,
@@ -247,6 +249,7 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
                       controller: _direccionController,
                       numerico: false,
                       child: TextField(
+                        textCapitalization: TextCapitalization.characters,
                         inputFormatters: [mayusculasInputFormatter],
                         autocorrect: false,
                         enableSuggestions: false,
@@ -260,6 +263,7 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
                       controller: _telefonoController,
                       numerico: false,
                       child: TextField(
+                        textCapitalization: TextCapitalization.characters,
                         inputFormatters: [mayusculasInputFormatter],
                         autocorrect: false,
                         enableSuggestions: false,

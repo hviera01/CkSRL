@@ -330,6 +330,7 @@ class _AjusteStockDialogState extends ConsumerState<AjusteStockDialog> {
                 controller: _motivoController,
                 numerico: false,
                 child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

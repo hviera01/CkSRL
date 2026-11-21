@@ -101,6 +101,7 @@ class _SeleccionarProductosDialogState extends ConsumerState<SeleccionarProducto
                           numerico: false,
                           titulo: 'Buscar producto...',
                           child: TextField(
+                          textCapitalization: TextCapitalization.characters,
                           inputFormatters: [mayusculasInputFormatter],
                           autocorrect: false,
                           enableSuggestions: false,

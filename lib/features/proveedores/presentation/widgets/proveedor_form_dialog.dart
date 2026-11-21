@@ -206,6 +206,7 @@ class _ProveedorFormDialogState extends ConsumerState<ProveedorFormDialog> {
                       controller: _rtnController,
                       numerico: false,
                       child: TextField(
+                        textCapitalization: TextCapitalization.characters,
                         inputFormatters: [mayusculasInputFormatter],
                         autocorrect: false,
                         enableSuggestions: false,
@@ -220,6 +221,7 @@ class _ProveedorFormDialogState extends ConsumerState<ProveedorFormDialog> {
                       controller: _razonSocialController,
                       numerico: false,
                       child: TextField(
+                        textCapitalization: TextCapitalization.characters,
                         inputFormatters: [mayusculasInputFormatter],
                         autocorrect: false,
                         enableSuggestions: false,
@@ -233,6 +235,7 @@ class _ProveedorFormDialogState extends ConsumerState<ProveedorFormDialog> {
                       controller: _correoController,
                       numerico: false,
                       child: TextField(
+                        textCapitalization: TextCapitalization.characters,
                         inputFormatters: [mayusculasInputFormatter],
                         autocorrect: false,
                         enableSuggestions: false,
@@ -248,6 +251,7 @@ class _ProveedorFormDialogState extends ConsumerState<ProveedorFormDialog> {
                       controller: _telefonoController,
                       numerico: false,
                       child: TextField(
+                        textCapitalization: TextCapitalization.characters,
                         inputFormatters: [mayusculasInputFormatter],
                         autocorrect: false,
                         enableSuggestions: false,

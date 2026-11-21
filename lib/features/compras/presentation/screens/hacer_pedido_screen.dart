@@ -313,6 +313,7 @@ class _HacerPedidoScreenState extends ConsumerState<HacerPedidoScreen> {
               controller: _observacionesController,
               numerico: false,
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

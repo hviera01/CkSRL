@@ -98,6 +98,7 @@ class _VincularPendienteDialogState extends State<VincularPendienteDialog> {
                         numerico: false,
                         titulo: 'Buscar producto o factura...',
                         child: TextField(
+                        textCapitalization: TextCapitalization.characters,
                         inputFormatters: [mayusculasInputFormatter],
                         autocorrect: false,
                         enableSuggestions: false,

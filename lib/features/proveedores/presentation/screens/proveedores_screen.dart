@@ -335,6 +335,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
               onSubmitted: (_) => _buscar(),
               titulo: 'Buscar por RTN, razón social, correo o teléfono...',
               child: TextField(
+                textCapitalization: TextCapitalization.characters,
                 inputFormatters: [mayusculasInputFormatter],
                 autocorrect: false,
                 enableSuggestions: false,

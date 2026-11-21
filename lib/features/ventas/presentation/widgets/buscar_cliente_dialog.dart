@@ -143,6 +143,7 @@ class _BuscarClienteDialogState extends ConsumerState<BuscarClienteDialog> {
                             onSubmitted: (_) => _buscar(),
                             titulo: 'Buscar por DNI o nombre...',
                             child: TextField(
+                              textCapitalization: TextCapitalization.characters,
                               inputFormatters: [mayusculasInputFormatter],
                               autocorrect: false,
                               enableSuggestions: false,

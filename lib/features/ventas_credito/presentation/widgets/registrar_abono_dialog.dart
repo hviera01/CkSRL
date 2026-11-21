@@ -368,6 +368,7 @@ class _RegistrarAbonoDialogState extends ConsumerState<RegistrarAbonoDialog> {
                         controller: _numeroReciboController,
                         numerico: false,
                         child: TextField(
+                          textCapitalization: TextCapitalization.characters,
                           inputFormatters: [mayusculasInputFormatter],
                           autocorrect: false,
                           enableSuggestions: false,
